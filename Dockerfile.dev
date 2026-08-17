@@ -1,0 +1,7 @@
+FROM eclipse-temurin:21-jdk
+
+WORKDIR /app
+
+EXPOSE 8080 5005
+
+CMD ["sh", "-c", "chmod +x ./mvnw && ./mvnw spring-boot:run -Dspring-boot.run.jvmArguments=\"${SPRING_BOOT_MAVEN_JVM_ARGUMENTS:-}\""]
