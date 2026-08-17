@@ -218,6 +218,135 @@ class AuthSessionApiTests {
                 .andExpect(jsonPath("$.role").value("STUDENT"));
     }
 
+    @Test
+    void changePasswordRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/api/auth/change-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "currentPassword": "Password123",
+                                  "newPassword": "NewPassword123",
+                                  "confirmNewPassword": "NewPassword123"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void changePasswordUpdatesPasswordClearsMustChangePasswordAndRevokesRefreshTokens() throws Exception {
+        User teacher = saveUser("teacher@example.com", "Password123", UserRole.TEACHER, true, false, true);
+        Cookie refreshCookie = loginAndGetRefreshCookie("teacher@example.com", "Password123");
+        String accessToken = loginAndGetAccessToken("teacher@example.com", "Password123");
+
+        mockMvc.perform(post("/api/auth/change-password")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "currentPassword": "Password123",
+                                  "newPassword": "NewPassword123",
+                                  "confirmNewPassword": "NewPassword123"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Password changed successfully."));
+
+        User updatedTeacher = userRepository.findById(teacher.getId()).orElseThrow();
+        assertThat(passwordEncoder.matches("Password123", updatedTeacher.getPasswordHash())).isFalse();
+        assertThat(passwordEncoder.matches("NewPassword123", updatedTeacher.getPasswordHash())).isTrue();
+        assertThat(updatedTeacher.isMustChangePassword()).isFalse();
+        assertThat(refreshTokenRepository.findAllByUserAndRevokedFalse(updatedTeacher)).isEmpty();
+
+        mockMvc.perform(post("/api/auth/refresh").cookie(refreshCookie))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("Refresh token is invalid."));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "teacher@example.com",
+                                  "password": "Password123"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "teacher@example.com",
+                                  "password": "NewPassword123"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.mustChangePassword").value(false));
+    }
+
+    @Test
+    void changePasswordRejectsIncorrectCurrentPassword() throws Exception {
+        saveUser("student@example.com", "Password123", UserRole.STUDENT, true, false, false);
+        String accessToken = loginAndGetAccessToken("student@example.com", "Password123");
+
+        mockMvc.perform(post("/api/auth/change-password")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "currentPassword": "WrongPassword123",
+                                  "newPassword": "NewPassword123",
+                                  "confirmNewPassword": "NewPassword123"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Current password is incorrect."));
+    }
+
+    @Test
+    void changePasswordRejectsInvalidNewPasswordRequests() throws Exception {
+        saveUser("student@example.com", "Password123", UserRole.STUDENT, true, false, false);
+        String accessToken = loginAndGetAccessToken("student@example.com", "Password123");
+
+        mockMvc.perform(post("/api/auth/change-password")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "currentPassword": "Password123",
+                                  "newPassword": "NewPassword123",
+                                  "confirmNewPassword": "DifferentPassword123"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Password confirmation does not match."));
+
+        mockMvc.perform(post("/api/auth/change-password")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "currentPassword": "Password123",
+                                  "newPassword": "password",
+                                  "confirmNewPassword": "password"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Password must be at least 8 characters and contain both letters and numbers."));
+
+        mockMvc.perform(post("/api/auth/change-password")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "currentPassword": "Password123",
+                                  "newPassword": "Password123",
+                                  "confirmNewPassword": "Password123"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("New password must be different from current password."));
+    }
+
     private User saveUser(String email, String password, UserRole role, boolean active, boolean locked, boolean mustChangePassword) {
         User user = new User();
         user.setEmail(email);

@@ -82,7 +82,8 @@ class RefreshTokenService {
         return refreshToken;
     }
 
-    private void revokeAllActiveTokens(User user) {
+    @Transactional
+    void revokeAllActiveTokens(User user) {
         refreshTokenRepository.findAllByUserAndRevokedFalse(user).forEach(this::revoke);
     }
 

@@ -2,6 +2,7 @@ package com.learne.backend.auth.session;
 
 import com.learne.backend.auth.session.dto.AuthTokenResponse;
 import com.learne.backend.auth.session.dto.AuthUserResponse;
+import com.learne.backend.auth.session.dto.ChangePasswordRequest;
 import com.learne.backend.auth.session.dto.LoginRequest;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.shared.api.ApiException;
@@ -73,6 +74,12 @@ class AuthSessionController {
     @GetMapping("/me")
     AuthUserResponse me(Authentication authentication) {
         return AuthUserResponse.from((User) authentication.getPrincipal());
+    }
+
+    @PostMapping("/change-password")
+    ApiMessageResponse changePassword(@Valid @RequestBody ChangePasswordRequest request, Authentication authentication) {
+        authSessionService.changePassword((User) authentication.getPrincipal(), request);
+        return new ApiMessageResponse("Password changed successfully.");
     }
 
     private String refreshTokenFromCookie(HttpServletRequest request) {

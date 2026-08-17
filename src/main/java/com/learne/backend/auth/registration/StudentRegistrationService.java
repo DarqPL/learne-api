@@ -5,6 +5,7 @@ import com.learne.backend.auth.registration.dto.ResendRegistrationOtpRequest;
 import com.learne.backend.auth.registration.dto.VerifyRegistrationOtpRequest;
 import com.learne.backend.domain.auth.RegistrationOtp;
 import com.learne.backend.domain.auth.RegistrationOtpRepository;
+import com.learne.backend.domain.auth.PasswordPolicy;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
@@ -20,6 +21,7 @@ public class StudentRegistrationService {
     private final RegistrationOtpRepository registrationOtpRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final PasswordPolicy passwordPolicy;
     private final OtpGenerator otpGenerator;
     private final RegistrationMailService registrationMailService;
 
@@ -27,12 +29,14 @@ public class StudentRegistrationService {
             RegistrationOtpRepository registrationOtpRepository,
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
+            PasswordPolicy passwordPolicy,
             OtpGenerator otpGenerator,
             RegistrationMailService registrationMailService
     ) {
         this.registrationOtpRepository = registrationOtpRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.passwordPolicy = passwordPolicy;
         this.otpGenerator = otpGenerator;
         this.registrationMailService = registrationMailService;
     }
@@ -40,7 +44,7 @@ public class StudentRegistrationService {
     @Transactional
     public void requestOtp(RequestRegistrationOtpRequest request) {
         String email = normalizeEmail(request.email());
-        validatePassword(request.password(), request.confirmPassword());
+        passwordPolicy.validate(request.password(), request.confirmPassword());
         if (userRepository.findByEmail(email).isPresent()) {
             throw new ApiException(HttpStatus.CONFLICT, "Email is already registered.");
         }
@@ -109,17 +113,6 @@ public class StudentRegistrationService {
         pending.setAttempts(0);
         registrationOtpRepository.save(pending);
         registrationMailService.sendRegistrationOtp(email, otp);
-    }
-
-    private void validatePassword(String password, String confirmPassword) {
-        if (!password.equals(confirmPassword)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Password confirmation does not match.");
-        }
-        boolean hasLetter = password.chars().anyMatch(Character::isLetter);
-        boolean hasDigit = password.chars().anyMatch(Character::isDigit);
-        if (password.length() < 8 || !hasLetter || !hasDigit) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Password must be at least 8 characters and contain both letters and numbers.");
-        }
     }
 
     private String normalizeEmail(String email) {
