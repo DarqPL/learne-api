@@ -41,6 +41,7 @@ public class SecurityConfig {
                                 "/api/auth/register/verify-otp",
                                 "/api/auth/register/resend-otp"
                         ).permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

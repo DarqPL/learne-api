@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-class RefreshTokenService {
+public class RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final RefreshTokenGenerator refreshTokenGenerator;
@@ -83,7 +83,7 @@ class RefreshTokenService {
     }
 
     @Transactional
-    void revokeAllActiveTokens(User user) {
+    public void revokeAllActiveTokens(User user) {
         refreshTokenRepository.findAllByUserAndRevokedFalse(user).forEach(this::revoke);
     }
 
