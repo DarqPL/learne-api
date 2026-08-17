@@ -3,7 +3,9 @@ package com.learne.backend.auth.session;
 import com.learne.backend.auth.session.dto.AuthTokenResponse;
 import com.learne.backend.auth.session.dto.AuthUserResponse;
 import com.learne.backend.auth.session.dto.ChangePasswordRequest;
+import com.learne.backend.auth.session.dto.ConfirmPasswordResetRequest;
 import com.learne.backend.auth.session.dto.LoginRequest;
+import com.learne.backend.auth.session.dto.PasswordResetRequest;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.shared.api.ApiMessageResponse;
@@ -28,10 +30,12 @@ import org.springframework.web.bind.annotation.RestController;
 class AuthSessionController {
 
     private final AuthSessionService authSessionService;
+    private final PasswordResetService passwordResetService;
     private final AuthProperties authProperties;
 
-    AuthSessionController(AuthSessionService authSessionService, AuthProperties authProperties) {
+    AuthSessionController(AuthSessionService authSessionService, PasswordResetService passwordResetService, AuthProperties authProperties) {
         this.authSessionService = authSessionService;
+        this.passwordResetService = passwordResetService;
         this.authProperties = authProperties;
     }
 
@@ -80,6 +84,18 @@ class AuthSessionController {
     ApiMessageResponse changePassword(@Valid @RequestBody ChangePasswordRequest request, Authentication authentication) {
         authSessionService.changePassword((User) authentication.getPrincipal(), request);
         return new ApiMessageResponse("Password changed successfully.");
+    }
+
+    @PostMapping("/password-reset/request")
+    ApiMessageResponse requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {
+        passwordResetService.requestReset(request);
+        return new ApiMessageResponse(PasswordResetService.REQUEST_MESSAGE);
+    }
+
+    @PostMapping("/password-reset/confirm")
+    ApiMessageResponse confirmPasswordReset(@Valid @RequestBody ConfirmPasswordResetRequest request) {
+        passwordResetService.confirmReset(request);
+        return new ApiMessageResponse("Password reset successfully.");
     }
 
     private String refreshTokenFromCookie(HttpServletRequest request) {
