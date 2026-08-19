@@ -221,6 +221,10 @@ class TeacherProfileApiTests {
         saveProfile(whitespaceBioTeacher, "   ", "Communication, Grammar", TeacherProfileStatus.ACTIVE);
         User whitespaceExpertiseTeacher = saveUser("whitespace-expertise-teacher@example.com", UserRole.TEACHER);
         saveProfile(whitespaceExpertiseTeacher, "Giang vien tieng Anh giao tiep", "   ", TeacherProfileStatus.ACTIVE);
+        User tabNewlineBioTeacher = saveUser("tab-newline-bio-teacher@example.com", UserRole.TEACHER);
+        saveProfile(tabNewlineBioTeacher, "\t\n", "Communication, Grammar", TeacherProfileStatus.ACTIVE);
+        User tabNewlineExpertiseTeacher = saveUser("tab-newline-expertise-teacher@example.com", UserRole.TEACHER);
+        saveProfile(tabNewlineExpertiseTeacher, "Giang vien tieng Anh giao tiep", "\t\n", TeacherProfileStatus.ACTIVE);
         String studentToken = loginAndGetAccessToken(student.getEmail());
 
         mockMvc.perform(get("/api/teachers")
@@ -279,6 +283,10 @@ class TeacherProfileApiTests {
         saveProfile(whitespaceBioTeacher, "   ", "Communication, Grammar", TeacherProfileStatus.ACTIVE);
         User whitespaceExpertiseTeacher = saveUser("whitespace-expertise-teacher@example.com", UserRole.TEACHER);
         saveProfile(whitespaceExpertiseTeacher, "Giang vien tieng Anh giao tiep", "   ", TeacherProfileStatus.ACTIVE);
+        User tabNewlineBioTeacher = saveUser("tab-newline-bio-teacher@example.com", UserRole.TEACHER);
+        saveProfile(tabNewlineBioTeacher, "\t\n", "Communication, Grammar", TeacherProfileStatus.ACTIVE);
+        User tabNewlineExpertiseTeacher = saveUser("tab-newline-expertise-teacher@example.com", UserRole.TEACHER);
+        saveProfile(tabNewlineExpertiseTeacher, "Giang vien tieng Anh giao tiep", "\t\n", TeacherProfileStatus.ACTIVE);
         String studentToken = loginAndGetAccessToken(student.getEmail());
 
         mockMvc.perform(get("/api/teachers/%d".formatted(whitespaceBioTeacher.getId()))
@@ -287,6 +295,16 @@ class TeacherProfileApiTests {
                 .andExpect(jsonPath("$.message").value("Teacher not found."));
 
         mockMvc.perform(get("/api/teachers/%d".formatted(whitespaceExpertiseTeacher.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Teacher not found."));
+
+        mockMvc.perform(get("/api/teachers/%d".formatted(tabNewlineBioTeacher.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Teacher not found."));
+
+        mockMvc.perform(get("/api/teachers/%d".formatted(tabNewlineExpertiseTeacher.getId()))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Teacher not found."));
