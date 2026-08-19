@@ -217,6 +217,10 @@ class TeacherProfileApiTests {
         saveCompletedProfile(inactiveTeacher, TeacherProfileStatus.ACTIVE);
         User nonTeacher = saveUser("non-teacher@example.com", UserRole.STUDENT);
         saveCompletedProfile(nonTeacher, TeacherProfileStatus.ACTIVE);
+        User whitespaceBioTeacher = saveUser("whitespace-bio-teacher@example.com", UserRole.TEACHER);
+        saveProfile(whitespaceBioTeacher, "   ", "Communication, Grammar", TeacherProfileStatus.ACTIVE);
+        User whitespaceExpertiseTeacher = saveUser("whitespace-expertise-teacher@example.com", UserRole.TEACHER);
+        saveProfile(whitespaceExpertiseTeacher, "Giang vien tieng Anh giao tiep", "   ", TeacherProfileStatus.ACTIVE);
         String studentToken = loginAndGetAccessToken(student.getEmail());
 
         mockMvc.perform(get("/api/teachers")
@@ -268,6 +272,26 @@ class TeacherProfileApiTests {
                 .andExpect(jsonPath("$.message").value("Teacher not found."));
     }
 
+    @Test
+    void studentTeacherDetailReturnsNotFoundWhenProfileHasOnlyWhitespaceRequiredFields() throws Exception {
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        User whitespaceBioTeacher = saveUser("whitespace-bio-teacher@example.com", UserRole.TEACHER);
+        saveProfile(whitespaceBioTeacher, "   ", "Communication, Grammar", TeacherProfileStatus.ACTIVE);
+        User whitespaceExpertiseTeacher = saveUser("whitespace-expertise-teacher@example.com", UserRole.TEACHER);
+        saveProfile(whitespaceExpertiseTeacher, "Giang vien tieng Anh giao tiep", "   ", TeacherProfileStatus.ACTIVE);
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+
+        mockMvc.perform(get("/api/teachers/%d".formatted(whitespaceBioTeacher.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Teacher not found."));
+
+        mockMvc.perform(get("/api/teachers/%d".formatted(whitespaceExpertiseTeacher.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Teacher not found."));
+    }
+
     private User saveUser(String email, UserRole role) {
         User user = new User();
         user.setEmail(email);
@@ -293,12 +317,16 @@ class TeacherProfileApiTests {
     }
 
     private TeacherProfile saveIncompleteProfile(User teacher) {
+        return saveProfile(teacher, "", "", TeacherProfileStatus.ACTIVE);
+    }
+
+    private TeacherProfile saveProfile(User teacher, String bio, String expertise, TeacherProfileStatus status) {
         TeacherProfile profile = new TeacherProfile();
         profile.setUser(teacher);
-        profile.setBio("");
-        profile.setExpertise("");
+        profile.setBio(bio);
+        profile.setExpertise(expertise);
         profile.setYearsOfExperience(0);
-        profile.setStatus(TeacherProfileStatus.ACTIVE);
+        profile.setStatus(status);
         return teacherProfileRepository.save(profile);
     }
 

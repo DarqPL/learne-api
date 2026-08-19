@@ -17,8 +17,8 @@ interface TeacherProfileRepository extends JpaRepository<TeacherProfile, Long> {
               and user.active = true
               and user.locked = false
               and profile.status = com.learne.backend.teacher.profile.TeacherProfileStatus.ACTIVE
-              and profile.bio <> ''
-              and profile.expertise <> ''
+              and trim(profile.bio) <> ''
+              and trim(profile.expertise) <> ''
             order by user.fullName asc, profile.id asc
             """)
     List<TeacherProfile> findPublicProfiles();
@@ -31,8 +31,8 @@ interface TeacherProfileRepository extends JpaRepository<TeacherProfile, Long> {
               and user.active = true
               and user.locked = false
               and profile.status = com.learne.backend.teacher.profile.TeacherProfileStatus.ACTIVE
-              and profile.bio <> ''
-              and profile.expertise <> ''
+              and trim(profile.bio) <> ''
+              and trim(profile.expertise) <> ''
             """)
     Optional<TeacherProfile> findPublicProfileByTeacherId(@Param("teacherId") Long teacherId);
 }
