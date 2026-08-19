@@ -29,6 +29,12 @@ class AdminUserController {
         return new ApiMessageResponse("User locked successfully.");
     }
 
+    @PostMapping("/users/{userId}/unlock")
+    ApiMessageResponse unlockUser(@PathVariable Long userId) {
+        adminUserService.unlockUser(userId);
+        return new ApiMessageResponse("User unlocked successfully.");
+    }
+
     @PostMapping("/teachers")
     @ResponseStatus(HttpStatus.CREATED)
     AuthUserResponse createTeacher(@Valid @RequestBody CreateTeacherRequest request) {

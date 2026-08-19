@@ -12,6 +12,7 @@ import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
 import jakarta.servlet.http.Cookie;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -125,6 +126,70 @@ class AdminUserApiTests {
     }
 
     @Test
+    void unlockUserRequiresAdminRole() throws Exception {
+        User student = saveLockedUser("student@example.com", "Password123", UserRole.STUDENT);
+
+        mockMvc.perform(post("/api/admin/users/%d/unlock".formatted(student.getId())))
+                .andExpect(status().isUnauthorized());
+
+        saveUser("another-student@example.com", "Password123", UserRole.STUDENT);
+        String studentToken = loginAndGetAccessToken("another-student@example.com", "Password123");
+
+        mockMvc.perform(post("/api/admin/users/%d/unlock".formatted(student.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminCanUnlockUserAndUserCanLoginAgain() throws Exception {
+        saveUser("admin@example.com", "Password123", UserRole.ADMIN);
+        User student = saveLockedUser("student@example.com", "Password123", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken("admin@example.com", "Password123");
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "student@example.com",
+                                  "password": "Password123"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Account is not allowed to sign in."));
+
+        mockMvc.perform(post("/api/admin/users/%d/unlock".formatted(student.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("User unlocked successfully."));
+
+        User unlockedStudent = userRepository.findById(student.getId()).orElseThrow();
+        assertThat(unlockedStudent.isLocked()).isFalse();
+        assertThat(unlockedStudent.getLockedAt()).isNull();
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "student@example.com",
+                                  "password": "Password123"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.id").value(student.getId()));
+    }
+
+    @Test
+    void unlockMissingUserReturnsNotFound() throws Exception {
+        saveUser("admin@example.com", "Password123", UserRole.ADMIN);
+        String adminToken = loginAndGetAccessToken("admin@example.com", "Password123");
+
+        mockMvc.perform(post("/api/admin/users/999999/unlock")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("User not found."));
+    }
+
+    @Test
     void createTeacherRequiresAdminRole() throws Exception {
         saveUser("student@example.com", "Password123", UserRole.STUDENT);
 
@@ -227,6 +292,13 @@ class AdminUserApiTests {
         user.setActive(true);
         user.setLocked(false);
         user.setMustChangePassword(false);
+        return userRepository.save(user);
+    }
+
+    private User saveLockedUser(String email, String password, UserRole role) {
+        User user = saveUser(email, password, role);
+        user.setLocked(true);
+        user.setLockedAt(OffsetDateTime.now());
         return userRepository.save(user);
     }
 
