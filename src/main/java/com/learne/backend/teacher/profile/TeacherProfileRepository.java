@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-interface TeacherProfileRepository extends JpaRepository<TeacherProfile, Long> {
+public interface TeacherProfileRepository extends JpaRepository<TeacherProfile, Long> {
     Optional<TeacherProfile> findByUser(User user);
 
     @Query("""

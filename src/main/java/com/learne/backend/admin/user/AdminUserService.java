@@ -5,7 +5,9 @@ import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
 import com.learne.backend.shared.api.ApiException;
+import com.learne.backend.teacher.profile.TeacherProfileRepository;
 import java.time.OffsetDateTime;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 class AdminUserService {
 
     private final UserRepository userRepository;
+    private final TeacherProfileRepository teacherProfileRepository;
     private final RefreshTokenService refreshTokenService;
     private final PasswordEncoder passwordEncoder;
     private final TemporaryPasswordGenerator temporaryPasswordGenerator;
@@ -22,15 +25,25 @@ class AdminUserService {
 
     AdminUserService(
             UserRepository userRepository,
+            TeacherProfileRepository teacherProfileRepository,
             RefreshTokenService refreshTokenService,
             PasswordEncoder passwordEncoder,
             TemporaryPasswordGenerator temporaryPasswordGenerator,
             TeacherInvitationMailService teacherInvitationMailService) {
         this.userRepository = userRepository;
+        this.teacherProfileRepository = teacherProfileRepository;
         this.refreshTokenService = refreshTokenService;
         this.passwordEncoder = passwordEncoder;
         this.temporaryPasswordGenerator = temporaryPasswordGenerator;
         this.teacherInvitationMailService = teacherInvitationMailService;
+    }
+
+    @Transactional(readOnly = true)
+    List<AdminTeacherResponse> listTeachers() {
+        return userRepository.findByRoleOrderByCreatedAtAsc(UserRole.TEACHER)
+                .stream()
+                .map(user -> AdminTeacherResponse.from(user, teacherProfileRepository.findByUser(user).orElse(null)))
+                .toList();
     }
 
     @Transactional

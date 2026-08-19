@@ -1,6 +1,7 @@
 package com.learne.backend.admin.user;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -11,6 +12,8 @@ import com.learne.backend.domain.auth.RefreshTokenRepository;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.teacher.profile.TeacherProfile;
+import com.learne.backend.teacher.profile.TeacherProfileRepository;
 import jakarta.servlet.http.Cookie;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -50,10 +53,14 @@ class AdminUserApiTests {
     @Autowired
     private CapturingTeacherInvitationMailService teacherInvitationMailService;
 
+    @Autowired
+    private TeacherProfileRepository teacherProfileRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
+        teacherProfileRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
         teacherInvitationMailService.clear();
@@ -281,6 +288,51 @@ class AdminUserApiTests {
                 .andExpect(jsonPath("$.message").value("Email is already registered."));
 
         assertThat(teacherInvitationMailService.sentMessages()).isEmpty();
+    }
+
+    @Test
+    void listTeachersRequiresAdminRole() throws Exception {
+        User student = saveUser("student@example.com", "Password123", UserRole.STUDENT);
+
+        mockMvc.perform(get("/api/admin/teachers"))
+                .andExpect(status().isUnauthorized());
+
+        String studentToken = loginAndGetAccessToken("student@example.com", "Password123");
+
+        mockMvc.perform(get("/api/admin/teachers")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminCanListTeachersWithProfileStatus() throws Exception {
+        saveUser("admin@example.com", "Password123", UserRole.ADMIN);
+        User teacherWithProfile = saveUser("teacher-a@example.com", "Password123", UserRole.TEACHER);
+        User teacherWithoutProfile = saveUser("teacher-b@example.com", "Password123", UserRole.TEACHER);
+        User lockedTeacher = saveLockedUser("teacher-c@example.com", "Password123", UserRole.TEACHER);
+        saveUser("student@example.com", "Password123", UserRole.STUDENT);
+
+        TeacherProfile profile = new TeacherProfile();
+        profile.setUser(teacherWithProfile);
+        profile.setBio("Giang vien tieng Anh giao tiep");
+        profile.setExpertise("Communication, Grammar");
+        profile.setYearsOfExperience(3);
+        teacherProfileRepository.save(profile);
+
+        String adminToken = loginAndGetAccessToken("admin@example.com", "Password123");
+
+        mockMvc.perform(get("/api/admin/teachers")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[?(@.userId == %d)].fullName".formatted(teacherWithProfile.getId())).value("TEACHER User"))
+                .andExpect(jsonPath("$[?(@.userId == %d)].locked".formatted(teacherWithProfile.getId())).value(false))
+                .andExpect(jsonPath("$[?(@.userId == %d)].mustChangePassword".formatted(teacherWithProfile.getId())).value(false))
+                .andExpect(jsonPath("$[?(@.userId == %d)].profileStatus".formatted(teacherWithProfile.getId())).value("ACTIVE"))
+                .andExpect(jsonPath("$[?(@.userId == %d)].completed".formatted(teacherWithProfile.getId())).value(true))
+                .andExpect(jsonPath("$[?(@.userId == %d)].profileStatus".formatted(teacherWithoutProfile.getId())).value((Object) null))
+                .andExpect(jsonPath("$[?(@.userId == %d)].completed".formatted(teacherWithoutProfile.getId())).value(false))
+                .andExpect(jsonPath("$[?(@.userId == %d)].locked".formatted(lockedTeacher.getId())).value(true));
     }
 
     private User saveUser(String email, String password, UserRole role) {
