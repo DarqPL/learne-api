@@ -23,11 +23,7 @@ public record TeacherProfileResponse(
                 profile.getAvatarUrl(),
                 profile.getIntroductionVideoUrl(),
                 profile.getStatus(),
-                isCompleted(profile)
+                profile.isCompleted()
         );
-    }
-
-    static boolean isCompleted(TeacherProfile profile) {
-        return !profile.getBio().isBlank() && !profile.getExpertise().isBlank();
     }
 }

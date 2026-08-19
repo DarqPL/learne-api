@@ -72,6 +72,9 @@ public class TeacherProfile {
     public void setBio(String bio) { this.bio = bio; }
     public String getExpertise() { return expertise; }
     public void setExpertise(String expertise) { this.expertise = expertise; }
+    public boolean isCompleted() {
+        return !bio.isBlank() && !expertise.isBlank();
+    }
     public int getYearsOfExperience() { return yearsOfExperience; }
     public void setYearsOfExperience(int yearsOfExperience) { this.yearsOfExperience = yearsOfExperience; }
     public String getAvatarUrl() { return avatarUrl; }

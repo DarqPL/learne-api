@@ -21,6 +21,6 @@ public record AdminTeacherResponse(
                 user.isLocked(),
                 user.isMustChangePassword(),
                 profile != null ? profile.getStatus() : null,
-                profile != null && !profile.getBio().isBlank() && !profile.getExpertise().isBlank());
+                profile != null && profile.isCompleted());
     }
 }

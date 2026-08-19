@@ -49,7 +49,7 @@ class TeacherProfileService {
     @Transactional(readOnly = true)
     List<TeacherProfileSummaryResponse> listPublicProfiles() {
         return teacherProfileRepository.findPublicProfiles().stream()
-                .filter(TeacherProfileResponse::isCompleted)
+                .filter(TeacherProfile::isCompleted)
                 .map(TeacherProfileSummaryResponse::from)
                 .toList();
     }
@@ -58,7 +58,7 @@ class TeacherProfileService {
     TeacherProfileResponse getPublicProfile(Long teacherId) {
         TeacherProfile profile = teacherProfileRepository.findPublicProfileByTeacherId(teacherId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Teacher not found."));
-        if (!TeacherProfileResponse.isCompleted(profile)) {
+        if (!profile.isCompleted()) {
             throw new ApiException(HttpStatus.NOT_FOUND, "Teacher not found.");
         }
         return TeacherProfileResponse.from(profile);
