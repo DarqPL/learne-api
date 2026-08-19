@@ -3,6 +3,7 @@ package com.learne.backend.teacher.profile;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -97,6 +98,80 @@ class TeacherProfileApiTests {
         assertThat(teacherProfileRepository.findByUser(teacher)).isPresent();
     }
 
+    @Test
+    void updateOwnProfileRequiresTeacherRole() throws Exception {
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+
+        mockMvc.perform(put("/api/teacher/profile")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validProfileJson()))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(put("/api/teacher/profile")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validProfileJson()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateOwnProfileValidatesRequiredFields() throws Exception {
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+
+        mockMvc.perform(put("/api/teacher/profile")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "bio": "",
+                                  "expertise": "",
+                                  "yearsOfExperience": -1
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Invalid request."));
+    }
+
+    @Test
+    void teacherCanCreateAndUpdateOwnProfile() throws Exception {
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+
+        mockMvc.perform(put("/api/teacher/profile")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validProfileJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.teacherId").value(teacher.getId()))
+                .andExpect(jsonPath("$.bio").value("Giang vien tieng Anh giao tiep"))
+                .andExpect(jsonPath("$.expertise").value("Communication, Grammar"))
+                .andExpect(jsonPath("$.yearsOfExperience").value(3))
+                .andExpect(jsonPath("$.avatarUrl").value("https://example.com/avatar.png"))
+                .andExpect(jsonPath("$.introductionVideoUrl").value("https://example.com/intro.mp4"))
+                .andExpect(jsonPath("$.completed").value(true));
+
+        mockMvc.perform(put("/api/teacher/profile")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "bio": "Cap nhat gioi thieu",
+                                  "expertise": "IELTS Foundation",
+                                  "yearsOfExperience": 4
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bio").value("Cap nhat gioi thieu"))
+                .andExpect(jsonPath("$.expertise").value("IELTS Foundation"))
+                .andExpect(jsonPath("$.yearsOfExperience").value(4))
+                .andExpect(jsonPath("$.avatarUrl").doesNotExist())
+                .andExpect(jsonPath("$.introductionVideoUrl").doesNotExist());
+
+        assertThat(teacherProfileRepository.findAll()).hasSize(1);
+    }
+
     private User saveUser(String email, UserRole role) {
         User user = new User();
         user.setEmail(email);
@@ -122,5 +197,17 @@ class TeacherProfileApiTests {
                 .andReturn();
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
         return body.get("accessToken").asText();
+    }
+
+    private String validProfileJson() {
+        return """
+                {
+                  "bio": "Giang vien tieng Anh giao tiep",
+                  "expertise": "Communication, Grammar",
+                  "yearsOfExperience": 3,
+                  "avatarUrl": "https://example.com/avatar.png",
+                  "introductionVideoUrl": "https://example.com/intro.mp4"
+                }
+                """;
     }
 }

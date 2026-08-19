@@ -19,6 +19,18 @@ class TeacherProfileService {
         return TeacherProfileResponse.from(profile);
     }
 
+    @Transactional
+    TeacherProfileResponse updateOwnProfile(User teacher, UpdateTeacherProfileRequest request) {
+        TeacherProfile profile = teacherProfileRepository.findByUser(teacher)
+                .orElseGet(() -> createDefaultProfile(teacher));
+        profile.setBio(request.bio());
+        profile.setExpertise(request.expertise());
+        profile.setYearsOfExperience(request.yearsOfExperience());
+        profile.setAvatarUrl(request.avatarUrl());
+        profile.setIntroductionVideoUrl(request.introductionVideoUrl());
+        return TeacherProfileResponse.from(teacherProfileRepository.save(profile));
+    }
+
     private TeacherProfile createDefaultProfile(User teacher) {
         TeacherProfile profile = new TeacherProfile();
         profile.setUser(teacher);
