@@ -5,7 +5,6 @@ import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
 import com.learne.backend.shared.api.ApiException;
-import com.learne.backend.teacher.profile.TeacherProfile;
 import com.learne.backend.teacher.profile.TeacherProfileRepository;
 import java.time.OffsetDateTime;
 import java.util.List;
