@@ -25,8 +25,8 @@ class AdminUserService {
     private final TeacherInvitationMailService teacherInvitationMailService;
 
     AdminUserService(
-            TeacherProfileRepository teacherProfileRepository,
             UserRepository userRepository,
+            TeacherProfileRepository teacherProfileRepository,
             RefreshTokenService refreshTokenService,
             PasswordEncoder passwordEncoder,
             TemporaryPasswordGenerator temporaryPasswordGenerator,
