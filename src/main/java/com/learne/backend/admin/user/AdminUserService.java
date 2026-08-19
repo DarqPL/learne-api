@@ -47,6 +47,15 @@ class AdminUserService {
     }
 
     @Transactional
+    void unlockUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found."));
+        user.setLocked(false);
+        user.setLockedAt(null);
+        userRepository.save(user);
+    }
+
+    @Transactional
     User createTeacher(CreateTeacherRequest request) {
         String email = normalizeEmail(request.email());
         if (userRepository.findByEmail(email).isPresent()) {
