@@ -186,6 +186,19 @@ class TeacherProfileApiTests {
     }
 
     @Test
+    void studentTeacherDetailRequiresStudentRole() throws Exception {
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+
+        mockMvc.perform(get("/api/teachers/%d".formatted(teacher.getId())))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/teachers/%d".formatted(teacher.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void studentTeacherListReturnsOnlyPublicCompletedProfiles() throws Exception {
         User student = saveUser("student@example.com", UserRole.STUDENT);
         User visibleTeacher = saveUser("visible-teacher@example.com", UserRole.TEACHER);
@@ -198,6 +211,12 @@ class TeacherProfileApiTests {
         saveCompletedProfile(lockedTeacher, TeacherProfileStatus.ACTIVE);
         User suspendedTeacher = saveUser("suspended-teacher@example.com", UserRole.TEACHER);
         saveCompletedProfile(suspendedTeacher, TeacherProfileStatus.SUSPENDED);
+        User inactiveTeacher = saveUser("inactive-teacher@example.com", UserRole.TEACHER);
+        inactiveTeacher.setActive(false);
+        userRepository.save(inactiveTeacher);
+        saveCompletedProfile(inactiveTeacher, TeacherProfileStatus.ACTIVE);
+        User nonTeacher = saveUser("non-teacher@example.com", UserRole.STUDENT);
+        saveCompletedProfile(nonTeacher, TeacherProfileStatus.ACTIVE);
         String studentToken = loginAndGetAccessToken(student.getEmail());
 
         mockMvc.perform(get("/api/teachers")
