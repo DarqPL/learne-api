@@ -172,6 +172,83 @@ class TeacherProfileApiTests {
         assertThat(teacherProfileRepository.findAll()).hasSize(1);
     }
 
+    @Test
+    void studentTeacherListRequiresStudentRole() throws Exception {
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+
+        mockMvc.perform(get("/api/teachers"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/teachers")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void studentTeacherListReturnsOnlyPublicCompletedProfiles() throws Exception {
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        User visibleTeacher = saveUser("visible-teacher@example.com", UserRole.TEACHER);
+        saveCompletedProfile(visibleTeacher, TeacherProfileStatus.ACTIVE);
+        User incompleteTeacher = saveUser("incomplete-teacher@example.com", UserRole.TEACHER);
+        saveIncompleteProfile(incompleteTeacher);
+        User lockedTeacher = saveUser("locked-teacher@example.com", UserRole.TEACHER);
+        lockedTeacher.setLocked(true);
+        userRepository.save(lockedTeacher);
+        saveCompletedProfile(lockedTeacher, TeacherProfileStatus.ACTIVE);
+        User suspendedTeacher = saveUser("suspended-teacher@example.com", UserRole.TEACHER);
+        saveCompletedProfile(suspendedTeacher, TeacherProfileStatus.SUSPENDED);
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+
+        mockMvc.perform(get("/api/teachers")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].teacherId").value(visibleTeacher.getId()))
+                .andExpect(jsonPath("$[0].fullName").value("TEACHER User"))
+                .andExpect(jsonPath("$[0].email").value("visible-teacher@example.com"))
+                .andExpect(jsonPath("$[0].avatarUrl").value("https://example.com/avatar.png"))
+                .andExpect(jsonPath("$[0].expertise").value("Communication, Grammar"))
+                .andExpect(jsonPath("$[0].yearsOfExperience").value(3))
+                .andExpect(jsonPath("$[1]").doesNotExist());
+    }
+
+    @Test
+    void studentCanViewPublicTeacherDetail() throws Exception {
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        saveCompletedProfile(teacher, TeacherProfileStatus.ACTIVE);
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+
+        mockMvc.perform(get("/api/teachers/%d".formatted(teacher.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.teacherId").value(teacher.getId()))
+                .andExpect(jsonPath("$.fullName").value("TEACHER User"))
+                .andExpect(jsonPath("$.email").value("teacher@example.com"))
+                .andExpect(jsonPath("$.avatarUrl").value("https://example.com/avatar.png"))
+                .andExpect(jsonPath("$.bio").value("Giang vien tieng Anh giao tiep"))
+                .andExpect(jsonPath("$.expertise").value("Communication, Grammar"))
+                .andExpect(jsonPath("$.yearsOfExperience").value(3))
+                .andExpect(jsonPath("$.introductionVideoUrl").value("https://example.com/intro.mp4"))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.completed").value(true))
+                .andExpect(jsonPath("$.mustChangePassword").doesNotExist())
+                .andExpect(jsonPath("$.locked").doesNotExist());
+    }
+
+    @Test
+    void studentTeacherDetailReturnsNotFoundWhenProfileIsNotPublic() throws Exception {
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        User incompleteTeacher = saveUser("incomplete-teacher@example.com", UserRole.TEACHER);
+        saveIncompleteProfile(incompleteTeacher);
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+
+        mockMvc.perform(get("/api/teachers/%d".formatted(incompleteTeacher.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Teacher not found."));
+    }
+
     private User saveUser(String email, UserRole role) {
         User user = new User();
         user.setEmail(email);
@@ -182,6 +259,28 @@ class TeacherProfileApiTests {
         user.setLocked(false);
         user.setMustChangePassword(false);
         return userRepository.save(user);
+    }
+
+    private TeacherProfile saveCompletedProfile(User teacher, TeacherProfileStatus status) {
+        TeacherProfile profile = new TeacherProfile();
+        profile.setUser(teacher);
+        profile.setBio("Giang vien tieng Anh giao tiep");
+        profile.setExpertise("Communication, Grammar");
+        profile.setYearsOfExperience(3);
+        profile.setAvatarUrl("https://example.com/avatar.png");
+        profile.setIntroductionVideoUrl("https://example.com/intro.mp4");
+        profile.setStatus(status);
+        return teacherProfileRepository.save(profile);
+    }
+
+    private TeacherProfile saveIncompleteProfile(User teacher) {
+        TeacherProfile profile = new TeacherProfile();
+        profile.setUser(teacher);
+        profile.setBio("");
+        profile.setExpertise("");
+        profile.setYearsOfExperience(0);
+        profile.setStatus(TeacherProfileStatus.ACTIVE);
+        return teacherProfileRepository.save(profile);
     }
 
     private String loginAndGetAccessToken(String email) throws Exception {

@@ -1,8 +1,11 @@
 package com.learne.backend.teacher.profile;
 
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.shared.api.ApiException;
 import jakarta.persistence.EntityManager;
+import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -41,6 +44,20 @@ class TeacherProfileService {
         profile.setAvatarUrl(request.avatarUrl());
         profile.setIntroductionVideoUrl(request.introductionVideoUrl());
         return TeacherProfileResponse.from(teacherProfileRepository.save(profile));
+    }
+
+    @Transactional(readOnly = true)
+    List<TeacherProfileSummaryResponse> listPublicProfiles() {
+        return teacherProfileRepository.findPublicProfiles().stream()
+                .map(TeacherProfileSummaryResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    TeacherProfileResponse getPublicProfile(Long teacherId) {
+        TeacherProfile profile = teacherProfileRepository.findPublicProfileByTeacherId(teacherId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Teacher not found."));
+        return TeacherProfileResponse.from(profile);
     }
 
     private TeacherProfile findOrCreateDefaultProfile(User teacher) {
