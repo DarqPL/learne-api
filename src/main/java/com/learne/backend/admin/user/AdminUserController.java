@@ -4,8 +4,10 @@ import com.learne.backend.auth.session.dto.AuthUserResponse;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.shared.api.ApiMessageResponse;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -39,5 +41,10 @@ class AdminUserController {
     @ResponseStatus(HttpStatus.CREATED)
     AuthUserResponse createTeacher(@Valid @RequestBody CreateTeacherRequest request) {
         return AuthUserResponse.from(adminUserService.createTeacher(request));
+    }
+
+    @GetMapping("/teachers")
+    List<AdminTeacherResponse> listTeachers() {
+        return adminUserService.listTeachers();
     }
 }
