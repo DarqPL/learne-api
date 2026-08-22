@@ -40,8 +40,14 @@ public class TeacherProfile {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
+    @Column(name = "avatar_public_id")
+    private String avatarPublicId;
+
     @Column(name = "introduction_video_url")
     private String introductionVideoUrl;
+
+    @Column(name = "introduction_video_public_id")
+    private String introductionVideoPublicId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -79,8 +85,12 @@ public class TeacherProfile {
     public void setYearsOfExperience(int yearsOfExperience) { this.yearsOfExperience = yearsOfExperience; }
     public String getAvatarUrl() { return avatarUrl; }
     public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
+    public String getAvatarPublicId() { return avatarPublicId; }
+    public void setAvatarPublicId(String avatarPublicId) { this.avatarPublicId = avatarPublicId; }
     public String getIntroductionVideoUrl() { return introductionVideoUrl; }
     public void setIntroductionVideoUrl(String introductionVideoUrl) { this.introductionVideoUrl = introductionVideoUrl; }
+    public String getIntroductionVideoPublicId() { return introductionVideoPublicId; }
+    public void setIntroductionVideoPublicId(String introductionVideoPublicId) { this.introductionVideoPublicId = introductionVideoPublicId; }
     public TeacherProfileStatus getStatus() { return status; }
     public void setStatus(TeacherProfileStatus status) { this.status = status; }
     public OffsetDateTime getCreatedAt() { return createdAt; }

@@ -2,6 +2,8 @@ package com.learne.backend.teacher.profile;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -16,13 +18,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.web.multipart.MultipartFile;
 
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
@@ -41,12 +48,16 @@ class TeacherProfileApiTests {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private CapturingCloudinaryStorageService cloudinaryStorageService;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
         teacherProfileRepository.deleteAll();
         userRepository.deleteAll();
+        cloudinaryStorageService.clear();
     }
 
     @Test
@@ -166,10 +177,94 @@ class TeacherProfileApiTests {
                 .andExpect(jsonPath("$.bio").value("Cap nhat gioi thieu"))
                 .andExpect(jsonPath("$.expertise").value("IELTS Foundation"))
                 .andExpect(jsonPath("$.yearsOfExperience").value(4))
-                .andExpect(jsonPath("$.avatarUrl").doesNotExist())
-                .andExpect(jsonPath("$.introductionVideoUrl").doesNotExist());
+                .andExpect(jsonPath("$.avatarUrl").value("https://example.com/avatar.png"))
+                .andExpect(jsonPath("$.introductionVideoUrl").value("https://example.com/intro.mp4"));
 
         assertThat(teacherProfileRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void teacherCanUploadAndDeleteAvatar() throws Exception {
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        MockMultipartFile avatar = new MockMultipartFile(
+                "file",
+                "avatar.png",
+                MediaType.IMAGE_PNG_VALUE,
+                "avatar-bytes".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/teacher/profile/avatar")
+                        .file(avatar)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.avatarUrl").value("https://res.cloudinary.com/demo/image/upload/avatar.png"));
+
+        TeacherProfile uploadedProfile = teacherProfileRepository.findByUser(teacher).orElseThrow();
+        assertThat(uploadedProfile.getAvatarUrl()).isEqualTo("https://res.cloudinary.com/demo/image/upload/avatar.png");
+        assertThat(uploadedProfile.getAvatarPublicId()).isEqualTo("learne/teacher-profiles/avatars/avatar");
+
+        mockMvc.perform(delete("/api/teacher/profile/avatar")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.avatarUrl").doesNotExist());
+
+        TeacherProfile deletedProfile = teacherProfileRepository.findByUser(teacher).orElseThrow();
+        assertThat(deletedProfile.getAvatarUrl()).isNull();
+        assertThat(deletedProfile.getAvatarPublicId()).isNull();
+        assertThat(cloudinaryStorageService.deletedPublicIds()).contains("learne/teacher-profiles/avatars/avatar");
+    }
+
+    @Test
+    void teacherCanUploadAndDeleteIntroductionVideo() throws Exception {
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        MockMultipartFile video = new MockMultipartFile(
+                "file",
+                "intro.mp4",
+                "video/mp4",
+                "video-bytes".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/teacher/profile/introduction-video")
+                        .file(video)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.introductionVideoUrl").value("https://res.cloudinary.com/demo/video/upload/intro.mp4"));
+
+        TeacherProfile uploadedProfile = teacherProfileRepository.findByUser(teacher).orElseThrow();
+        assertThat(uploadedProfile.getIntroductionVideoUrl()).isEqualTo("https://res.cloudinary.com/demo/video/upload/intro.mp4");
+        assertThat(uploadedProfile.getIntroductionVideoPublicId()).isEqualTo("learne/teacher-profiles/introduction-videos/intro");
+
+        mockMvc.perform(delete("/api/teacher/profile/introduction-video")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.introductionVideoUrl").doesNotExist());
+
+        TeacherProfile deletedProfile = teacherProfileRepository.findByUser(teacher).orElseThrow();
+        assertThat(deletedProfile.getIntroductionVideoUrl()).isNull();
+        assertThat(deletedProfile.getIntroductionVideoPublicId()).isNull();
+        assertThat(cloudinaryStorageService.deletedPublicIds()).contains("learne/teacher-profiles/introduction-videos/intro");
+    }
+
+    @Test
+    void profileMediaUploadRequiresTeacherRole() throws Exception {
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        MockMultipartFile avatar = new MockMultipartFile(
+                "file",
+                "avatar.png",
+                MediaType.IMAGE_PNG_VALUE,
+                "avatar-bytes".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/teacher/profile/avatar").file(avatar))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(multipart("/api/teacher/profile/avatar")
+                        .file(avatar)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -373,5 +468,47 @@ class TeacherProfileApiTests {
                   "introductionVideoUrl": "https://example.com/intro.mp4"
                 }
                 """;
+    }
+
+    @TestConfiguration
+    static class CloudinaryStorageTestConfiguration {
+        @Bean
+        @Primary
+        CapturingCloudinaryStorageService cloudinaryStorageService() {
+            return new CapturingCloudinaryStorageService();
+        }
+    }
+
+    static class CapturingCloudinaryStorageService implements CloudinaryStorageService {
+        private final java.util.List<String> deletedPublicIds = new java.util.ArrayList<>();
+
+        @Override
+        public CloudinaryUploadResult uploadTeacherAvatar(MultipartFile file) {
+            return new CloudinaryUploadResult(
+                    "https://res.cloudinary.com/demo/image/upload/avatar.png",
+                    "learne/teacher-profiles/avatars/avatar"
+            );
+        }
+
+        @Override
+        public CloudinaryUploadResult uploadTeacherIntroductionVideo(MultipartFile file) {
+            return new CloudinaryUploadResult(
+                    "https://res.cloudinary.com/demo/video/upload/intro.mp4",
+                    "learne/teacher-profiles/introduction-videos/intro"
+            );
+        }
+
+        @Override
+        public void delete(String publicId, CloudinaryResourceType resourceType) {
+            deletedPublicIds.add(publicId);
+        }
+
+        java.util.List<String> deletedPublicIds() {
+            return deletedPublicIds;
+        }
+
+        void clear() {
+            deletedPublicIds.clear();
+        }
     }
 }
