@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.web.multipart.MultipartFile;
 
 @ExtendWith(MockitoExtension.class)
 class TeacherProfileServiceTests {
@@ -41,7 +42,7 @@ class TeacherProfileServiceTests {
         when(transactionManager.getTransaction(any()))
                 .thenReturn(new SimpleTransactionStatus());
 
-        TeacherProfileResponse response = new TeacherProfileService(teacherProfileRepository, entityManager, transactionManager)
+        TeacherProfileResponse response = new TeacherProfileService(teacherProfileRepository, new NoopCloudinaryStorageService(), entityManager, transactionManager)
                 .getOwnProfile(teacher);
 
         assertThat(response.bio()).isEqualTo("Already created");
@@ -61,7 +62,7 @@ class TeacherProfileServiceTests {
         when(transactionManager.getTransaction(any()))
                 .thenReturn(new SimpleTransactionStatus());
 
-        TeacherProfileResponse response = new TeacherProfileService(teacherProfileRepository, entityManager, transactionManager)
+        TeacherProfileResponse response = new TeacherProfileService(teacherProfileRepository, new NoopCloudinaryStorageService(), entityManager, transactionManager)
                 .updateOwnProfile(teacher, new UpdateTeacherProfileRequest(
                         "Updated bio",
                         "IELTS",
@@ -91,5 +92,21 @@ class TeacherProfileServiceTests {
         profile.setYearsOfExperience(0);
         profile.setStatus(TeacherProfileStatus.ACTIVE);
         return profile;
+    }
+
+    private static class NoopCloudinaryStorageService implements CloudinaryStorageService {
+        @Override
+        public CloudinaryUploadResult uploadTeacherAvatar(MultipartFile file) {
+            return new CloudinaryUploadResult("https://example.com/avatar.png", "avatar-public-id");
+        }
+
+        @Override
+        public CloudinaryUploadResult uploadTeacherIntroductionVideo(MultipartFile file) {
+            return new CloudinaryUploadResult("https://example.com/intro.mp4", "video-public-id");
+        }
+
+        @Override
+        public void delete(String publicId, CloudinaryResourceType resourceType) {
+        }
     }
 }
