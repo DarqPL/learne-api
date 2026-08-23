@@ -8,12 +8,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learne.backend.admin.user.service.TeacherInvitationMailService;
+import com.learne.backend.admin.user.service.TemporaryPasswordGenerator;
 import com.learne.backend.domain.auth.RefreshTokenRepository;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
-import com.learne.backend.teacher.profile.TeacherProfile;
-import com.learne.backend.teacher.profile.TeacherProfileRepository;
+import com.learne.backend.teacher.profile.entity.TeacherProfile;
+import com.learne.backend.teacher.profile.repository.TeacherProfileRepository;
 import jakarta.servlet.http.Cookie;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;

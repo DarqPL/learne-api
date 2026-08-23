@@ -1,7 +1,7 @@
 package com.learne.backend.config;
 
-import com.learne.backend.auth.session.AuthProperties;
-import com.learne.backend.auth.session.JwtAuthenticationFilter;
+import com.learne.backend.auth.session.security.JwtAuthenticationFilter;
+import com.learne.backend.auth.session.service.AuthProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

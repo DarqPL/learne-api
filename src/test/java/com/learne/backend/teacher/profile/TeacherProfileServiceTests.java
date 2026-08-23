@@ -6,6 +6,15 @@ import static org.mockito.Mockito.when;
 
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.storage.dto.StorageResourceType;
+import com.learne.backend.storage.dto.StorageUploadResult;
+import com.learne.backend.storage.service.StorageService;
+import com.learne.backend.teacher.profile.dto.TeacherProfileResponse;
+import com.learne.backend.teacher.profile.dto.UpdateTeacherProfileRequest;
+import com.learne.backend.teacher.profile.entity.TeacherProfile;
+import com.learne.backend.teacher.profile.enums.TeacherProfileStatus;
+import com.learne.backend.teacher.profile.repository.TeacherProfileRepository;
+import com.learne.backend.teacher.profile.service.TeacherProfileService;
 import jakarta.persistence.EntityManager;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -94,19 +103,19 @@ class TeacherProfileServiceTests {
         return profile;
     }
 
-    private static class NoopCloudinaryStorageService implements CloudinaryStorageService {
+    private static class NoopCloudinaryStorageService implements StorageService {
         @Override
-        public CloudinaryUploadResult uploadTeacherAvatar(MultipartFile file) {
-            return new CloudinaryUploadResult("https://example.com/avatar.png", "avatar-public-id");
+        public StorageUploadResult uploadTeacherAvatar(MultipartFile file) {
+            return new StorageUploadResult("https://example.com/avatar.png", "avatar-public-id");
         }
 
         @Override
-        public CloudinaryUploadResult uploadTeacherIntroductionVideo(MultipartFile file) {
-            return new CloudinaryUploadResult("https://example.com/intro.mp4", "video-public-id");
+        public StorageUploadResult uploadTeacherIntroductionVideo(MultipartFile file) {
+            return new StorageUploadResult("https://example.com/intro.mp4", "video-public-id");
         }
 
         @Override
-        public void delete(String publicId, CloudinaryResourceType resourceType) {
+        public void delete(String publicId, StorageResourceType resourceType) {
         }
     }
 }

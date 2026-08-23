@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.learne.backend.auth.registration.service.OtpGenerator;
+import com.learne.backend.auth.registration.service.RegistrationMailService;
 import com.learne.backend.domain.auth.RegistrationOtp;
 import com.learne.backend.domain.auth.RegistrationOtpRepository;
 import com.learne.backend.domain.auth.User;
