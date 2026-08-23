@@ -14,6 +14,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.storage.dto.StorageResourceType;
+import com.learne.backend.storage.dto.StorageUploadResult;
+import com.learne.backend.storage.service.StorageService;
+import com.learne.backend.teacher.profile.entity.TeacherProfile;
+import com.learne.backend.teacher.profile.enums.TeacherProfileStatus;
+import com.learne.backend.teacher.profile.repository.TeacherProfileRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -483,32 +489,32 @@ class TeacherProfileApiTests {
     static class CloudinaryStorageTestConfiguration {
         @Bean
         @Primary
-        CapturingCloudinaryStorageService cloudinaryStorageService() {
+        CapturingCloudinaryStorageService storageService() {
             return new CapturingCloudinaryStorageService();
         }
     }
 
-    static class CapturingCloudinaryStorageService implements CloudinaryStorageService {
+    static class CapturingCloudinaryStorageService implements StorageService {
         private final java.util.List<String> deletedPublicIds = new java.util.ArrayList<>();
 
         @Override
-        public CloudinaryUploadResult uploadTeacherAvatar(MultipartFile file) {
-            return new CloudinaryUploadResult(
+        public StorageUploadResult uploadTeacherAvatar(MultipartFile file) {
+            return new StorageUploadResult(
                     "https://res.cloudinary.com/demo/image/upload/avatar.png",
                     "learne/teacher-profiles/avatars/avatar"
             );
         }
 
         @Override
-        public CloudinaryUploadResult uploadTeacherIntroductionVideo(MultipartFile file) {
-            return new CloudinaryUploadResult(
+        public StorageUploadResult uploadTeacherIntroductionVideo(MultipartFile file) {
+            return new StorageUploadResult(
                     "https://res.cloudinary.com/demo/video/upload/intro.mp4",
                     "learne/teacher-profiles/introduction-videos/intro"
             );
         }
 
         @Override
-        public void delete(String publicId, CloudinaryResourceType resourceType) {
+        public void delete(String publicId, StorageResourceType resourceType) {
             deletedPublicIds.add(publicId);
         }
 

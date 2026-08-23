@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.learne.backend.auth.session.service.PasswordResetMailService;
+import com.learne.backend.auth.session.service.PasswordResetTokenGenerator;
 import com.learne.backend.domain.auth.PasswordResetToken;
 import com.learne.backend.domain.auth.PasswordResetTokenRepository;
 import com.learne.backend.domain.auth.RefreshTokenRepository;
