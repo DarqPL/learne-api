@@ -1,6 +1,7 @@
 package com.learne.backend.teacher.content.repository;
 
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.entity.Course;
 import java.util.List;
 import java.util.Optional;
@@ -10,6 +11,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface CourseRepository extends JpaRepository<Course, Long> {
     List<Course> findByTeacherOrderByOrderIndexAscIdAsc(User teacher);
+
+    List<Course> findByStatusOrderByUpdatedAtAscIdAsc(ContentStatus status);
 
     Optional<Course> findByIdAndTeacher(Long id, User teacher);
 
@@ -22,4 +25,12 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
             where c.id = :id and c.teacher = :teacher
             """)
     Optional<Course> findDetailByIdAndTeacher(@Param("id") Long id, @Param("teacher") User teacher);
+
+    @Query("""
+            select c from Course c
+            left join fetch c.teacher
+            left join fetch c.reviewedBy
+            where c.id = :id
+            """)
+    Optional<Course> findReviewDetailById(@Param("id") Long id);
 }
