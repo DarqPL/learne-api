@@ -14,6 +14,11 @@ import com.learne.backend.domain.auth.RefreshTokenRepository;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.teacher.content.repository.CourseRepository;
+import com.learne.backend.teacher.content.repository.LessonRepository;
+import com.learne.backend.teacher.content.repository.QuestionOptionRepository;
+import com.learne.backend.teacher.content.repository.QuestionRepository;
+import com.learne.backend.teacher.content.repository.TopicRepository;
 import com.learne.backend.teacher.profile.entity.TeacherProfile;
 import com.learne.backend.teacher.profile.repository.TeacherProfileRepository;
 import jakarta.servlet.http.Cookie;
@@ -58,10 +63,30 @@ class AdminUserApiTests {
     @Autowired
     private TeacherProfileRepository teacherProfileRepository;
 
+    @Autowired
+    private CourseRepository courseRepository;
+
+    @Autowired
+    private TopicRepository topicRepository;
+
+    @Autowired
+    private LessonRepository lessonRepository;
+
+    @Autowired
+    private QuestionRepository questionRepository;
+
+    @Autowired
+    private QuestionOptionRepository questionOptionRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
+        questionOptionRepository.deleteAll();
+        questionRepository.deleteAll();
+        lessonRepository.deleteAll();
+        topicRepository.deleteAll();
+        courseRepository.deleteAll();
         teacherProfileRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
