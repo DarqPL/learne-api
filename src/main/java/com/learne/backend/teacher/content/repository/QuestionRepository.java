@@ -1,7 +1,19 @@
 package com.learne.backend.teacher.content.repository;
 
+import com.learne.backend.teacher.content.entity.Lesson;
 import com.learne.backend.teacher.content.entity.Question;
+import com.learne.backend.teacher.content.enums.ContentStatus;
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface QuestionRepository extends JpaRepository<Question, Long> {
+    @Query("""
+            select distinct question from Question question
+            left join fetch question.options options
+            where question.lesson = :lesson and question.status = :status
+            order by question.orderIndex asc, question.id asc
+            """)
+    List<Question> findByLessonAndStatusForStudentQuiz(@Param("lesson") Lesson lesson, @Param("status") ContentStatus status);
 }

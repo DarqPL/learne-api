@@ -1,17 +1,24 @@
 package com.learne.backend.student.learning.controller;
 
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.student.learning.dto.SubmitQuizRequest;
+import com.learne.backend.student.learning.dto.SubmitQuizResponse;
 import com.learne.backend.student.learning.dto.StudentCourseDetailResponse;
 import com.learne.backend.student.learning.dto.StudentCourseSummaryResponse;
 import com.learne.backend.student.learning.dto.StudentEnrollmentProgressResponse;
 import com.learne.backend.student.learning.dto.StudentEnrollmentResponse;
+import com.learne.backend.student.learning.dto.StudentQuizAttemptResponse;
+import com.learne.backend.student.learning.dto.StudentQuizResponse;
+import com.learne.backend.student.learning.dto.StudentStatsResponse;
 import com.learne.backend.student.learning.service.StudentLearningService;
+import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -44,6 +51,31 @@ class StudentLearningController {
     @GetMapping("/enrollments")
     List<StudentEnrollmentResponse> listEnrollments(Authentication authentication) {
         return studentLearningService.listEnrollments(currentUser(authentication));
+    }
+
+    @GetMapping("/stats")
+    StudentStatsResponse getStats(Authentication authentication) {
+        return studentLearningService.getStats(currentUser(authentication));
+    }
+
+    @GetMapping("/enrollments/{enrollmentId}/lessons/{lessonId}/quiz")
+    StudentQuizResponse getLessonQuiz(@PathVariable Long enrollmentId,
+                                       @PathVariable Long lessonId,
+                                       Authentication authentication) {
+        return studentLearningService.getLessonQuiz(currentUser(authentication), enrollmentId, lessonId);
+    }
+
+    @PostMapping("/enrollments/{enrollmentId}/lessons/{lessonId}/quiz/submit")
+    SubmitQuizResponse submitLessonQuiz(@PathVariable Long enrollmentId,
+                                         @PathVariable Long lessonId,
+                                         @Valid @RequestBody SubmitQuizRequest request,
+                                         Authentication authentication) {
+        return studentLearningService.submitLessonQuiz(currentUser(authentication), enrollmentId, lessonId, request);
+    }
+
+    @GetMapping("/quiz-attempts/{attemptId}")
+    StudentQuizAttemptResponse getQuizAttempt(@PathVariable Long attemptId, Authentication authentication) {
+        return studentLearningService.getQuizAttempt(currentUser(authentication), attemptId);
     }
 
     @GetMapping("/enrollments/{enrollmentId}")
