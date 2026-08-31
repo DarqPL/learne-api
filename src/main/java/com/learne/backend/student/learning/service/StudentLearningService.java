@@ -2,21 +2,38 @@ package com.learne.backend.student.learning.service;
 
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.shared.api.ApiException;
+import com.learne.backend.student.learning.dto.SubmitQuizRequest;
+import com.learne.backend.student.learning.dto.SubmitQuizResponse;
 import com.learne.backend.student.learning.dto.StudentCourseDetailResponse;
 import com.learne.backend.student.learning.dto.StudentCourseSummaryResponse;
 import com.learne.backend.student.learning.dto.StudentEnrollmentProgressResponse;
 import com.learne.backend.student.learning.dto.StudentEnrollmentResponse;
+import com.learne.backend.student.learning.dto.StudentQuizAnswerResultResponse;
+import com.learne.backend.student.learning.dto.StudentQuizAttemptResponse;
+import com.learne.backend.student.learning.dto.StudentQuizProgressResponse;
+import com.learne.backend.student.learning.dto.StudentQuizQuestionResponse;
+import com.learne.backend.student.learning.dto.StudentQuizResponse;
+import com.learne.backend.student.learning.dto.StudentStatsResponse;
 import com.learne.backend.student.learning.entity.CourseEnrollment;
 import com.learne.backend.student.learning.entity.LessonProgress;
+import com.learne.backend.student.learning.entity.QuestionAnswer;
+import com.learne.backend.student.learning.entity.QuizAttempt;
 import com.learne.backend.student.learning.enums.EnrollmentStatus;
 import com.learne.backend.student.learning.enums.LessonProgressStatus;
+import com.learne.backend.student.learning.enums.QuizAttemptStatus;
 import com.learne.backend.student.learning.repository.CourseEnrollmentRepository;
 import com.learne.backend.student.learning.repository.LessonProgressRepository;
+import com.learne.backend.student.learning.repository.QuestionAnswerRepository;
+import com.learne.backend.student.learning.repository.QuizAttemptRepository;
 import com.learne.backend.teacher.content.entity.Course;
 import com.learne.backend.teacher.content.entity.Lesson;
+import com.learne.backend.teacher.content.entity.Question;
+import com.learne.backend.teacher.content.entity.QuestionOption;
 import com.learne.backend.teacher.content.entity.Topic;
 import com.learne.backend.teacher.content.enums.ContentStatus;
+import com.learne.backend.teacher.content.enums.QuestionType;
 import com.learne.backend.teacher.content.repository.CourseRepository;
+import com.learne.backend.teacher.content.repository.QuestionRepository;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.Comparator;
@@ -34,17 +51,32 @@ public class StudentLearningService {
     private final CourseRepository courseRepository;
     private final CourseEnrollmentRepository courseEnrollmentRepository;
     private final LessonProgressRepository lessonProgressRepository;
+    private final QuestionRepository questionRepository;
+    private final QuizAttemptRepository quizAttemptRepository;
+    private final QuestionAnswerRepository questionAnswerRepository;
+    private final StudentQuizGradingService studentQuizGradingService;
+    private final StudentStatsService studentStatsService;
     private final EntityManager entityManager;
     private final TransactionTemplate createEnrollmentTransactionTemplate;
 
     public StudentLearningService(CourseRepository courseRepository,
-                                   CourseEnrollmentRepository courseEnrollmentRepository,
-                                   LessonProgressRepository lessonProgressRepository,
-                                   EntityManager entityManager,
-                                   PlatformTransactionManager transactionManager) {
+                                    CourseEnrollmentRepository courseEnrollmentRepository,
+                                      LessonProgressRepository lessonProgressRepository,
+                                      QuestionRepository questionRepository,
+                                      QuizAttemptRepository quizAttemptRepository,
+                                      QuestionAnswerRepository questionAnswerRepository,
+                                      StudentQuizGradingService studentQuizGradingService,
+                                     StudentStatsService studentStatsService,
+                                     EntityManager entityManager,
+                                     PlatformTransactionManager transactionManager) {
         this.courseRepository = courseRepository;
         this.courseEnrollmentRepository = courseEnrollmentRepository;
         this.lessonProgressRepository = lessonProgressRepository;
+        this.questionRepository = questionRepository;
+        this.quizAttemptRepository = quizAttemptRepository;
+        this.questionAnswerRepository = questionAnswerRepository;
+        this.studentQuizGradingService = studentQuizGradingService;
+        this.studentStatsService = studentStatsService;
         this.entityManager = entityManager;
         this.createEnrollmentTransactionTemplate = new TransactionTemplate(transactionManager);
         this.createEnrollmentTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -66,6 +98,162 @@ public class StudentLearningService {
         CourseEnrollment enrollment = courseEnrollmentRepository.findByUserAndCourse(student, course)
                 .orElseGet(() -> findOrCreateEnrollment(student, course));
         return StudentEnrollmentResponse.from(enrollment);
+    }
+
+    @Transactional
+    public StudentStatsResponse getStats(User student) {
+        return studentStatsService.getStats(student);
+    }
+
+    @Transactional(readOnly = true)
+    public StudentQuizResponse getLessonQuiz(User student, Long enrollmentId, Long lessonId) {
+        CourseEnrollment enrollment = findEnrollment(student, enrollmentId);
+        LessonProgress progress = findLessonProgress(enrollment, lessonId);
+        ensureLessonStillApproved(progress);
+        if (progress.getStatus() == LessonProgressStatus.LOCKED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Lesson is locked.");
+        }
+
+        Lesson lesson = progress.getLesson();
+        List<StudentQuizQuestionResponse> questions = questionRepository.findByLessonAndStatusForStudentQuiz(lesson, ContentStatus.APPROVED).stream()
+                .map(StudentQuizQuestionResponse::from)
+                .toList();
+        Integer bestScorePercent = quizAttemptRepository.findBestScorePercent(student, lesson);
+        boolean alreadyPassed = quizAttemptRepository.existsByUserAndLessonAndPassedTrue(student, lesson);
+        return StudentQuizResponse.from(enrollment.getId(), lesson, bestScorePercent, alreadyPassed, questions);
+    }
+
+    @Transactional
+    public SubmitQuizResponse submitLessonQuiz(User student, Long enrollmentId, Long lessonId, SubmitQuizRequest request) {
+        CourseEnrollment enrollment = findEnrollment(student, enrollmentId);
+        LessonProgress progress = findLessonProgress(enrollment, lessonId);
+        ensureLessonStillApproved(progress);
+        if (progress.getStatus() == LessonProgressStatus.LOCKED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Lesson is locked.");
+        }
+
+        Lesson lesson = progress.getLesson();
+        List<Question> questions = questionRepository.findByLessonAndStatusForStudentQuiz(lesson, ContentStatus.APPROVED);
+        StudentQuizGradingResult gradingResult = studentQuizGradingService.grade(lesson, questions, request);
+        boolean alreadyPassed = quizAttemptRepository.existsByUserAndLessonAndPassedTrue(student, lesson);
+        int questionXp = gradingResult.answers().stream()
+                .filter(StudentQuestionGradingResult::correct)
+                .mapToInt(answerResult -> answerResult.question().getXpReward())
+                .sum();
+        int potentialAttemptXp = gradingResult.passed() ? lesson.getXpReward() + questionXp : 0;
+        boolean shouldAttemptAwardXp = gradingResult.passed() && !alreadyPassed;
+        if (gradingResult.passed() && !alreadyPassed) {
+            // Stats creation recovery clears the persistence context, so do it before pending quiz changes exist.
+            studentStatsService.getOrCreateStats(student);
+        }
+
+        QuizAttempt attempt = new QuizAttempt();
+        attempt.setUser(student);
+        attempt.setCourseEnrollment(enrollment);
+        attempt.setLesson(lesson);
+        attempt.setStatus(QuizAttemptStatus.SUBMITTED);
+        attempt.setScorePercent(gradingResult.scorePercent());
+        attempt.setPassed(gradingResult.passed());
+        attempt.setEarnedXp(0);
+        attempt.setSubmittedAt(Instant.now());
+        for (StudentQuestionGradingResult answerResult : gradingResult.answers()) {
+            QuestionAnswer answer = new QuestionAnswer();
+            answer.setQuizAttempt(attempt);
+            answer.setQuestion(answerResult.question());
+            answer.setAnswerText(answerResult.answer() == null ? null : answerResult.answer().answerText());
+            answer.setSelectedOption(answerResult.selectedOption());
+            answer.setCorrect(answerResult.correct());
+            answer.setScorePercent(answerResult.scorePercent());
+            answer.setEarnedXp(0);
+            answer.setGradingMethod(answerResult.gradingMethod());
+            answer.setFeedback(answerResult.feedback());
+            attempt.getAnswers().add(answer);
+        }
+        QuizAttempt savedAttempt = quizAttemptRepository.save(attempt);
+
+        Long unlockedNextLessonId = null;
+        StudentStatsResponse stats;
+        boolean xpAwarded = false;
+
+        if (gradingResult.passed()) {
+            if (progress.getStatus() != LessonProgressStatus.COMPLETED) {
+                Instant now = Instant.now();
+                if (progress.getStartedAt() == null) {
+                    progress.setStartedAt(now);
+                }
+                if (progress.getCompletedAt() == null) {
+                    progress.setCompletedAt(now);
+                }
+                progress.setProgressPercent(100);
+                progress.setStatus(LessonProgressStatus.COMPLETED);
+                lessonProgressRepository.save(progress);
+                recomputeEnrollmentProgress(enrollment);
+                unlockedNextLessonId = unlockNextLessonAndReturnId(enrollment);
+            }
+            if (shouldAttemptAwardXp) {
+                StudentStatsAwardResult awardResult = studentStatsService.awardLessonPass(student, lesson.getId(), potentialAttemptXp);
+                stats = awardResult.stats();
+                xpAwarded = awardResult.xpAwarded();
+                if (xpAwarded) {
+                    savedAttempt.setEarnedXp(potentialAttemptXp);
+                    savedAttempt.getAnswers().forEach(answer -> {
+                        if (answer.isCorrect()) {
+                            answer.setEarnedXp(answer.getQuestion().getXpReward());
+                        }
+                    });
+                    savedAttempt = quizAttemptRepository.saveAndFlush(savedAttempt);
+                }
+            } else {
+                stats = studentStatsService.getStats(student);
+            }
+        } else {
+            if (progress.getStatus() == LessonProgressStatus.UNLOCKED) {
+                progress.setStatus(LessonProgressStatus.IN_PROGRESS);
+                if (progress.getStartedAt() == null) {
+                    progress.setStartedAt(Instant.now());
+                }
+                lessonProgressRepository.save(progress);
+            }
+            stats = studentStatsService.getStats(student);
+        }
+
+        return new SubmitQuizResponse(
+                savedAttempt.getId(),
+                enrollment.getId(),
+                lesson.getId(),
+                gradingResult.scorePercent(),
+                gradingResult.passed(),
+                savedAttempt.getEarnedXp(),
+                xpAwarded,
+                StudentQuizProgressResponse.from(progress, enrollment, unlockedNextLessonId),
+                stats,
+                savedAttempt.getAnswers().stream()
+                        .map(this::toAnswerResponse)
+                        .toList()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public StudentQuizAttemptResponse getQuizAttempt(User student, Long attemptId) {
+        QuizAttempt attempt = quizAttemptRepository.findByIdAndUser(attemptId, student)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Quiz attempt not found."));
+        CourseEnrollment enrollment = attempt.getCourseEnrollment();
+        LessonProgress progress = findLessonProgress(enrollment, attempt.getLesson().getId());
+        List<QuestionAnswer> answers = questionAnswerRepository.findByQuizAttemptOrderByQuestionOrderIndexAscQuestionIdAsc(attempt);
+
+        return new StudentQuizAttemptResponse(
+                attempt.getId(),
+                enrollment.getId(),
+                attempt.getLesson().getId(),
+                attempt.getScorePercent(),
+                attempt.isPassed(),
+                attempt.getEarnedXp(),
+                StudentQuizProgressResponse.from(progress, enrollment, null),
+                studentStatsService.getStats(student),
+                answers.stream()
+                        .map(this::toAnswerResponse)
+                        .toList()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -112,6 +300,9 @@ public class StudentLearningService {
         if (progress.getStatus() == LessonProgressStatus.LOCKED) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Lesson is locked.");
         }
+        if (hasApprovedGradableQuestions(progress.getLesson())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Lesson quiz must be passed.");
+        }
         if (progress.getStatus() != LessonProgressStatus.COMPLETED) {
             Instant now = Instant.now();
             if (progress.getStartedAt() == null) {
@@ -122,7 +313,7 @@ public class StudentLearningService {
             progress.setStatus(LessonProgressStatus.COMPLETED);
             lessonProgressRepository.save(progress);
             recomputeEnrollmentProgress(enrollment);
-            unlockNextLesson(enrollment);
+            unlockNextLessonAndReturnId(enrollment);
         }
         return StudentEnrollmentProgressResponse.from(enrollment);
     }
@@ -186,6 +377,11 @@ public class StudentLearningService {
         }
     }
 
+    private boolean hasApprovedGradableQuestions(Lesson lesson) {
+        return questionRepository.findByLessonAndStatusForStudentQuiz(lesson, ContentStatus.APPROVED).stream()
+                .anyMatch(question -> question.getType() != QuestionType.PRONUNCIATION);
+    }
+
     private void recomputeEnrollmentProgress(CourseEnrollment enrollment) {
         long total = enrollment.getLessonProgress().size();
         long completed = enrollment.getLessonProgress().stream()
@@ -202,7 +398,7 @@ public class StudentLearningService {
         courseEnrollmentRepository.save(enrollment);
     }
 
-    private void unlockNextLesson(CourseEnrollment enrollment) {
+    private Long unlockNextLessonAndReturnId(CourseEnrollment enrollment) {
         List<LessonProgress> ordered = orderedProgress(enrollment);
         for (int index = 0; index < ordered.size(); index++) {
             LessonProgress current = ordered.get(index);
@@ -211,10 +407,11 @@ public class StudentLearningService {
                 if (next.getStatus() == LessonProgressStatus.LOCKED) {
                     next.setStatus(LessonProgressStatus.UNLOCKED);
                     lessonProgressRepository.save(next);
-                    return;
+                    return next.getLesson().getId();
                 }
             }
         }
+        return null;
     }
 
     private List<LessonProgress> orderedProgress(CourseEnrollment enrollment) {
@@ -225,6 +422,59 @@ public class StudentLearningService {
                         .thenComparingInt(progress -> progress.getLesson().getOrderIndex())
                         .thenComparing(progress -> progress.getLesson().getId()))
                 .toList();
+    }
+
+    private StudentQuizAnswerResultResponse toAnswerResponse(StudentQuestionGradingResult result, boolean xpAwarded) {
+        Long selectedOptionId = result.selectedOption() == null ? null : result.selectedOption().getId();
+        int earnedXp = xpAwarded && result.correct() ? result.question().getXpReward() : 0;
+        return new StudentQuizAnswerResultResponse(
+                result.question().getId(),
+                result.question().getType().name(),
+                result.question().getQuestionText(),
+                result.answer() == null ? null : result.answer().answerText(),
+                selectedOptionId,
+                result.correct(),
+                result.scorePercent(),
+                earnedXp,
+                result.gradingMethod().name(),
+                result.feedback(),
+                result.correctAnswer(),
+                result.correctOptionId(),
+                result.question().getExplanation()
+        );
+    }
+
+    private StudentQuizAnswerResultResponse toAnswerResponse(QuestionAnswer answer) {
+        Question question = answer.getQuestion();
+        QuestionOption selectedOption = answer.getSelectedOption();
+        return new StudentQuizAnswerResultResponse(
+                question.getId(),
+                question.getType().name(),
+                question.getQuestionText(),
+                answer.getAnswerText(),
+                selectedOption == null ? null : selectedOption.getId(),
+                answer.isCorrect(),
+                answer.getScorePercent(),
+                answer.getEarnedXp(),
+                answer.getGradingMethod().name(),
+                answer.getFeedback(),
+                usesOptionGrading(question) ? null : question.getCorrectAnswer(),
+                usesOptionGrading(question) ? correctOptionId(question) : null,
+                question.getExplanation()
+        );
+    }
+
+    private boolean usesOptionGrading(Question question) {
+        return question.getType() == QuestionType.MULTIPLE_CHOICE
+                || (question.getType() == QuestionType.TRUE_FALSE && !question.getOptions().isEmpty());
+    }
+
+    private Long correctOptionId(Question question) {
+        return question.getOptions().stream()
+                .filter(QuestionOption::isCorrect)
+                .findFirst()
+                .map(QuestionOption::getId)
+                .orElse(null);
     }
 
     private StudentCourseSummaryResponse toCourseSummary(User student, Course course) {

@@ -26,6 +26,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -52,10 +53,29 @@ class AuthSessionApiTests {
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @BeforeEach
     void setUp() {
+        deleteLearningAndContentRows();
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
+    }
+
+    private void deleteLearningAndContentRows() {
+        jdbcTemplate.update("delete from question_answers");
+        jdbcTemplate.update("delete from quiz_attempts");
+        jdbcTemplate.update("delete from learning_activities");
+        jdbcTemplate.update("delete from user_stats");
+        jdbcTemplate.update("delete from lesson_progress");
+        jdbcTemplate.update("delete from course_enrollments");
+        jdbcTemplate.update("delete from question_options");
+        jdbcTemplate.update("delete from questions");
+        jdbcTemplate.update("delete from lessons");
+        jdbcTemplate.update("delete from topics");
+        jdbcTemplate.update("delete from courses");
+        jdbcTemplate.update("delete from teacher_profiles");
     }
 
     @Test

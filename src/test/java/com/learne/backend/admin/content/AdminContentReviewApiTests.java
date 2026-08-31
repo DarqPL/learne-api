@@ -11,6 +11,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.student.learning.repository.CourseEnrollmentRepository;
+import com.learne.backend.student.learning.repository.LearningActivityRepository;
+import com.learne.backend.student.learning.repository.LessonProgressRepository;
+import com.learne.backend.student.learning.repository.QuestionAnswerRepository;
+import com.learne.backend.student.learning.repository.QuizAttemptRepository;
+import com.learne.backend.student.learning.repository.UserStatsRepository;
 import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.repository.CourseRepository;
 import com.learne.backend.teacher.content.repository.LessonRepository;
@@ -52,6 +58,24 @@ class AdminContentReviewApiTests {
     private QuestionOptionRepository questionOptionRepository;
 
     @Autowired
+    private QuestionAnswerRepository questionAnswerRepository;
+
+    @Autowired
+    private QuizAttemptRepository quizAttemptRepository;
+
+    @Autowired
+    private LearningActivityRepository learningActivityRepository;
+
+    @Autowired
+    private UserStatsRepository userStatsRepository;
+
+    @Autowired
+    private LessonProgressRepository lessonProgressRepository;
+
+    @Autowired
+    private CourseEnrollmentRepository courseEnrollmentRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -61,6 +85,12 @@ class AdminContentReviewApiTests {
 
     @BeforeEach
     void setUp() {
+        questionAnswerRepository.deleteAll();
+        quizAttemptRepository.deleteAll();
+        learningActivityRepository.deleteAll();
+        userStatsRepository.deleteAll();
+        lessonProgressRepository.deleteAll();
+        courseEnrollmentRepository.deleteAll();
         questionOptionRepository.deleteAll();
         questionRepository.deleteAll();
         lessonRepository.deleteAll();

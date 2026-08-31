@@ -65,6 +65,12 @@ class TeacherProfileApiTests {
 
     @BeforeEach
     void setUp() {
+        jdbcTemplate.update("delete from question_answers");
+        jdbcTemplate.update("delete from quiz_attempts");
+        jdbcTemplate.update("delete from learning_activities");
+        jdbcTemplate.update("delete from user_stats");
+        jdbcTemplate.update("delete from lesson_progress");
+        jdbcTemplate.update("delete from course_enrollments");
         jdbcTemplate.update("delete from question_options");
         jdbcTemplate.update("delete from questions");
         jdbcTemplate.update("delete from lessons");

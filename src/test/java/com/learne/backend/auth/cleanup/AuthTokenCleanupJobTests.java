@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -41,12 +42,31 @@ class AuthTokenCleanupJobTests {
     @Autowired
     private PasswordResetTokenRepository passwordResetTokenRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @BeforeEach
     void setUp() {
+        deleteLearningAndContentRows();
         passwordResetTokenRepository.deleteAll();
         registrationOtpRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
+    }
+
+    private void deleteLearningAndContentRows() {
+        jdbcTemplate.update("delete from question_answers");
+        jdbcTemplate.update("delete from quiz_attempts");
+        jdbcTemplate.update("delete from learning_activities");
+        jdbcTemplate.update("delete from user_stats");
+        jdbcTemplate.update("delete from lesson_progress");
+        jdbcTemplate.update("delete from course_enrollments");
+        jdbcTemplate.update("delete from question_options");
+        jdbcTemplate.update("delete from questions");
+        jdbcTemplate.update("delete from lessons");
+        jdbcTemplate.update("delete from topics");
+        jdbcTemplate.update("delete from courses");
+        jdbcTemplate.update("delete from teacher_profiles");
     }
 
     @Test
