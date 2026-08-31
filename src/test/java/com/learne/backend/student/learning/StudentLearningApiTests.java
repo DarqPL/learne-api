@@ -784,6 +784,7 @@ class StudentLearningApiTests {
                 .andExpect(jsonPath("$.answers[0].questionText").value("Choose the correct greeting."))
                 .andExpect(jsonPath("$.answers[0].answerText").doesNotExist())
                 .andExpect(jsonPath("$.answers[0].selectedOptionId").value(wrongOptionId))
+                .andExpect(jsonPath("$.answers[0].selectedOptionText").value("Apple"))
                 .andExpect(jsonPath("$.answers[0].correct").value(false))
                 .andExpect(jsonPath("$.answers[0].scorePercent").value(0))
                 .andExpect(jsonPath("$.answers[0].earnedXp").value(0))
@@ -791,6 +792,7 @@ class StudentLearningApiTests {
                 .andExpect(jsonPath("$.answers[0].feedback").value("Incorrect."))
                 .andExpect(jsonPath("$.answers[0].correctAnswer").doesNotExist())
                 .andExpect(jsonPath("$.answers[0].correctOptionId").exists())
+                .andExpect(jsonPath("$.answers[0].correctOptionText").value("Hello"))
                 .andExpect(jsonPath("$.answers[0].explanation").value("Hello is a greeting."));
 
         assertEquals(1, quizAttemptRepository.findAll().size());
@@ -938,7 +940,10 @@ class StudentLearningApiTests {
                 .andExpect(jsonPath("$.xpAwarded").doesNotExist())
                 .andExpect(jsonPath("$.earnedXp").value(0))
                 .andExpect(jsonPath("$.answers[0].earnedXp").value(0))
-                .andExpect(jsonPath("$.answers[0].correctOptionId").value(correctOptionId));
+                .andExpect(jsonPath("$.answers[0].selectedOptionId").value(correctOptionId))
+                .andExpect(jsonPath("$.answers[0].selectedOptionText").value("Hello"))
+                .andExpect(jsonPath("$.answers[0].correctOptionId").value(correctOptionId))
+                .andExpect(jsonPath("$.answers[0].correctOptionText").value("Hello"));
 
         mockMvc.perform(get("/api/student/quiz-attempts/%d".formatted(attemptId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherToken))
