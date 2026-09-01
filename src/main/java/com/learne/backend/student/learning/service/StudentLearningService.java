@@ -426,6 +426,7 @@ public class StudentLearningService {
 
     private StudentQuizAnswerResultResponse toAnswerResponse(StudentQuestionGradingResult result, boolean xpAwarded) {
         Long selectedOptionId = result.selectedOption() == null ? null : result.selectedOption().getId();
+        String selectedOptionText = result.selectedOption() == null ? null : result.selectedOption().getOptionText();
         int earnedXp = xpAwarded && result.correct() ? result.question().getXpReward() : 0;
         return new StudentQuizAnswerResultResponse(
                 result.question().getId(),
@@ -433,6 +434,7 @@ public class StudentLearningService {
                 result.question().getQuestionText(),
                 result.answer() == null ? null : result.answer().answerText(),
                 selectedOptionId,
+                selectedOptionText,
                 result.correct(),
                 result.scorePercent(),
                 earnedXp,
@@ -440,6 +442,7 @@ public class StudentLearningService {
                 result.feedback(),
                 result.correctAnswer(),
                 result.correctOptionId(),
+                correctOptionText(result.question(), result.correctOptionId()),
                 result.question().getExplanation()
         );
     }
@@ -453,6 +456,7 @@ public class StudentLearningService {
                 question.getQuestionText(),
                 answer.getAnswerText(),
                 selectedOption == null ? null : selectedOption.getId(),
+                selectedOption == null ? null : selectedOption.getOptionText(),
                 answer.isCorrect(),
                 answer.getScorePercent(),
                 answer.getEarnedXp(),
@@ -460,6 +464,7 @@ public class StudentLearningService {
                 answer.getFeedback(),
                 usesOptionGrading(question) ? null : question.getCorrectAnswer(),
                 usesOptionGrading(question) ? correctOptionId(question) : null,
+                usesOptionGrading(question) ? correctOptionText(question) : null,
                 question.getExplanation()
         );
     }
@@ -474,6 +479,25 @@ public class StudentLearningService {
                 .filter(QuestionOption::isCorrect)
                 .findFirst()
                 .map(QuestionOption::getId)
+                .orElse(null);
+    }
+
+    private String correctOptionText(Question question) {
+        return question.getOptions().stream()
+                .filter(QuestionOption::isCorrect)
+                .findFirst()
+                .map(QuestionOption::getOptionText)
+                .orElse(null);
+    }
+
+    private String correctOptionText(Question question, Long correctOptionId) {
+        if (correctOptionId == null) {
+            return null;
+        }
+        return question.getOptions().stream()
+                .filter(option -> option.getId().equals(correctOptionId))
+                .findFirst()
+                .map(QuestionOption::getOptionText)
                 .orElse(null);
     }
 
