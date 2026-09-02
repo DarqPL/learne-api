@@ -16,6 +16,8 @@ import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
 import com.learne.backend.student.learning.repository.CourseEnrollmentRepository;
 import com.learne.backend.student.learning.repository.LearningActivityRepository;
+import com.learne.backend.student.learning.repository.LearningPathItemRepository;
+import com.learne.backend.student.learning.repository.LearningPathRepository;
 import com.learne.backend.student.learning.repository.LessonProgressRepository;
 import com.learne.backend.student.learning.repository.QuestionAnswerRepository;
 import com.learne.backend.student.learning.repository.QuizAttemptRepository;
@@ -102,6 +104,12 @@ class AdminUserApiTests {
     @Autowired
     private CourseEnrollmentRepository courseEnrollmentRepository;
 
+    @Autowired
+    private LearningPathItemRepository learningPathItemRepository;
+
+    @Autowired
+    private LearningPathRepository learningPathRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
@@ -112,6 +120,8 @@ class AdminUserApiTests {
         userStatsRepository.deleteAll();
         lessonProgressRepository.deleteAll();
         courseEnrollmentRepository.deleteAll();
+        learningPathItemRepository.deleteAll();
+        learningPathRepository.deleteAll();
         questionOptionRepository.deleteAll();
         questionRepository.deleteAll();
         lessonRepository.deleteAll();

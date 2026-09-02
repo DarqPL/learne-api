@@ -23,6 +23,8 @@ import com.learne.backend.student.learning.enums.LearningActivitySourceType;
 import com.learne.backend.student.learning.enums.LessonProgressStatus;
 import com.learne.backend.student.learning.repository.CourseEnrollmentRepository;
 import com.learne.backend.student.learning.repository.LearningActivityRepository;
+import com.learne.backend.student.learning.repository.LearningPathItemRepository;
+import com.learne.backend.student.learning.repository.LearningPathRepository;
 import com.learne.backend.student.learning.repository.LessonProgressRepository;
 import com.learne.backend.student.learning.repository.QuestionAnswerRepository;
 import com.learne.backend.student.learning.repository.QuizAttemptRepository;
@@ -68,6 +70,8 @@ class StudentLearningApiTests {
     @Autowired private QuestionAnswerRepository questionAnswerRepository;
     @Autowired private UserStatsRepository userStatsRepository;
     @Autowired private LearningActivityRepository learningActivityRepository;
+    @Autowired private LearningPathItemRepository learningPathItemRepository;
+    @Autowired private LearningPathRepository learningPathRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private MockMvc mockMvc;
 
@@ -81,6 +85,8 @@ class StudentLearningApiTests {
         userStatsRepository.deleteAll();
         lessonProgressRepository.deleteAll();
         courseEnrollmentRepository.deleteAll();
+        learningPathItemRepository.deleteAll();
+        learningPathRepository.deleteAll();
         questionOptionRepository.deleteAll();
         questionRepository.deleteAll();
         lessonRepository.deleteAll();
