@@ -1,15 +1,19 @@
 package com.learne.backend.student.learning.controller;
 
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.student.learning.dto.GenerateLearningPathRequest;
+import com.learne.backend.student.learning.dto.NextLessonRecommendationResponse;
 import com.learne.backend.student.learning.dto.SubmitQuizRequest;
 import com.learne.backend.student.learning.dto.SubmitQuizResponse;
 import com.learne.backend.student.learning.dto.StudentCourseDetailResponse;
 import com.learne.backend.student.learning.dto.StudentCourseSummaryResponse;
 import com.learne.backend.student.learning.dto.StudentEnrollmentProgressResponse;
 import com.learne.backend.student.learning.dto.StudentEnrollmentResponse;
+import com.learne.backend.student.learning.dto.StudentLearningPathResponse;
 import com.learne.backend.student.learning.dto.StudentQuizAttemptResponse;
 import com.learne.backend.student.learning.dto.StudentQuizResponse;
 import com.learne.backend.student.learning.dto.StudentStatsResponse;
+import com.learne.backend.student.learning.service.StudentLearningPathService;
 import com.learne.backend.student.learning.service.StudentLearningService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -26,9 +30,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/student")
 class StudentLearningController {
     private final StudentLearningService studentLearningService;
+    private final StudentLearningPathService studentLearningPathService;
 
-    StudentLearningController(StudentLearningService studentLearningService) {
+    StudentLearningController(StudentLearningService studentLearningService,
+                              StudentLearningPathService studentLearningPathService) {
         this.studentLearningService = studentLearningService;
+        this.studentLearningPathService = studentLearningPathService;
     }
 
     @GetMapping("/courses")
@@ -97,9 +104,29 @@ class StudentLearningController {
 
     @PostMapping("/enrollments/{enrollmentId}/lessons/{lessonId}/complete")
     StudentEnrollmentProgressResponse completeLesson(@PathVariable Long enrollmentId,
-                                                     @PathVariable Long lessonId,
-                                                     Authentication authentication) {
+                                                      @PathVariable Long lessonId,
+                                                      Authentication authentication) {
         return studentLearningService.completeLesson(currentUser(authentication), enrollmentId, lessonId);
+    }
+
+    @PostMapping("/learning-path/generate")
+    StudentLearningPathResponse generateLearningPath(
+            @Valid @RequestBody(required = false) GenerateLearningPathRequest request,
+            Authentication authentication) {
+        GenerateLearningPathRequest effectiveRequest = request == null
+                ? new GenerateLearningPathRequest(null, null)
+                : request;
+        return studentLearningPathService.generate(currentUser(authentication), effectiveRequest);
+    }
+
+    @GetMapping("/learning-path/current")
+    StudentLearningPathResponse currentLearningPath(Authentication authentication) {
+        return studentLearningPathService.current(currentUser(authentication));
+    }
+
+    @GetMapping("/recommendations/next-lesson")
+    NextLessonRecommendationResponse nextLessonRecommendation(Authentication authentication) {
+        return studentLearningPathService.nextLesson(currentUser(authentication));
     }
 
     private User currentUser(Authentication authentication) {
