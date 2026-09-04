@@ -14,6 +14,7 @@ import com.learne.backend.domain.auth.RefreshTokenRepository;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.testsupport.TestDatabaseCleaner;
 import com.learne.backend.student.learning.repository.CourseEnrollmentRepository;
 import com.learne.backend.student.learning.repository.LearningActivityRepository;
 import com.learne.backend.student.learning.repository.LearningPathItemRepository;
@@ -43,6 +44,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -110,26 +112,14 @@ class AdminUserApiTests {
     @Autowired
     private LearningPathRepository learningPathRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        questionAnswerRepository.deleteAll();
-        quizAttemptRepository.deleteAll();
-        learningActivityRepository.deleteAll();
-        userStatsRepository.deleteAll();
-        lessonProgressRepository.deleteAll();
-        courseEnrollmentRepository.deleteAll();
-        learningPathItemRepository.deleteAll();
-        learningPathRepository.deleteAll();
-        questionOptionRepository.deleteAll();
-        questionRepository.deleteAll();
-        lessonRepository.deleteAll();
-        topicRepository.deleteAll();
-        courseRepository.deleteAll();
-        teacherProfileRepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        userRepository.deleteAll();
+        TestDatabaseCleaner.clean(jdbcTemplate);
         teacherInvitationMailService.clear();
     }
 

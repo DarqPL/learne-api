@@ -55,4 +55,14 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
             where c.id = :id and c.status = :status
             """)
     Optional<Course> findStudentDetailByIdAndStatus(@Param("id") Long id, @Param("status") ContentStatus status);
+
+    @Query("""
+            select distinct c from Course c
+            left join fetch c.teacher
+            left join c.topics t
+            left join t.lessons l
+            where c.status = :status
+            order by c.publishedAt desc, c.id desc
+            """)
+    List<Course> findApprovedCourseRecommendationCandidates(@Param("status") ContentStatus status);
 }

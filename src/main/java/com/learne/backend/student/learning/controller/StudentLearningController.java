@@ -1,8 +1,14 @@
 package com.learne.backend.student.learning.controller;
 
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.student.learning.dto.CourseRecommendationPathResponse;
+import com.learne.backend.student.learning.dto.GenerateCourseRecommendationsRequest;
 import com.learne.backend.student.learning.dto.GenerateLearningPathRequest;
 import com.learne.backend.student.learning.dto.NextLessonRecommendationResponse;
+import com.learne.backend.student.learning.dto.PlacementAttemptResponse;
+import com.learne.backend.student.learning.dto.PlacementStatusResponse;
+import com.learne.backend.student.learning.dto.SubmitPlacementRequest;
+import com.learne.backend.student.learning.dto.SubmitPlacementResponse;
 import com.learne.backend.student.learning.dto.SubmitQuizRequest;
 import com.learne.backend.student.learning.dto.SubmitQuizResponse;
 import com.learne.backend.student.learning.dto.StudentCourseDetailResponse;
@@ -13,8 +19,10 @@ import com.learne.backend.student.learning.dto.StudentLearningPathResponse;
 import com.learne.backend.student.learning.dto.StudentQuizAttemptResponse;
 import com.learne.backend.student.learning.dto.StudentQuizResponse;
 import com.learne.backend.student.learning.dto.StudentStatsResponse;
+import com.learne.backend.student.learning.service.StudentCourseRecommendationService;
 import com.learne.backend.student.learning.service.StudentLearningPathService;
 import com.learne.backend.student.learning.service.StudentLearningService;
+import com.learne.backend.student.learning.service.StudentPlacementService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.security.core.Authentication;
@@ -31,11 +39,17 @@ import org.springframework.web.bind.annotation.RestController;
 class StudentLearningController {
     private final StudentLearningService studentLearningService;
     private final StudentLearningPathService studentLearningPathService;
+    private final StudentPlacementService studentPlacementService;
+    private final StudentCourseRecommendationService studentCourseRecommendationService;
 
     StudentLearningController(StudentLearningService studentLearningService,
-                              StudentLearningPathService studentLearningPathService) {
+                               StudentLearningPathService studentLearningPathService,
+                               StudentPlacementService studentPlacementService,
+                               StudentCourseRecommendationService studentCourseRecommendationService) {
         this.studentLearningService = studentLearningService;
         this.studentLearningPathService = studentLearningPathService;
+        this.studentPlacementService = studentPlacementService;
+        this.studentCourseRecommendationService = studentCourseRecommendationService;
     }
 
     @GetMapping("/courses")
@@ -127,6 +141,48 @@ class StudentLearningController {
     @GetMapping("/recommendations/next-lesson")
     NextLessonRecommendationResponse nextLessonRecommendation(Authentication authentication) {
         return studentLearningPathService.nextLesson(currentUser(authentication));
+    }
+
+    @PostMapping("/course-recommendations/generate")
+    CourseRecommendationPathResponse generateCourseRecommendations(
+            @Valid @RequestBody(required = false) GenerateCourseRecommendationsRequest request,
+            Authentication authentication) {
+        GenerateCourseRecommendationsRequest effectiveRequest = request == null
+                ? new GenerateCourseRecommendationsRequest(null)
+                : request;
+        return studentCourseRecommendationService.generate(currentUser(authentication), effectiveRequest);
+    }
+
+    @GetMapping("/course-recommendations/current")
+    CourseRecommendationPathResponse currentCourseRecommendations(Authentication authentication) {
+        return studentCourseRecommendationService.current(currentUser(authentication));
+    }
+
+    @GetMapping("/placement/status")
+    PlacementStatusResponse placementStatus(Authentication authentication) {
+        return studentPlacementService.status(currentUser(authentication));
+    }
+
+    @PostMapping("/placement/skip")
+    PlacementStatusResponse skipPlacement(Authentication authentication) {
+        return studentPlacementService.skip(currentUser(authentication));
+    }
+
+    @PostMapping("/placement/start")
+    PlacementAttemptResponse startPlacement(Authentication authentication) {
+        return studentPlacementService.start(currentUser(authentication));
+    }
+
+    @GetMapping("/placement/attempts/{attemptId}")
+    PlacementAttemptResponse getPlacementAttempt(@PathVariable Long attemptId, Authentication authentication) {
+        return studentPlacementService.getAttempt(currentUser(authentication), attemptId);
+    }
+
+    @PostMapping("/placement/attempts/{attemptId}/submit")
+    SubmitPlacementResponse submitPlacement(@PathVariable Long attemptId,
+                                            @Valid @RequestBody SubmitPlacementRequest request,
+                                            Authentication authentication) {
+        return studentPlacementService.submit(currentUser(authentication), attemptId, request);
     }
 
     private User currentUser(Authentication authentication) {

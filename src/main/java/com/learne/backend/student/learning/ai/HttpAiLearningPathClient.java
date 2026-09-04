@@ -43,4 +43,21 @@ public class HttpAiLearningPathClient implements AiLearningPathClient {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI service is unavailable.");
         }
     }
+
+    @Override
+    public AiCourseRecommendationResponse generateCourseRecommendations(AiCourseRecommendationRequest request) {
+        if (!properties.enabled()) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI service is disabled.");
+        }
+
+        try {
+            return restClient.post()
+                    .uri("/course-recommendations/generate")
+                    .body(request)
+                    .retrieve()
+                    .body(AiCourseRecommendationResponse.class);
+        } catch (RestClientException ex) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI service is unavailable.");
+        }
+    }
 }
