@@ -18,6 +18,7 @@ import com.learne.backend.domain.auth.UserRole;
 import com.learne.backend.student.learning.ai.AiLearningPathClient;
 import com.learne.backend.student.learning.ai.AiLearningPathRequest;
 import com.learne.backend.student.learning.ai.AiLearningPathResponse;
+import com.learne.backend.testsupport.TestDatabaseCleaner;
 import com.learne.backend.student.learning.enums.LearningPathStatus;
 import com.learne.backend.student.learning.repository.CourseEnrollmentRepository;
 import com.learne.backend.student.learning.repository.LearningActivityRepository;
@@ -42,6 +43,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -67,6 +69,7 @@ class StudentLearningPathApiTests {
     @Autowired private LearningPathRepository learningPathRepository;
     @Autowired private LearningPathItemRepository learningPathItemRepository;
     @Autowired private PasswordEncoder passwordEncoder;
+    @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private MockMvc mockMvc;
 
     @MockitoBean private AiLearningPathClient aiLearningPathClient;
@@ -75,20 +78,7 @@ class StudentLearningPathApiTests {
 
     @BeforeEach
     void setUp() {
-        learningPathItemRepository.deleteAll();
-        learningPathRepository.deleteAll();
-        questionAnswerRepository.deleteAll();
-        quizAttemptRepository.deleteAll();
-        learningActivityRepository.deleteAll();
-        userStatsRepository.deleteAll();
-        lessonProgressRepository.deleteAll();
-        courseEnrollmentRepository.deleteAll();
-        questionOptionRepository.deleteAll();
-        questionRepository.deleteAll();
-        lessonRepository.deleteAll();
-        topicRepository.deleteAll();
-        courseRepository.deleteAll();
-        userRepository.deleteAll();
+        TestDatabaseCleaner.clean(jdbcTemplate);
     }
 
     @Test

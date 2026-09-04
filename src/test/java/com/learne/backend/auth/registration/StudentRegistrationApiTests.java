@@ -12,6 +12,7 @@ import com.learne.backend.domain.auth.RegistrationOtpRepository;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.testsupport.TestDatabaseCleaner;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,27 +55,8 @@ class StudentRegistrationApiTests {
 
     @BeforeEach
     void setUp() {
-        deleteLearningAndContentRows();
-        registrationOtpRepository.deleteAll();
-        userRepository.deleteAll();
+        TestDatabaseCleaner.clean(jdbcTemplate);
         mailService.clear();
-    }
-
-    private void deleteLearningAndContentRows() {
-        jdbcTemplate.update("delete from question_answers");
-        jdbcTemplate.update("delete from quiz_attempts");
-        jdbcTemplate.update("delete from learning_activities");
-        jdbcTemplate.update("delete from user_stats");
-        jdbcTemplate.update("delete from lesson_progress");
-        jdbcTemplate.update("delete from course_enrollments");
-        jdbcTemplate.update("delete from learning_path_items");
-        jdbcTemplate.update("delete from learning_paths");
-        jdbcTemplate.update("delete from question_options");
-        jdbcTemplate.update("delete from questions");
-        jdbcTemplate.update("delete from lessons");
-        jdbcTemplate.update("delete from topics");
-        jdbcTemplate.update("delete from courses");
-        jdbcTemplate.update("delete from teacher_profiles");
     }
 
     @Test

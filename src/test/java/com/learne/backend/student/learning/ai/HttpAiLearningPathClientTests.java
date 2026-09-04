@@ -51,6 +51,29 @@ class HttpAiLearningPathClientTests {
     }
 
     @Test
+    void generateCourseRecommendationsPostsToAiServiceCourseEndpoint() {
+        AtomicBoolean called = new AtomicBoolean(false);
+        RestClient.Builder builder = RestClient.builder().requestInterceptor((request, body, execution) -> {
+            called.set(true);
+            assertEquals(HttpMethod.POST, request.getMethod());
+            assertEquals("http://ai-service:5000/course-recommendations/generate", request.getURI().toString());
+            assertEquals(MediaType.APPLICATION_JSON, request.getHeaders().getContentType());
+            assertEquals("{\"student\":{\"id\":7,\"level\":\"BEGINNER\"},\"assessmentSummary\":{\"assessmentId\":3,\"level\":\"BEGINNER\",\"scorePercent\":72,\"completedAt\":\"2026-09-01T10:15:30Z\"},\"skillStats\":[{\"skill\":\"grammar\",\"scorePercent\":58,\"attempts\":4,\"weakKnowledgePoints\":[\"present simple\"]}],\"learningHistory\":{\"recentCourseIds\":[1,2],\"recentLessonTitles\":[\"Present simple\"],\"weaknesses\":[\"present simple\"]},\"candidateCourses\":[{\"courseId\":10,\"title\":\"Grammar Basics\",\"name\":\"Grammar Basics\",\"type\":\"RECORDED\",\"level\":\"BEGINNER\",\"description\":\"Build grammar foundations\",\"teacherName\":\"Teacher Linh\",\"enrolled\":false}],\"constraints\":{\"maxItems\":3,\"allowedCourseIds\":[10,11]}}",
+                    new String(body, StandardCharsets.UTF_8));
+            return jsonResponse("{\"weaknesses\":[\"present simple\"],\"recommendations\":[{\"courseId\":10,\"score\":0.94,\"reason\":\"Grammar fit\"}]}",
+                    HttpStatus.OK);
+        });
+        AiLearningPathClient client = new HttpAiLearningPathClient(
+                new AiServiceProperties("http://ai-service:5000", 8000, true), builder);
+
+        AiCourseRecommendationResponse response = client.generateCourseRecommendations(sampleCourseRequest());
+
+        assertEquals(true, called.get());
+        assertEquals(1, response.recommendations().size());
+        assertEquals(10L, response.recommendations().getFirst().courseId());
+    }
+
+    @Test
     void generateLearningPathThrowsServiceUnavailableWhenDisabled() {
         HttpAiLearningPathClient client = new HttpAiLearningPathClient(
                 new AiServiceProperties("http://ai-service:5000", 8000, false), RestClient.builder());
@@ -77,6 +100,26 @@ class HttpAiLearningPathClientTests {
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, exception.getStatus());
         assertEquals("AI service is unavailable.", exception.getMessage());
+    }
+
+    private static AiCourseRecommendationRequest sampleCourseRequest() {
+        return new AiCourseRecommendationRequest(
+                new AiCourseRecommendationRequest.StudentPayload(7L, "BEGINNER"),
+                new AiCourseRecommendationRequest.AssessmentSummaryPayload(
+                        3L, "BEGINNER", 72, "2026-09-01T10:15:30Z"),
+                List.of(new AiCourseRecommendationRequest.SkillStatPayload("grammar", 58, 4, List.of("present simple"))),
+                new AiCourseRecommendationRequest.LearningHistoryPayload(
+                        List.of(1L, 2L), List.of("Present simple"), List.of("present simple")),
+                List.of(new AiCourseRecommendationRequest.CandidateCoursePayload(
+                        10L,
+                        "Grammar Basics",
+                        "Grammar Basics",
+                        "RECORDED",
+                        "BEGINNER",
+                        "Build grammar foundations",
+                        "Teacher Linh",
+                        false)),
+                new AiCourseRecommendationRequest.ConstraintPayload(3, List.of(10L, 11L)));
     }
 
     private static MockClientHttpResponse jsonResponse(String body, HttpStatus status) throws IOException {

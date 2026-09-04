@@ -17,6 +17,7 @@ import com.learne.backend.domain.auth.UserRole;
 import com.learne.backend.storage.dto.StorageResourceType;
 import com.learne.backend.storage.dto.StorageUploadResult;
 import com.learne.backend.storage.service.StorageService;
+import com.learne.backend.testsupport.TestDatabaseCleaner;
 import com.learne.backend.teacher.profile.entity.TeacherProfile;
 import com.learne.backend.teacher.profile.enums.TeacherProfileStatus;
 import com.learne.backend.teacher.profile.repository.TeacherProfileRepository;
@@ -65,21 +66,7 @@ class TeacherProfileApiTests {
 
     @BeforeEach
     void setUp() {
-        jdbcTemplate.update("delete from question_answers");
-        jdbcTemplate.update("delete from quiz_attempts");
-        jdbcTemplate.update("delete from learning_activities");
-        jdbcTemplate.update("delete from user_stats");
-        jdbcTemplate.update("delete from lesson_progress");
-        jdbcTemplate.update("delete from course_enrollments");
-        jdbcTemplate.update("delete from learning_path_items");
-        jdbcTemplate.update("delete from learning_paths");
-        jdbcTemplate.update("delete from question_options");
-        jdbcTemplate.update("delete from questions");
-        jdbcTemplate.update("delete from lessons");
-        jdbcTemplate.update("delete from topics");
-        jdbcTemplate.update("delete from courses");
-        teacherProfileRepository.deleteAll();
-        userRepository.deleteAll();
+        TestDatabaseCleaner.clean(jdbcTemplate);
         cloudinaryStorageService.clear();
     }
 

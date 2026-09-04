@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.testsupport.TestDatabaseCleaner;
 import com.learne.backend.student.learning.repository.CourseEnrollmentRepository;
 import com.learne.backend.student.learning.repository.LearningActivityRepository;
 import com.learne.backend.student.learning.repository.LearningPathItemRepository;
@@ -32,6 +33,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -87,26 +89,16 @@ class AdminContentReviewApiTests {
     private PasswordEncoder passwordEncoder;
 
     @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
     private MockMvc mockMvc;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        questionAnswerRepository.deleteAll();
-        quizAttemptRepository.deleteAll();
-        learningActivityRepository.deleteAll();
-        userStatsRepository.deleteAll();
-        lessonProgressRepository.deleteAll();
-        courseEnrollmentRepository.deleteAll();
-        learningPathItemRepository.deleteAll();
-        learningPathRepository.deleteAll();
-        questionOptionRepository.deleteAll();
-        questionRepository.deleteAll();
-        lessonRepository.deleteAll();
-        topicRepository.deleteAll();
-        courseRepository.deleteAll();
-        userRepository.deleteAll();
+        TestDatabaseCleaner.clean(jdbcTemplate);
     }
 
     @Test
