@@ -6,11 +6,21 @@ import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.enums.CourseType;
 import com.learne.backend.teacher.content.enums.SkillType;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface QuestionRepository extends JpaRepository<Question, Long> {
+    @Query("""
+            select question from Question question
+            join fetch question.lesson lesson
+            join fetch lesson.topic topic
+            join fetch topic.course
+            where question.id = :id
+            """)
+    Optional<Question> findByIdWithLesson(@Param("id") Long id);
+
     @Query("""
             select distinct question from Question question
             left join fetch question.options options
