@@ -299,7 +299,8 @@ public class AiTutorService {
 
     private String messagePreview(AiConversation conversation) {
         return conversation.getMessages().stream()
-                .max(Comparator.comparing(AiMessage::getCreatedAt, Comparator.nullsFirst(Comparator.naturalOrder())))
+                .max(Comparator.comparing(AiMessage::getCreatedAt, Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .thenComparing(AiMessage::getId, Comparator.nullsFirst(Comparator.naturalOrder())))
                 .map(AiMessage::getMessage)
                 .map(message -> message.length() <= PREVIEW_LENGTH ? message : message.substring(0, PREVIEW_LENGTH))
                 .orElse(null);
