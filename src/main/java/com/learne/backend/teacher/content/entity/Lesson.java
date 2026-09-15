@@ -46,6 +46,12 @@ public class Lesson {
     @Column(columnDefinition = "TEXT")
     private String content;
 
+    @Column(name = "audio_url", length = 1024)
+    private String audioUrl;
+
+    @Column(name = "audio_public_id")
+    private String audioPublicId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "skill_type", nullable = false)
     private SkillType skillType;
@@ -109,6 +115,10 @@ public class Lesson {
     public void setDescription(String description) { this.description = description; }
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
+    public String getAudioUrl() { return audioUrl; }
+    public void setAudioUrl(String audioUrl) { this.audioUrl = audioUrl; }
+    public String getAudioPublicId() { return audioPublicId; }
+    public void setAudioPublicId(String audioPublicId) { this.audioPublicId = audioPublicId; }
     public SkillType getSkillType() { return skillType; }
     public void setSkillType(SkillType skillType) { this.skillType = skillType; }
     public int getOrderIndex() { return orderIndex; }

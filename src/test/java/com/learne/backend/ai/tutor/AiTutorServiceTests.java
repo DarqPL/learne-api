@@ -135,6 +135,28 @@ class AiTutorServiceTests {
     }
 
     @Test
+    void sendMessageUsesAiReplyAsPreviewWhenSavedMessagesShareTimestamp() throws Exception {
+        User student = user(1L, UserRole.STUDENT);
+        AiConversation conversation = conversation(20L, student, NOW.minusSeconds(60));
+        when(conversationRepository.findByIdAndUserAndStatus(20L, student, AiConversationStatus.ACTIVE))
+                .thenReturn(Optional.of(conversation));
+        when(messageRepository.findByConversationOrderByCreatedAtDesc(eq(conversation), any())).thenReturn(List.of());
+        when(messageRepository.save(any(AiMessage.class))).thenAnswer(invocation -> {
+            AiMessage message = invocation.getArgument(0);
+            assignId(message, message.getSenderType() == AiMessageSenderType.USER ? 31L : 32L);
+            setField(message, "createdAt", NOW);
+            return message;
+        });
+        when(conversationRepository.save(any(AiConversation.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(aiTutorClient.generateReply(any())).thenReturn(new AiTutorResponse("She is happy. Great try!", null));
+
+        SendAiTutorMessageResponse response = service().sendMessage(
+                student, 20L, new SendAiTutorMessageRequest("She are happy"));
+
+        assertThat(response.conversation().messagePreview()).isEqualTo("She is happy. Great try!");
+    }
+
+    @Test
     void sendMessageRefreshesRetentionAfterAiMessageIsSavedOnSuccess() throws Exception {
         User student = user(1L, UserRole.STUDENT);
         AiConversation conversation = conversation(20L, student, NOW.minusSeconds(60));

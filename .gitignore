@@ -37,3 +37,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Realistic seed generated audio ###
+database/realistic-content/generated-audio/

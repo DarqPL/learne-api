@@ -275,6 +275,52 @@ class StudentLearningApiTests {
     }
 
     @Test
+    void lessonAndQuizResponsesExposeListeningAudio() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedCourseWithTwoLessons(teacherToken, adminToken);
+        long enrollmentId = enrollAndGetId(studentToken, courseId);
+        long firstLessonId = firstLessonId(enrollmentId);
+
+        jdbcTemplate.update("""
+                UPDATE lessons
+                SET skill_type = 'LISTENING', audio_url = ?, audio_public_id = ?
+                WHERE id = ?
+                """, "https://res.cloudinary.com/learne/video/upload/listening-audio/sample.mp3",
+                "learne/listening-audio/sample", firstLessonId);
+
+        mockMvc.perform(get("/api/student/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topics[0].lessons[0].skillType").value("LISTENING"))
+                .andExpect(jsonPath("$.topics[0].lessons[0].audioUrl")
+                        .value("https://res.cloudinary.com/learne/video/upload/listening-audio/sample.mp3"))
+                .andExpect(jsonPath("$.topics[0].lessons[0].audioPublicId")
+                        .value("learne/listening-audio/sample"));
+
+        mockMvc.perform(get("/api/student/enrollments/%d/progress".formatted(enrollmentId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topics[0].lessons[0].skillType").value("LISTENING"))
+                .andExpect(jsonPath("$.topics[0].lessons[0].audioUrl")
+                        .value("https://res.cloudinary.com/learne/video/upload/listening-audio/sample.mp3"))
+                .andExpect(jsonPath("$.topics[0].lessons[0].audioPublicId")
+                        .value("learne/listening-audio/sample"));
+
+        mockMvc.perform(get("/api/student/enrollments/%d/lessons/%d/quiz".formatted(enrollmentId, firstLessonId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.audioUrl")
+                        .value("https://res.cloudinary.com/learne/video/upload/listening-audio/sample.mp3"))
+                .andExpect(jsonPath("$.audioPublicId")
+                        .value("learne/listening-audio/sample"));
+    }
+
+    @Test
     void studentCannotAccessAnotherStudentsEnrollment() throws Exception {
         User admin = saveUser("admin@example.com", UserRole.ADMIN);
         User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
