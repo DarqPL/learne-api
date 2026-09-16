@@ -413,6 +413,25 @@ class AdminUserApiTests {
     }
 
     @Test
+    void listStudentsDefaultsMissingStatsToZero() throws Exception {
+        saveUser("admin@example.com", "Password123", UserRole.ADMIN);
+        User student = saveUser("student@example.com", "Password123", UserRole.STUDENT);
+
+        String adminToken = loginAndGetAccessToken("admin@example.com", "Password123");
+
+        mockMvc.perform(get("/api/admin/students")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].userId").value(student.getId()))
+                .andExpect(jsonPath("$[0].totalXp").value(0))
+                .andExpect(jsonPath("$[0].currentStreakDays").value(0))
+                .andExpect(jsonPath("$[0].longestStreakDays").value(0))
+                .andExpect(jsonPath("$[0].lastActivityDate").doesNotExist())
+                .andExpect(jsonPath("$[0].enrollmentCount").value(0))
+                .andExpect(jsonPath("$[0].completedLessonCount").value(0));
+    }
+
+    @Test
     void getStudentDetailRequiresAdminAndRejectsNonStudentIds() throws Exception {
         saveUser("admin@example.com", "Password123", UserRole.ADMIN);
         User student = saveUser("student@example.com", "Password123", UserRole.STUDENT);
