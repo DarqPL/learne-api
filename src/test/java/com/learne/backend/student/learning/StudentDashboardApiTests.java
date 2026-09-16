@@ -47,10 +47,10 @@ class StudentDashboardApiTests {
 
     @Test
     void dashboardRequiresStudentRoleAndReturnsLeaderboardOrderedByXpThenStreak() throws Exception {
-        User current = saveUser("current@example.com", "Current User", UserRole.STUDENT);
-        User top = saveUser("top@example.com", "Top User", UserRole.STUDENT);
-        User tieWinner = saveUser("tie@example.com", "Tie User", UserRole.STUDENT);
-        User teacher = saveUser("teacher@example.com", "Teacher User", UserRole.TEACHER);
+        User current = saveUserWithName("current@example.com", "Current User", UserRole.STUDENT);
+        User top = saveUserWithName("top@example.com", "Top User", UserRole.STUDENT);
+        User tieWinner = saveUserWithName("tie@example.com", "Tie User", UserRole.STUDENT);
+        User teacher = saveUserWithName("teacher@example.com", "Teacher User", UserRole.TEACHER);
         saveStats(current, 120, 2, 3);
         saveStats(top, 500, 1, 4);
         saveStats(tieWinner, 120, 5, 5);
@@ -74,11 +74,35 @@ class StudentDashboardApiTests {
                 .andExpect(jsonPath("$.leaderboard[2].fullName").value("Current User"));
     }
 
-    private User saveUser(String email, String fullName, UserRole role) {
+    @Test
+    void dashboardReturnsZeroSummaryAndEmptyListsForNewStudent() throws Exception {
+        saveUser("newstudent@example.com", "Password123", UserRole.STUDENT);
+
+        String token = loginAndGetAccessToken("newstudent@example.com", "Password123");
+        mockMvc.perform(get("/api/student/dashboard").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stats.totalXp").value(0))
+                .andExpect(jsonPath("$.enrollmentSummary.totalEnrollments").value(0))
+                .andExpect(jsonPath("$.enrollmentSummary.activeEnrollments").value(0))
+                .andExpect(jsonPath("$.enrollmentSummary.completedLessons").value(0))
+                .andExpect(jsonPath("$.activeCourses").isArray())
+                .andExpect(jsonPath("$.recentActivity").isArray())
+                .andExpect(jsonPath("$.leaderboard").isArray());
+    }
+
+    private User saveUser(String email, String password, UserRole role) {
+        return saveUser(email, email, password, role);
+    }
+
+    private User saveUserWithName(String email, String fullName, UserRole role) {
+        return saveUser(email, fullName, "Password123", role);
+    }
+
+    private User saveUser(String email, String fullName, String password, UserRole role) {
         User user = new User();
         user.setEmail(email);
         user.setFullName(fullName);
-        user.setPasswordHash(passwordEncoder.encode("Password123"));
+        user.setPasswordHash(passwordEncoder.encode(password));
         user.setRole(role);
         user.setActive(true);
         user.setLocked(false);
@@ -97,14 +121,18 @@ class StudentDashboardApiTests {
     }
 
     private String loginAndGetAccessToken(String email) throws Exception {
+        return loginAndGetAccessToken(email, "Password123");
+    }
+
+    private String loginAndGetAccessToken(String email, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "email": "%s",
-                                  "password": "Password123"
+                                  "password": "%s"
                                 }
-                                """.formatted(email)))
+                                """.formatted(email, password)))
                 .andExpect(status().isOk())
                 .andReturn();
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
