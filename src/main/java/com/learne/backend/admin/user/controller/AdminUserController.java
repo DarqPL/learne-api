@@ -1,5 +1,7 @@
 package com.learne.backend.admin.user.controller;
 
+import com.learne.backend.admin.user.dto.AdminStudentDetailResponse;
+import com.learne.backend.admin.user.dto.AdminStudentSummaryResponse;
 import com.learne.backend.admin.user.dto.AdminTeacherResponse;
 import com.learne.backend.admin.user.dto.CreateTeacherRequest;
 import com.learne.backend.admin.user.service.AdminUserService;
@@ -49,5 +51,15 @@ class AdminUserController {
     @GetMapping("/teachers")
     List<AdminTeacherResponse> listTeachers() {
         return adminUserService.listTeachers();
+    }
+
+    @GetMapping("/students")
+    List<AdminStudentSummaryResponse> listStudents() {
+        return adminUserService.listStudents();
+    }
+
+    @GetMapping("/students/{userId}")
+    AdminStudentDetailResponse getStudent(@PathVariable Long userId) {
+        return adminUserService.getStudent(userId);
     }
 }

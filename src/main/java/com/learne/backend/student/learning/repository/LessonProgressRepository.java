@@ -1,7 +1,9 @@
 package com.learne.backend.student.learning.repository;
 
+import com.learne.backend.domain.auth.User;
 import com.learne.backend.student.learning.entity.CourseEnrollment;
 import com.learne.backend.student.learning.entity.LessonProgress;
+import com.learne.backend.student.learning.enums.LessonProgressStatus;
 import com.learne.backend.teacher.content.entity.Lesson;
 import java.util.List;
 import java.util.Optional;
@@ -12,6 +14,7 @@ import org.springframework.data.repository.query.Param;
 public interface LessonProgressRepository extends JpaRepository<LessonProgress, Long> {
     List<LessonProgress> findByCourseEnrollment(CourseEnrollment courseEnrollment);
     Optional<LessonProgress> findByCourseEnrollmentAndLesson(CourseEnrollment courseEnrollment, Lesson lesson);
+    long countByUserAndStatus(User user, LessonProgressStatus status);
 
     @Query("""
             select progress from LessonProgress progress

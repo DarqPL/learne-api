@@ -13,6 +13,7 @@ import com.learne.backend.student.learning.dto.SubmitQuizRequest;
 import com.learne.backend.student.learning.dto.SubmitQuizResponse;
 import com.learne.backend.student.learning.dto.StudentCourseDetailResponse;
 import com.learne.backend.student.learning.dto.StudentCourseSummaryResponse;
+import com.learne.backend.student.learning.dto.StudentDashboardResponse;
 import com.learne.backend.student.learning.dto.StudentEnrollmentProgressResponse;
 import com.learne.backend.student.learning.dto.StudentEnrollmentResponse;
 import com.learne.backend.student.learning.dto.StudentLearningPathResponse;
@@ -77,6 +78,11 @@ class StudentLearningController {
     @GetMapping("/stats")
     StudentStatsResponse getStats(Authentication authentication) {
         return studentLearningService.getStats(currentUser(authentication));
+    }
+
+    @GetMapping("/dashboard")
+    StudentDashboardResponse getDashboard(Authentication authentication) {
+        return studentLearningService.getDashboard(currentUser(authentication));
     }
 
     @GetMapping("/enrollments/{enrollmentId}/lessons/{lessonId}/quiz")

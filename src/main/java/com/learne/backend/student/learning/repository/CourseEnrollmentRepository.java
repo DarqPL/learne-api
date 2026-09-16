@@ -7,6 +7,7 @@ import com.learne.backend.teacher.content.entity.Course;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +17,8 @@ public interface CourseEnrollmentRepository extends JpaRepository<CourseEnrollme
     Optional<CourseEnrollment> findByIdAndUser(Long id, User user);
     List<CourseEnrollment> findByUserOrderByEnrolledAtDescIdDesc(User user);
     boolean existsByUserAndCourse(User user, Course course);
+    long countByUser(User user);
+    long countByUserAndStatusIn(User user, Collection<EnrollmentStatus> statuses);
 
     @Query("""
             select enrollment from CourseEnrollment enrollment
@@ -47,4 +50,20 @@ public interface CourseEnrollmentRepository extends JpaRepository<CourseEnrollme
             order by enrollment.enrolledAt desc, enrollment.id desc
             """)
     List<CourseEnrollment> findByUserWithDetailsOrderByEnrolledAtDescIdDesc(@Param("user") User user);
+
+    @Query("""
+            select enrollment from CourseEnrollment enrollment
+            join fetch enrollment.course course
+            join fetch course.teacher
+            where enrollment.user = :user
+            order by enrollment.enrolledAt desc, enrollment.id desc
+            """)
+    List<CourseEnrollment> findRecentDashboardCoursesByUser(@Param("user") User user, Pageable pageable);
+
+    @Query("""
+            select count(distinct enrollment.user) from CourseEnrollment enrollment
+            join enrollment.course course
+            where course.teacher = :teacher
+            """)
+    long countDistinctStudentsByTeacher(@Param("teacher") User teacher);
 }

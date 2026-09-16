@@ -15,6 +15,7 @@ import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
 import com.learne.backend.testsupport.TestDatabaseCleaner;
+import com.learne.backend.student.learning.entity.UserStats;
 import com.learne.backend.student.learning.repository.CourseEnrollmentRepository;
 import com.learne.backend.student.learning.repository.LearningActivityRepository;
 import com.learne.backend.student.learning.repository.LearningPathItemRepository;
@@ -392,6 +393,67 @@ class AdminUserApiTests {
                 .andExpect(jsonPath("$[?(@.userId == %d)].locked".formatted(lockedTeacher.getId())).value(true));
     }
 
+    @Test
+    void listStudentsRequiresAdminAndReturnsLearningStats() throws Exception {
+        saveUser("admin@example.com", "Password123", UserRole.ADMIN);
+        User student = saveUser("student@example.com", "Password123", UserRole.STUDENT);
+        saveUserStats(student, 250, 4, 6);
+
+        mockMvc.perform(get("/api/admin/students"))
+                .andExpect(status().isUnauthorized());
+
+        String adminToken = loginAndGetAccessToken("admin@example.com", "Password123");
+
+        mockMvc.perform(get("/api/admin/students")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].userId").value(student.getId()))
+                .andExpect(jsonPath("$[0].totalXp").value(250))
+                .andExpect(jsonPath("$[0].currentStreakDays").value(4));
+    }
+
+    @Test
+    void listStudentsDefaultsMissingStatsToZero() throws Exception {
+        saveUser("admin@example.com", "Password123", UserRole.ADMIN);
+        User student = saveUser("student@example.com", "Password123", UserRole.STUDENT);
+
+        String adminToken = loginAndGetAccessToken("admin@example.com", "Password123");
+
+        mockMvc.perform(get("/api/admin/students")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].userId").value(student.getId()))
+                .andExpect(jsonPath("$[0].totalXp").value(0))
+                .andExpect(jsonPath("$[0].currentStreakDays").value(0))
+                .andExpect(jsonPath("$[0].longestStreakDays").value(0))
+                .andExpect(jsonPath("$[0].lastActivityDate").doesNotExist())
+                .andExpect(jsonPath("$[0].enrollmentCount").value(0))
+                .andExpect(jsonPath("$[0].completedLessonCount").value(0));
+    }
+
+    @Test
+    void getStudentDetailRequiresAdminAndRejectsNonStudentIds() throws Exception {
+        saveUser("admin@example.com", "Password123", UserRole.ADMIN);
+        User student = saveUser("student@example.com", "Password123", UserRole.STUDENT);
+        User teacher = saveUser("teacher@example.com", "Password123", UserRole.TEACHER);
+        saveUserStats(student, 250, 4, 6);
+
+        mockMvc.perform(get("/api/admin/students/%d".formatted(student.getId())))
+                .andExpect(status().isUnauthorized());
+
+        String adminToken = loginAndGetAccessToken("admin@example.com", "Password123");
+
+        mockMvc.perform(get("/api/admin/students/%d".formatted(student.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(student.getId()))
+                .andExpect(jsonPath("$.stats.totalXp").value(250));
+
+        mockMvc.perform(get("/api/admin/students/%d".formatted(teacher.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isNotFound());
+    }
+
     private User saveUser(String email, String password, UserRole role) {
         User user = new User();
         user.setEmail(email);
@@ -409,6 +471,15 @@ class AdminUserApiTests {
         user.setLocked(true);
         user.setLockedAt(OffsetDateTime.now());
         return userRepository.save(user);
+    }
+
+    private UserStats saveUserStats(User user, int totalXp, int currentStreakDays, int longestStreakDays) {
+        UserStats stats = new UserStats();
+        stats.setUser(user);
+        stats.setTotalXp(totalXp);
+        stats.setCurrentStreakDays(currentStreakDays);
+        stats.setLongestStreakDays(longestStreakDays);
+        return userStatsRepository.save(stats);
     }
 
     private String loginAndGetAccessToken(String email, String password) throws Exception {

@@ -1,15 +1,29 @@
 package com.learne.backend.admin.user.service;
 
+import com.learne.backend.admin.user.dto.AdminStudentAiConversationResponse;
+import com.learne.backend.admin.user.dto.AdminStudentDetailResponse;
+import com.learne.backend.admin.user.dto.AdminStudentEnrollmentResponse;
+import com.learne.backend.admin.user.dto.AdminStudentGrammarCheckResponse;
+import com.learne.backend.admin.user.dto.AdminStudentQuizAttemptResponse;
+import com.learne.backend.admin.user.dto.AdminStudentSummaryResponse;
 import com.learne.backend.admin.user.dto.AdminTeacherResponse;
 import com.learne.backend.admin.user.dto.CreateTeacherRequest;
+import com.learne.backend.ai.grammar.repository.GrammarCheckRepository;
+import com.learne.backend.ai.tutor.repository.AiConversationRepository;
 import com.learne.backend.auth.session.service.RefreshTokenService;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
 import com.learne.backend.shared.api.ApiException;
+import com.learne.backend.student.learning.dto.StudentStatsResponse;
+import com.learne.backend.student.learning.enums.LessonProgressStatus;
+import com.learne.backend.student.learning.repository.CourseEnrollmentRepository;
+import com.learne.backend.student.learning.repository.QuizAttemptRepository;
+import com.learne.backend.student.learning.repository.UserStatsRepository;
 import com.learne.backend.teacher.profile.repository.TeacherProfileRepository;
 import java.time.OffsetDateTime;
 import java.util.List;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -24,6 +38,11 @@ public class AdminUserService {
     private final PasswordEncoder passwordEncoder;
     private final TemporaryPasswordGenerator temporaryPasswordGenerator;
     private final TeacherInvitationMailService teacherInvitationMailService;
+    private final UserStatsRepository userStatsRepository;
+    private final CourseEnrollmentRepository courseEnrollmentRepository;
+    private final QuizAttemptRepository quizAttemptRepository;
+    private final GrammarCheckRepository grammarCheckRepository;
+    private final AiConversationRepository aiConversationRepository;
 
     public AdminUserService(
             UserRepository userRepository,
@@ -31,13 +50,23 @@ public class AdminUserService {
             RefreshTokenService refreshTokenService,
             PasswordEncoder passwordEncoder,
             TemporaryPasswordGenerator temporaryPasswordGenerator,
-            TeacherInvitationMailService teacherInvitationMailService) {
+            TeacherInvitationMailService teacherInvitationMailService,
+            UserStatsRepository userStatsRepository,
+            CourseEnrollmentRepository courseEnrollmentRepository,
+            QuizAttemptRepository quizAttemptRepository,
+            GrammarCheckRepository grammarCheckRepository,
+            AiConversationRepository aiConversationRepository) {
         this.userRepository = userRepository;
         this.teacherProfileRepository = teacherProfileRepository;
         this.refreshTokenService = refreshTokenService;
         this.passwordEncoder = passwordEncoder;
         this.temporaryPasswordGenerator = temporaryPasswordGenerator;
         this.teacherInvitationMailService = teacherInvitationMailService;
+        this.userStatsRepository = userStatsRepository;
+        this.courseEnrollmentRepository = courseEnrollmentRepository;
+        this.quizAttemptRepository = quizAttemptRepository;
+        this.grammarCheckRepository = grammarCheckRepository;
+        this.aiConversationRepository = aiConversationRepository;
     }
 
     @Transactional(readOnly = true)
@@ -46,6 +75,61 @@ public class AdminUserService {
                 .stream()
                 .map(user -> AdminTeacherResponse.from(user, teacherProfileRepository.findByUser(user).orElse(null)))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminStudentSummaryResponse> listStudents() {
+        return userRepository.findStudentSummaries(UserRole.STUDENT, LessonProgressStatus.COMPLETED);
+    }
+
+    @Transactional(readOnly = true)
+    public AdminStudentDetailResponse getStudent(Long userId) {
+        User student = userRepository.findByIdAndRole(userId, UserRole.STUDENT)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Student not found."));
+        StudentStatsResponse stats = userStatsRepository.findByUser(student)
+                .map(StudentStatsResponse::from)
+                .orElseGet(this::emptyStats);
+        PageRequest recentLimit = PageRequest.of(0, 5);
+
+        return new AdminStudentDetailResponse(
+                student.getId(),
+                student.getFullName(),
+                student.getEmail(),
+                student.isLocked(),
+                student.isMustChangePassword(),
+                stats,
+                courseEnrollmentRepository.findByUserWithDetailsOrderByEnrolledAtDescIdDesc(student).stream()
+                        .limit(5)
+                        .map(enrollment -> new AdminStudentEnrollmentResponse(
+                                enrollment.getId(),
+                                enrollment.getCourse().getId(),
+                                enrollment.getCourse().getName(),
+                                enrollment.getStatus(),
+                                enrollment.getProgressPercent(),
+                                enrollment.getEnrolledAt()))
+                        .toList(),
+                quizAttemptRepository.findRecentByUser(student, recentLimit).stream()
+                        .map(attempt -> new AdminStudentQuizAttemptResponse(
+                                attempt.getId(),
+                                attempt.getLesson().getTitle(),
+                                attempt.getScorePercent(),
+                                attempt.isPassed(),
+                                attempt.getSubmittedAt()))
+                        .toList(),
+                grammarCheckRepository.findRecentByUser(student, recentLimit).stream()
+                        .map(grammarCheck -> new AdminStudentGrammarCheckResponse(
+                                grammarCheck.getId(),
+                                grammarCheck.getInputText(),
+                                null,
+                                grammarCheck.getCreatedAt()))
+                        .toList(),
+                aiConversationRepository.findByUserOrderByLastMessageAtDescIdDesc(student, recentLimit).stream()
+                        .map(conversation -> new AdminStudentAiConversationResponse(
+                                conversation.getId(),
+                                conversation.getTitle(),
+                                conversation.getPracticeType(),
+                                conversation.getUpdatedAt()))
+                        .toList());
     }
 
     @Transactional
@@ -94,5 +178,9 @@ public class AdminUserService {
 
     private String normalizeEmail(String email) {
         return email.toLowerCase().trim();
+    }
+
+    private StudentStatsResponse emptyStats() {
+        return new StudentStatsResponse(0, 0, 0, null);
     }
 }

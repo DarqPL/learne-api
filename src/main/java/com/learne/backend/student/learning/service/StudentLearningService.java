@@ -1,18 +1,23 @@
 package com.learne.backend.student.learning.service;
 
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.shared.dashboard.service.LeaderboardService;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.student.learning.dto.SubmitQuizRequest;
 import com.learne.backend.student.learning.dto.SubmitQuizResponse;
+import com.learne.backend.student.learning.dto.StudentActiveCourseResponse;
 import com.learne.backend.student.learning.dto.StudentCourseDetailResponse;
 import com.learne.backend.student.learning.dto.StudentCourseSummaryResponse;
+import com.learne.backend.student.learning.dto.StudentDashboardResponse;
 import com.learne.backend.student.learning.dto.StudentEnrollmentProgressResponse;
 import com.learne.backend.student.learning.dto.StudentEnrollmentResponse;
+import com.learne.backend.student.learning.dto.StudentEnrollmentSummaryResponse;
 import com.learne.backend.student.learning.dto.StudentQuizAnswerResultResponse;
 import com.learne.backend.student.learning.dto.StudentQuizAttemptResponse;
 import com.learne.backend.student.learning.dto.StudentQuizProgressResponse;
 import com.learne.backend.student.learning.dto.StudentQuizQuestionResponse;
 import com.learne.backend.student.learning.dto.StudentQuizResponse;
+import com.learne.backend.student.learning.dto.StudentRecentActivityResponse;
 import com.learne.backend.student.learning.dto.StudentStatsResponse;
 import com.learne.backend.student.learning.entity.CourseEnrollment;
 import com.learne.backend.student.learning.entity.LessonProgress;
@@ -22,6 +27,7 @@ import com.learne.backend.student.learning.enums.EnrollmentStatus;
 import com.learne.backend.student.learning.enums.LessonProgressStatus;
 import com.learne.backend.student.learning.enums.QuizAttemptStatus;
 import com.learne.backend.student.learning.repository.CourseEnrollmentRepository;
+import com.learne.backend.student.learning.repository.LearningActivityRepository;
 import com.learne.backend.student.learning.repository.LessonProgressRepository;
 import com.learne.backend.student.learning.repository.QuestionAnswerRepository;
 import com.learne.backend.student.learning.repository.QuizAttemptRepository;
@@ -39,6 +45,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -54,29 +61,35 @@ public class StudentLearningService {
     private final QuestionRepository questionRepository;
     private final QuizAttemptRepository quizAttemptRepository;
     private final QuestionAnswerRepository questionAnswerRepository;
+    private final LearningActivityRepository learningActivityRepository;
     private final StudentQuizGradingService studentQuizGradingService;
     private final StudentStatsService studentStatsService;
+    private final LeaderboardService leaderboardService;
     private final EntityManager entityManager;
     private final TransactionTemplate createEnrollmentTransactionTemplate;
 
     public StudentLearningService(CourseRepository courseRepository,
                                     CourseEnrollmentRepository courseEnrollmentRepository,
                                       LessonProgressRepository lessonProgressRepository,
-                                      QuestionRepository questionRepository,
-                                      QuizAttemptRepository quizAttemptRepository,
-                                      QuestionAnswerRepository questionAnswerRepository,
-                                      StudentQuizGradingService studentQuizGradingService,
-                                     StudentStatsService studentStatsService,
-                                     EntityManager entityManager,
-                                     PlatformTransactionManager transactionManager) {
+                                       QuestionRepository questionRepository,
+                                       QuizAttemptRepository quizAttemptRepository,
+                                       QuestionAnswerRepository questionAnswerRepository,
+                                       LearningActivityRepository learningActivityRepository,
+                                       StudentQuizGradingService studentQuizGradingService,
+                                      StudentStatsService studentStatsService,
+                                      LeaderboardService leaderboardService,
+                                      EntityManager entityManager,
+                                      PlatformTransactionManager transactionManager) {
         this.courseRepository = courseRepository;
         this.courseEnrollmentRepository = courseEnrollmentRepository;
         this.lessonProgressRepository = lessonProgressRepository;
         this.questionRepository = questionRepository;
         this.quizAttemptRepository = quizAttemptRepository;
         this.questionAnswerRepository = questionAnswerRepository;
+        this.learningActivityRepository = learningActivityRepository;
         this.studentQuizGradingService = studentQuizGradingService;
         this.studentStatsService = studentStatsService;
+        this.leaderboardService = leaderboardService;
         this.entityManager = entityManager;
         this.createEnrollmentTransactionTemplate = new TransactionTemplate(transactionManager);
         this.createEnrollmentTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -103,6 +116,30 @@ public class StudentLearningService {
     @Transactional
     public StudentStatsResponse getStats(User student) {
         return studentStatsService.getStats(student);
+    }
+
+    @Transactional(readOnly = true)
+    public StudentDashboardResponse getDashboard(User student) {
+        StudentStatsResponse stats = getStats(student);
+        long totalEnrollments = courseEnrollmentRepository.countByUser(student);
+        long activeEnrollments = courseEnrollmentRepository.countByUserAndStatusIn(student, List.of(EnrollmentStatus.ACTIVE));
+        long completedLessons = lessonProgressRepository.countByUserAndStatus(student, LessonProgressStatus.COMPLETED);
+
+        return new StudentDashboardResponse(
+                stats,
+                new StudentEnrollmentSummaryResponse(totalEnrollments, activeEnrollments, completedLessons),
+                courseEnrollmentRepository.findRecentDashboardCoursesByUser(student, PageRequest.of(0, 4)).stream()
+                        .map(StudentActiveCourseResponse::from)
+                        .toList(),
+                learningActivityRepository.findRecentByUser(student, PageRequest.of(0, 5)).stream()
+                        .map(activity -> new StudentRecentActivityResponse(
+                                activity.getId(),
+                                activity.getSourceType().name(),
+                                activity.getSourceType().name(),
+                                activity.getCreatedAt()))
+                        .toList(),
+                leaderboardService.topStudents(5)
+        );
     }
 
     @Transactional(readOnly = true)
