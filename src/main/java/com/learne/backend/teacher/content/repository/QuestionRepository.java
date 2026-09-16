@@ -1,5 +1,6 @@
 package com.learne.backend.teacher.content.repository;
 
+import com.learne.backend.domain.auth.User;
 import com.learne.backend.teacher.content.entity.Lesson;
 import com.learne.backend.teacher.content.entity.Question;
 import com.learne.backend.teacher.content.enums.ContentStatus;
@@ -46,4 +47,13 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
     List<Question> findApprovedPlacementQuestionsByCourseType(@Param("courseType") CourseType courseType,
             @Param("skillType") SkillType skillType,
             @Param("status") ContentStatus status);
+
+    @Query("""
+            select count(question) from Question question
+            join question.lesson lesson
+            join lesson.topic topic
+            join topic.course course
+            where course.teacher = :teacher
+            """)
+    long countByCourseTeacher(@Param("teacher") User teacher);
 }

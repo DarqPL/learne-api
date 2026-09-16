@@ -12,6 +12,12 @@ import org.springframework.data.repository.query.Param;
 public interface CourseRepository extends JpaRepository<Course, Long> {
     List<Course> findByTeacherOrderByOrderIndexAscIdAsc(User teacher);
 
+    long countByTeacher(User teacher);
+
+    long countByTeacherAndStatus(User teacher, ContentStatus status);
+
+    List<Course> findTop5ByTeacherOrderByUpdatedAtDescIdDesc(User teacher);
+
     List<Course> findByStatusOrderByUpdatedAtAscIdAsc(ContentStatus status);
 
     Optional<Course> findByIdAndTeacher(Long id, User teacher);

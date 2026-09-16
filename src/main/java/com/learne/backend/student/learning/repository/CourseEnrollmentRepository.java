@@ -59,4 +59,11 @@ public interface CourseEnrollmentRepository extends JpaRepository<CourseEnrollme
             order by enrollment.enrolledAt desc, enrollment.id desc
             """)
     List<CourseEnrollment> findRecentDashboardCoursesByUser(@Param("user") User user, Pageable pageable);
+
+    @Query("""
+            select count(distinct enrollment.user) from CourseEnrollment enrollment
+            join enrollment.course course
+            where course.teacher = :teacher
+            """)
+    long countDistinctStudentsByTeacher(@Param("teacher") User teacher);
 }
