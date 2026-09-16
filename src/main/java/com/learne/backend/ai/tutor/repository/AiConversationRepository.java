@@ -14,6 +14,8 @@ public interface AiConversationRepository extends JpaRepository<AiConversation, 
     Page<AiConversation> findByUserAndStatusOrderByLastMessageAtDesc(
             User user, AiConversationStatus status, Pageable pageable);
 
+    List<AiConversation> findByUserOrderByLastMessageAtDescIdDesc(User user, Pageable pageable);
+
     Optional<AiConversation> findByIdAndUserAndStatus(Long id, User user, AiConversationStatus status);
 
     List<AiConversation> findByStatusAndArchiveAfterBefore(AiConversationStatus status, Instant now);

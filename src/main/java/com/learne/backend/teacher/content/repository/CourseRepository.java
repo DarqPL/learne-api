@@ -16,6 +16,8 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 
     long countByTeacherAndStatus(User teacher, ContentStatus status);
 
+    long countByStatus(ContentStatus status);
+
     List<Course> findTop5ByTeacherOrderByUpdatedAtDescIdDesc(User teacher);
 
     List<Course> findByStatusOrderByUpdatedAtAscIdAsc(ContentStatus status);
