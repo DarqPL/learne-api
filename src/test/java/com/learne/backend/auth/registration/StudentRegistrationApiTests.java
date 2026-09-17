@@ -188,6 +188,39 @@ class StudentRegistrationApiTests {
     }
 
     @Test
+    void verifyOtpRejectsAfterFiveInvalidAttemptsUntilNewCodeIsRequested() throws Exception {
+        savePendingRegistration("student@example.com", "Nguyen Van A", "Password123", "123456", OffsetDateTime.now().plusMinutes(5));
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+            mockMvc.perform(post("/api/auth/register/verify-otp")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "email": "student@example.com",
+                                      "otp": "000000"
+                                    }
+                                    """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("OTP is invalid."));
+        }
+
+        mockMvc.perform(post("/api/auth/register/verify-otp")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "student@example.com",
+                                  "otp": "123456"
+                                }
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.message").value("Too many invalid OTP attempts. Please request a new code."));
+
+        RegistrationOtp pending = registrationOtpRepository.findByEmail("student@example.com").orElseThrow();
+        assertThat(pending.getAttempts()).isEqualTo(5);
+        assertThat(userRepository.findByEmail("student@example.com")).isEmpty();
+    }
+
+    @Test
     void verifyOtpRejectsExpiredOtpAndMissingPendingRegistration() throws Exception {
         savePendingRegistration("expired@example.com", "Nguyen Van A", "Password123", "123456", OffsetDateTime.now().minusSeconds(1));
 

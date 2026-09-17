@@ -131,6 +131,44 @@ class PasswordResetApiTests {
     }
 
     @Test
+    void confirmPasswordResetRejectsAfterFiveInvalidAttemptsUntilNewTokenIsRequested() throws Exception {
+        User student = saveUser("student@example.com", "Password123", UserRole.STUDENT, true, false, false);
+        savePasswordResetToken(student, "123456", OffsetDateTime.now().plusMinutes(15), null, 0);
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+            mockMvc.perform(post("/api/auth/password-reset/confirm")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "email": "student@example.com",
+                                      "token": "000000",
+                                      "newPassword": "NewPassword123",
+                                      "confirmNewPassword": "NewPassword123"
+                                    }
+                                    """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("Password reset token is invalid."));
+        }
+
+        mockMvc.perform(post("/api/auth/password-reset/confirm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "student@example.com",
+                                  "token": "123456",
+                                  "newPassword": "NewPassword123",
+                                  "confirmNewPassword": "NewPassword123"
+                                }
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.message").value("Too many invalid OTP attempts. Please request a new code."));
+
+        PasswordResetToken token = passwordResetTokenRepository.findAll().getFirst();
+        assertThat(token.getAttempts()).isEqualTo(5);
+        assertThat(passwordEncoder.matches("Password123", userRepository.findById(student.getId()).orElseThrow().getPasswordHash())).isTrue();
+    }
+
+    @Test
     void confirmPasswordResetRejectsExpiredToken() throws Exception {
         User student = saveUser("student@example.com", "Password123", UserRole.STUDENT, true, false, false);
         savePasswordResetToken(student, "123456", OffsetDateTime.now().minusSeconds(1), null, 0);

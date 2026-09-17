@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class PasswordResetService {
 
     public static final String REQUEST_MESSAGE = "If the email is registered, password reset instructions have been sent.";
+    private static final int MAX_OTP_ATTEMPTS = 5;
+    private static final String TOO_MANY_OTP_ATTEMPTS_MESSAGE = "Too many invalid OTP attempts. Please request a new code.";
 
     private final UserRepository userRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
@@ -62,6 +64,9 @@ public class PasswordResetService {
 
         if (resetToken.getExpiresAt().isBefore(OffsetDateTime.now())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Password reset token has expired.");
+        }
+        if (resetToken.getAttempts() >= MAX_OTP_ATTEMPTS) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, TOO_MANY_OTP_ATTEMPTS_MESSAGE);
         }
         if (!passwordEncoder.matches(request.token(), resetToken.getTokenHash())) {
             resetToken.setAttempts(resetToken.getAttempts() + 1);
