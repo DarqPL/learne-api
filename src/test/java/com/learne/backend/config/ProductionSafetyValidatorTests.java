@@ -31,6 +31,16 @@ class ProductionSafetyValidatorTests {
     }
 
     @Test
+    void rejectsBlankJwtSecretInProd() {
+        MockEnvironment environment = safeProductionEnvironment()
+                .withProperty("app.auth.jwt-secret", "                                ");
+
+        assertThatThrownBy(() -> validator.validate(environment))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("app.auth.jwt-secret");
+    }
+
+    @Test
     void rejectsDefaultAdminPasswordInProd() {
         MockEnvironment environment = safeProductionEnvironment()
                 .withProperty("app.admin.password", "Admin123");

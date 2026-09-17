@@ -28,7 +28,7 @@ public class ProductionSafetyValidator implements ApplicationListener<Applicatio
         String adminPassword = environment.getProperty("app.admin.password", "");
         boolean refreshCookieSecure = environment.getProperty("app.auth.refresh-cookie-secure", Boolean.class, false);
 
-        if (DEFAULT_JWT_SECRET.equals(jwtSecret) || jwtSecret.length() < 32) {
+        if (DEFAULT_JWT_SECRET.equals(jwtSecret) || jwtSecret.trim().length() < 32) {
             violations.add("app.auth.jwt-secret must be changed to a strong production value");
         }
         if (DEFAULT_ADMIN_PASSWORD.equals(adminPassword) || adminPassword.isBlank()) {
