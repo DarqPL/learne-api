@@ -21,9 +21,29 @@ class ProductionSafetyValidatorTests {
     }
 
     @Test
+    void rejectsWeakJwtSecretInProd() {
+        MockEnvironment environment = safeProductionEnvironment()
+                .withProperty("app.auth.jwt-secret", "short-production-secret");
+
+        assertThatThrownBy(() -> validator.validate(environment))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("app.auth.jwt-secret");
+    }
+
+    @Test
     void rejectsDefaultAdminPasswordInProd() {
         MockEnvironment environment = safeProductionEnvironment()
                 .withProperty("app.admin.password", "Admin123");
+
+        assertThatThrownBy(() -> validator.validate(environment))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("app.admin.password");
+    }
+
+    @Test
+    void rejectsBlankAdminPasswordInProd() {
+        MockEnvironment environment = safeProductionEnvironment()
+                .withProperty("app.admin.password", " ");
 
         assertThatThrownBy(() -> validator.validate(environment))
                 .isInstanceOf(IllegalStateException.class)
@@ -53,6 +73,18 @@ class ProductionSafetyValidatorTests {
                 .withProperty("app.admin.password", "Admin123")
                 .withProperty("app.auth.refresh-cookie-secure", "false");
         environment.setActiveProfiles("local");
+
+        assertThatCode(() -> validator.validate(environment))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void ignoresTestProfiles() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("app.auth.jwt-secret", "short")
+                .withProperty("app.admin.password", "Admin123")
+                .withProperty("app.auth.refresh-cookie-secure", "false");
+        environment.setActiveProfiles("test");
 
         assertThatCode(() -> validator.validate(environment))
                 .doesNotThrowAnyException();
