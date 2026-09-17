@@ -38,9 +38,13 @@ public class AuthSessionService {
         this.loginAttemptService = loginAttemptService;
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ApiException.class)
     public LoginResult login(String email, String password, String ipAddress, String userAgent) {
         String normalizedEmail = email.toLowerCase().trim();
+        return loginAttemptService.withEmailLock(normalizedEmail, () -> loginWithEmailLock(normalizedEmail, password, ipAddress, userAgent));
+    }
+
+    private LoginResult loginWithEmailLock(String normalizedEmail, String password, String ipAddress, String userAgent) {
         loginAttemptService.assertCanAttempt(normalizedEmail);
 
         User user = userRepository.findByEmail(normalizedEmail)

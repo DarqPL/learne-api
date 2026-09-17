@@ -9,6 +9,7 @@ import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.shared.api.ApiException;
 import java.time.OffsetDateTime;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -59,7 +60,8 @@ public class PasswordResetService {
     public void confirmReset(ConfirmPasswordResetRequest request) {
         User user = userRepository.findByEmail(normalizeEmail(request.email()))
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Password reset token is invalid."));
-        PasswordResetToken resetToken = passwordResetTokenRepository.findTopByUserAndUsedAtIsNullOrderByCreatedAtDesc(user)
+        PasswordResetToken resetToken = passwordResetTokenRepository.findLatestUnusedByUserForUpdate(user, PageRequest.of(0, 1)).stream()
+                .findFirst()
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Password reset token is invalid."));
 
         if (resetToken.getExpiresAt().isBefore(OffsetDateTime.now())) {

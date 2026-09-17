@@ -70,7 +70,7 @@ public class StudentRegistrationService {
     @Transactional(noRollbackFor = ApiException.class)
     public void verifyOtp(VerifyRegistrationOtpRequest request) {
         String email = normalizeEmail(request.email());
-        RegistrationOtp pending = registrationOtpRepository.findByEmail(email)
+        RegistrationOtp pending = registrationOtpRepository.findByEmailForUpdate(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "No pending registration found for this email."));
 
         if (pending.getExpiresAt().isBefore(OffsetDateTime.now())) {
