@@ -1,6 +1,7 @@
 package com.learne.backend.ai.grammar.ai;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.learne.backend.shared.api.ApiException;
@@ -26,12 +27,13 @@ class HttpAiGrammarCheckClientTests {
             assertEquals(HttpMethod.POST, request.getMethod());
             assertEquals("http://ai-service:5000/grammar-checks/check", request.getURI().toString());
             assertEquals(MediaType.APPLICATION_JSON, request.getHeaders().getContentType());
+            assertNull(request.getHeaders().getFirst("X-Internal-Service-Token"));
             assertEquals("{\"inputText\":\"I want order pizza.\",\"constraints\":{\"maxErrors\":20,\"allowedErrorTypes\":[\"GRAMMAR\",\"SPELLING\",\"PUNCTUATION\",\"WORD_CHOICE\",\"STYLE\",\"OTHER\"],\"positionBase\":\"ZERO_BASED_END_EXCLUSIVE\"}}",
                     new String(body, StandardCharsets.UTF_8));
             return jsonResponse("{\"errors\":[{\"errorText\":\"want order\",\"errorType\":\"GRAMMAR\",\"suggestion\":\"want to order\",\"explanation\":\"Use to.\",\"startPos\":2,\"endPos\":12}]}", HttpStatus.OK);
         });
         AiGrammarCheckClient client = new HttpAiGrammarCheckClient(
-                new AiServiceProperties("http://ai-service:5000", 8000, true), builder);
+                new AiServiceProperties("http://ai-service:5000", 8000, true, ""), builder);
 
         AiGrammarCheckResponse response = client.checkGrammar(AiGrammarCheckRequest.create("I want order pizza."));
 
@@ -41,9 +43,21 @@ class HttpAiGrammarCheckClientTests {
     }
 
     @Test
+    void checkGrammarSendsInternalServiceTokenWhenConfigured() {
+        RestClient.Builder builder = RestClient.builder().requestInterceptor((request, body, execution) -> {
+            assertEquals("secret-token", request.getHeaders().getFirst("X-Internal-Service-Token"));
+            return jsonResponse("{\"errors\":[]}", HttpStatus.OK);
+        });
+        AiGrammarCheckClient client = new HttpAiGrammarCheckClient(
+                new AiServiceProperties("http://ai-service:5000", 8000, true, "secret-token"), builder);
+
+        client.checkGrammar(AiGrammarCheckRequest.create("Hello."));
+    }
+
+    @Test
     void checkGrammarThrowsServiceUnavailableWhenDisabled() {
         AiGrammarCheckClient client = new HttpAiGrammarCheckClient(
-                new AiServiceProperties("http://ai-service:5000", 8000, false), RestClient.builder());
+                new AiServiceProperties("http://ai-service:5000", 8000, false, ""), RestClient.builder());
 
         ApiException exception = assertThrows(ApiException.class,
                 () -> client.checkGrammar(AiGrammarCheckRequest.create("Hello.")));
@@ -58,7 +72,7 @@ class HttpAiGrammarCheckClientTests {
             throw new RestClientException("boom");
         });
         AiGrammarCheckClient client = new HttpAiGrammarCheckClient(
-                new AiServiceProperties("http://ai-service:5000", 8000, true), builder);
+                new AiServiceProperties("http://ai-service:5000", 8000, true, ""), builder);
 
         ApiException exception = assertThrows(ApiException.class,
                 () -> client.checkGrammar(AiGrammarCheckRequest.create("Hello.")));

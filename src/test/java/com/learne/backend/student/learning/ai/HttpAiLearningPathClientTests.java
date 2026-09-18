@@ -1,6 +1,7 @@
 package com.learne.backend.student.learning.ai;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.learne.backend.shared.api.ApiException;
@@ -27,13 +28,14 @@ class HttpAiLearningPathClientTests {
             assertEquals(HttpMethod.POST, request.getMethod());
             assertEquals("http://ai-service:5000/learning-path/generate", request.getURI().toString());
             assertEquals(MediaType.APPLICATION_JSON, request.getHeaders().getContentType());
+            assertNull(request.getHeaders().getFirst("X-Internal-Service-Token"));
             assertEquals("{\"student\":{\"id\":7,\"level\":\"BEGINNER\"},\"constraints\":{\"maxItems\":2,\"allowedLessonIds\":[10,11]},\"learningHistory\":{\"recentQuizAttempts\":[],\"questionAnswers\":[]},\"candidateLessons\":[]}",
                     new String(body, StandardCharsets.UTF_8));
             return jsonResponse("{\"weaknesses\":[\"algebra\"],\"recommendations\":[{\"lessonId\":10,\"score\":0.91,\"reason\":\"Needs practice\"}]}",
                     HttpStatus.OK);
         });
         AiLearningPathClient client = new HttpAiLearningPathClient(
-                new AiServiceProperties("http://ai-service:5000", 8000, true), builder);
+                new AiServiceProperties("http://ai-service:5000", 8000, true, ""), builder);
 
         AiLearningPathRequest request = new AiLearningPathRequest(
                 new AiLearningPathRequest.StudentPayload(7L, "BEGINNER"),
@@ -58,13 +60,14 @@ class HttpAiLearningPathClientTests {
             assertEquals(HttpMethod.POST, request.getMethod());
             assertEquals("http://ai-service:5000/course-recommendations/generate", request.getURI().toString());
             assertEquals(MediaType.APPLICATION_JSON, request.getHeaders().getContentType());
+            assertNull(request.getHeaders().getFirst("X-Internal-Service-Token"));
             assertEquals("{\"student\":{\"id\":7,\"level\":\"BEGINNER\"},\"assessmentSummary\":{\"assessmentId\":3,\"level\":\"BEGINNER\",\"scorePercent\":72,\"completedAt\":\"2026-09-01T10:15:30Z\"},\"skillStats\":[{\"skill\":\"grammar\",\"scorePercent\":58,\"attempts\":4,\"weakKnowledgePoints\":[\"present simple\"]}],\"learningHistory\":{\"recentCourseIds\":[1,2],\"recentLessonTitles\":[\"Present simple\"],\"weaknesses\":[\"present simple\"]},\"candidateCourses\":[{\"courseId\":10,\"title\":\"Grammar Basics\",\"name\":\"Grammar Basics\",\"type\":\"RECORDED\",\"level\":\"BEGINNER\",\"description\":\"Build grammar foundations\",\"teacherName\":\"Teacher Linh\",\"enrolled\":false}],\"constraints\":{\"maxItems\":3,\"allowedCourseIds\":[10,11]}}",
                     new String(body, StandardCharsets.UTF_8));
             return jsonResponse("{\"weaknesses\":[\"present simple\"],\"recommendations\":[{\"courseId\":10,\"score\":0.94,\"reason\":\"Grammar fit\"}]}",
                     HttpStatus.OK);
         });
         AiLearningPathClient client = new HttpAiLearningPathClient(
-                new AiServiceProperties("http://ai-service:5000", 8000, true), builder);
+                new AiServiceProperties("http://ai-service:5000", 8000, true, ""), builder);
 
         AiCourseRecommendationResponse response = client.generateCourseRecommendations(sampleCourseRequest());
 
@@ -74,9 +77,25 @@ class HttpAiLearningPathClientTests {
     }
 
     @Test
+    void generateLearningPathSendsInternalServiceTokenWhenConfigured() {
+        RestClient.Builder builder = RestClient.builder().requestInterceptor((request, body, execution) -> {
+            assertEquals("secret-token", request.getHeaders().getFirst("X-Internal-Service-Token"));
+            return jsonResponse("{\"weaknesses\":[],\"recommendations\":[]}", HttpStatus.OK);
+        });
+        AiLearningPathClient client = new HttpAiLearningPathClient(
+                new AiServiceProperties("http://ai-service:5000", 8000, true, "secret-token"), builder);
+
+        client.generateLearningPath(new AiLearningPathRequest(
+                new AiLearningPathRequest.StudentPayload(7L, "BEGINNER"),
+                new AiLearningPathRequest.ConstraintPayload(2, List.of(10L)),
+                new AiLearningPathRequest.LearningHistoryPayload(List.of(), List.of()),
+                List.of()));
+    }
+
+    @Test
     void generateLearningPathThrowsServiceUnavailableWhenDisabled() {
         HttpAiLearningPathClient client = new HttpAiLearningPathClient(
-                new AiServiceProperties("http://ai-service:5000", 8000, false), RestClient.builder());
+                new AiServiceProperties("http://ai-service:5000", 8000, false, ""), RestClient.builder());
 
         ApiException exception = assertThrows(ApiException.class, () -> client.generateLearningPath(null));
 
@@ -90,7 +109,7 @@ class HttpAiLearningPathClientTests {
             throw new RestClientException("boom");
         });
         HttpAiLearningPathClient client = new HttpAiLearningPathClient(
-                new AiServiceProperties("http://ai-service:5000", 8000, true), builder);
+                new AiServiceProperties("http://ai-service:5000", 8000, true, ""), builder);
 
         ApiException exception = assertThrows(ApiException.class, () -> client.generateLearningPath(new AiLearningPathRequest(
                 new AiLearningPathRequest.StudentPayload(7L, "BEGINNER"),

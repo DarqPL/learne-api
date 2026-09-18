@@ -1,6 +1,7 @@
 package com.learne.backend.ai.tutor.ai;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.learne.backend.shared.api.ApiException;
@@ -27,12 +28,13 @@ class HttpAiTutorClientTests {
             assertEquals(HttpMethod.POST, request.getMethod());
             assertEquals("http://ai-service:5000/ai-tutor/respond", request.getURI().toString());
             assertEquals(MediaType.APPLICATION_JSON, request.getHeaders().getContentType());
+            assertNull(request.getHeaders().getFirst("X-Internal-Service-Token"));
             assertEquals("{\"practiceType\":\"ROLEPLAY\",\"title\":\"At the restaurant\",\"latestMessage\":\"I want order pizza.\",\"recentMessages\":[{\"senderType\":\"USER\",\"message\":\"Hello.\"}],\"constraints\":{\"maxReplyLength\":4000,\"maxFeedbackItems\":1,\"feedbackStyle\":\"GENTLE\"}}",
                     new String(body, StandardCharsets.UTF_8));
             return jsonResponse("{\"replyText\":\"Sure, what kind of pizza would you like?\",\"feedback\":{\"errorType\":\"GRAMMAR\",\"originalText\":\"I want order pizza.\",\"correctedText\":\"I want to order a pizza.\",\"explanation\":\"Use want to.\"}}", HttpStatus.OK);
         });
         AiTutorClient client = new HttpAiTutorClient(
-                new AiServiceProperties("http://ai-service:5000", 8000, true), builder);
+                new AiServiceProperties("http://ai-service:5000", 8000, true, ""), builder);
 
         AiTutorResponse response = client.generateReply(new AiTutorRequest(
                 "ROLEPLAY",
@@ -47,9 +49,21 @@ class HttpAiTutorClientTests {
     }
 
     @Test
+    void generateReplySendsInternalServiceTokenWhenConfigured() {
+        RestClient.Builder builder = RestClient.builder().requestInterceptor((request, body, execution) -> {
+            assertEquals("secret-token", request.getHeaders().getFirst("X-Internal-Service-Token"));
+            return jsonResponse("{\"replyText\":\"Hello.\",\"feedback\":null}", HttpStatus.OK);
+        });
+        AiTutorClient client = new HttpAiTutorClient(
+                new AiServiceProperties("http://ai-service:5000", 8000, true, "secret-token"), builder);
+
+        client.generateReply(AiTutorRequest.create("FREE_CHAT", "Free talk", "Hello.", List.of()));
+    }
+
+    @Test
     void generateReplyThrowsServiceUnavailableWhenDisabled() {
         AiTutorClient client = new HttpAiTutorClient(
-                new AiServiceProperties("http://ai-service:5000", 8000, false), RestClient.builder());
+                new AiServiceProperties("http://ai-service:5000", 8000, false, ""), RestClient.builder());
 
         ApiException exception = assertThrows(ApiException.class,
                 () -> client.generateReply(AiTutorRequest.create("FREE_CHAT", "Free talk", "Hello.", List.of())));
@@ -64,7 +78,7 @@ class HttpAiTutorClientTests {
             throw new RestClientException("boom");
         });
         AiTutorClient client = new HttpAiTutorClient(
-                new AiServiceProperties("http://ai-service:5000", 8000, true), builder);
+                new AiServiceProperties("http://ai-service:5000", 8000, true, ""), builder);
 
         ApiException exception = assertThrows(ApiException.class,
                 () -> client.generateReply(AiTutorRequest.create("FREE_CHAT", "Free talk", "Hello.", List.of())));
@@ -78,7 +92,7 @@ class HttpAiTutorClientTests {
         RestClient.Builder builder = RestClient.builder().requestInterceptor((request, body, execution) ->
                 jsonResponse("", HttpStatus.OK));
         AiTutorClient client = new HttpAiTutorClient(
-                new AiServiceProperties("http://ai-service:5000", 8000, true), builder);
+                new AiServiceProperties("http://ai-service:5000", 8000, true, ""), builder);
 
         ApiException exception = assertThrows(ApiException.class,
                 () -> client.generateReply(AiTutorRequest.create("FREE_CHAT", "Free talk", "Hello.", List.of())));
