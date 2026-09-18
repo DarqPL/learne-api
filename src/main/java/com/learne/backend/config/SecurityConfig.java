@@ -1,6 +1,7 @@
 package com.learne.backend.config;
 
 import com.learne.backend.auth.session.security.JwtAuthenticationFilter;
+import com.learne.backend.auth.session.security.TrustedOriginFilter;
 import com.learne.backend.auth.session.service.AuthProperties;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
@@ -32,6 +33,7 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
+            TrustedOriginFilter trustedOriginFilter,
             JwtAuthenticationFilter jwtAuthenticationFilter,
             CorsConfigurationSource corsConfigurationSource
     ) throws Exception {
@@ -58,6 +60,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/teachers", "/api/teachers/**").hasRole("STUDENT")
                         .anyRequest().authenticated()
                 )
+                .addFilterBefore(trustedOriginFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
