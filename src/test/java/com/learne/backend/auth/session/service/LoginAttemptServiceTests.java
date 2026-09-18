@@ -61,6 +61,50 @@ class LoginAttemptServiceTests {
         assertThatCode(() -> service.assertCanAttempt("student@example.com")).doesNotThrowAnyException();
     }
 
+    @Test
+    void expiredFailedAttemptsBelowThresholdResetBeforeNextFailure() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-09-18T00:00:00Z"));
+        LoginAttemptService service = new LoginAttemptService(clock);
+
+        for (int attempt = 0; attempt < 4; attempt++) {
+            service.recordFailure("student@example.com");
+        }
+
+        clock.advance(Duration.ofMinutes(16));
+
+        service.recordFailure("student@example.com");
+
+        assertThatCode(() -> service.assertCanAttempt("student@example.com")).doesNotThrowAnyException();
+    }
+
+    @Test
+    void cleanupDoesNotRemoveActiveLockedEntriesWhenSizeCapIsReached() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-09-18T00:00:00Z"));
+        LoginAttemptService service = new LoginAttemptService(clock);
+
+        for (int index = 0; index < 10_000; index++) {
+            lockAccount(service, "locked-" + index + "@example.com");
+        }
+
+        service.recordFailure("new-student@example.com");
+
+        for (int index = 0; index < 10_000; index++) {
+            String lockedEmail = "locked-" + index + "@example.com";
+            assertThatThrownBy(() -> service.assertCanAttempt(lockedEmail))
+                    .isInstanceOf(ApiException.class)
+                    .satisfies(error -> {
+                        ApiException apiException = (ApiException) error;
+                        org.assertj.core.api.Assertions.assertThat(apiException.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+                    });
+        }
+    }
+
+    private static void lockAccount(LoginAttemptService service, String email) {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            service.recordFailure(email);
+        }
+    }
+
     private static final class MutableClock extends Clock {
         private Instant instant;
 

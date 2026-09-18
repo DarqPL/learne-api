@@ -49,15 +49,17 @@ public class LoginAttemptService {
         if (attemptState.lockedUntil() != null && attemptState.lockedUntil().isAfter(now())) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, TOO_MANY_ATTEMPTS_MESSAGE);
         }
-        if (attemptState.lockedUntil() != null) {
+        if (isExpired(attemptState)) {
             attemptsByEmail.remove(normalizedEmail, attemptState);
         }
     }
 
     public void recordFailure(String email) {
         String normalizedEmail = normalizeEmail(email);
-        cleanupIfNeeded();
         attemptsByEmail.compute(normalizedEmail, (key, current) -> {
+            if (current != null && isExpired(current)) {
+                current = null;
+            }
             if (current != null && current.lockedUntil() != null && current.lockedUntil().isAfter(now())) {
                 throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, TOO_MANY_ATTEMPTS_MESSAGE);
             }
@@ -70,6 +72,7 @@ public class LoginAttemptService {
             }
             return new AttemptState(failedAttempts, lockedUntil, now().plus(FAILED_ATTEMPT_TTL));
         });
+        cleanupIfNeeded(normalizedEmail);
     }
 
     public void clear(String email) {
@@ -84,12 +87,14 @@ public class LoginAttemptService {
         return locks[Math.floorMod(normalizeEmail(email).hashCode(), locks.length)];
     }
 
-    private void cleanupIfNeeded() {
+    private void cleanupIfNeeded(String protectedEmail) {
         if (attemptsByEmail.size() >= MAX_TRACKED_EMAILS) {
             attemptsByEmail.entrySet().removeIf(entry -> isExpired(entry.getValue()));
         }
         if (attemptsByEmail.size() >= MAX_TRACKED_EMAILS) {
             attemptsByEmail.keySet().stream()
+                    .filter(email -> !email.equals(protectedEmail))
+                    .filter(email -> !isActiveLock(attemptsByEmail.get(email)))
                     .limit(attemptsByEmail.size() - MAX_TRACKED_EMAILS + 1L)
                     .toList()
                     .forEach(attemptsByEmail::remove);
@@ -101,6 +106,12 @@ public class LoginAttemptService {
             return !attemptState.lockedUntil().isAfter(now());
         }
         return !attemptState.expiresAt().isAfter(now());
+    }
+
+    private boolean isActiveLock(AttemptState attemptState) {
+        return attemptState != null
+                && attemptState.lockedUntil() != null
+                && attemptState.lockedUntil().isAfter(now());
     }
 
     private Instant now() {
