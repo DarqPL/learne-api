@@ -49,8 +49,23 @@ class CloudinaryStorageServiceTests {
     void uploadTeacherAvatarAcceptsKnownImageSignatures() {
         assertAcceptedAvatarSignature("image/png", new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A});
         assertAcceptedAvatarSignature("image/jpeg", new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0});
-        assertAcceptedAvatarSignature("image/gif", new byte[] {0x47, 0x49, 0x46, 0x38, 0x39, 0x61});
         assertAcceptedAvatarSignature("image/webp", new byte[] {0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50});
+    }
+
+    @Test
+    void uploadTeacherAvatarRejectsGifContentType() {
+        MockMultipartFile file = new MockMultipartFile(
+                "avatar",
+                "avatar.gif",
+                "image/gif",
+                new byte[] {0x47, 0x49, 0x46, 0x38, 0x39, 0x61}
+        );
+
+        assertThatThrownBy(() -> service.uploadTeacherAvatar(file))
+                .isInstanceOfSatisfying(ApiException.class, ex -> {
+                    assertThat(ex.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(ex.getMessage()).isEqualTo("Ảnh đại diện không hợp lệ.");
+                });
     }
 
     @Test
