@@ -19,7 +19,7 @@ public class LoginAttemptService {
     private static final Duration FAILED_ATTEMPT_TTL = Duration.ofMinutes(15);
     private static final String TOO_MANY_ATTEMPTS_MESSAGE = "Too many failed login attempts. Please try again later.";
 
-    private final Map<String, AttemptState> attemptsByEmail = new ConcurrentHashMap<>();
+    private final Map<String, AttemptState> attemptsByEmail;
     private final Object[] locks = new Object[64];
     private final Clock clock;
 
@@ -28,7 +28,12 @@ public class LoginAttemptService {
     }
 
     LoginAttemptService(Clock clock) {
+        this(clock, new ConcurrentHashMap<>());
+    }
+
+    LoginAttemptService(Clock clock, Map<String, AttemptState> attemptsByEmail) {
         this.clock = clock;
+        this.attemptsByEmail = attemptsByEmail;
         for (int index = 0; index < locks.length; index++) {
             locks[index] = new Object();
         }
@@ -92,12 +97,12 @@ public class LoginAttemptService {
             attemptsByEmail.entrySet().removeIf(entry -> isExpired(entry.getValue()));
         }
         if (attemptsByEmail.size() >= MAX_TRACKED_EMAILS) {
-            attemptsByEmail.keySet().stream()
-                    .filter(email -> !email.equals(protectedEmail))
-                    .filter(email -> !isActiveLock(attemptsByEmail.get(email)))
+            attemptsByEmail.entrySet().stream()
+                    .filter(entry -> !entry.getKey().equals(protectedEmail))
+                    .filter(entry -> !isActiveLock(entry.getValue()))
                     .limit(attemptsByEmail.size() - MAX_TRACKED_EMAILS + 1L)
                     .toList()
-                    .forEach(attemptsByEmail::remove);
+                    .forEach(entry -> attemptsByEmail.remove(entry.getKey(), entry.getValue()));
         }
     }
 

@@ -8,6 +8,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
@@ -99,9 +101,68 @@ class LoginAttemptServiceTests {
         }
     }
 
+    @Test
+    void cleanupDoesNotRemoveEntryThatBecomesLockedAfterCleanupCheck() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-09-18T00:00:00Z"));
+        String racyEmail = "racy-student@example.com";
+        RacyCleanupMap attemptsByEmail = new RacyCleanupMap(racyEmail);
+        LoginAttemptService service = new LoginAttemptService(clock, attemptsByEmail);
+        attemptsByEmail.setService(service);
+
+        for (int index = 0; index < 9_998; index++) {
+            lockAccount(service, "locked-" + index + "@example.com");
+        }
+        for (int attempt = 0; attempt < 4; attempt++) {
+            service.recordFailure(racyEmail);
+        }
+
+        service.recordFailure("new-student@example.com");
+
+        assertThatThrownBy(() -> service.assertCanAttempt(racyEmail))
+                .isInstanceOf(ApiException.class)
+                .satisfies(error -> {
+                    ApiException apiException = (ApiException) error;
+                    org.assertj.core.api.Assertions.assertThat(apiException.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+                });
+    }
+
     private static void lockAccount(LoginAttemptService service, String email) {
         for (int attempt = 0; attempt < 5; attempt++) {
             service.recordFailure(email);
+        }
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static final class RacyCleanupMap extends ConcurrentHashMap {
+        private final String racyEmail;
+        private final AtomicReference<LoginAttemptService> service = new AtomicReference<>();
+        private boolean transitionedToActiveLock;
+
+        private RacyCleanupMap(String racyEmail) {
+            this.racyEmail = racyEmail;
+        }
+
+        private void setService(LoginAttemptService service) {
+            this.service.set(service);
+        }
+
+        @Override
+        public Object remove(Object key) {
+            transitionToActiveLockIfRacy(key);
+            return super.remove(key);
+        }
+
+        @Override
+        public boolean remove(Object key, Object value) {
+            transitionToActiveLockIfRacy(key);
+            return super.remove(key, value);
+        }
+
+        private void transitionToActiveLockIfRacy(Object key) {
+            if (!transitionedToActiveLock && racyEmail.equals(key)) {
+                transitionedToActiveLock = true;
+                service.get().recordFailure(racyEmail);
+            }
         }
     }
 
