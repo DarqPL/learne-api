@@ -8,7 +8,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
@@ -22,7 +25,10 @@ public class TrustedOriginFilter extends OncePerRequestFilter {
     private final Set<String> allowedOrigins;
 
     public TrustedOriginFilter(CorsProperties corsProperties) {
-        this.allowedOrigins = Set.copyOf(corsProperties.allowedOrigins());
+        this.allowedOrigins = corsProperties.allowedOrigins().stream()
+                .map(this::normalizeOrigin)
+                .flatMap(Optional::stream)
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     @Override
@@ -54,32 +60,41 @@ public class TrustedOriginFilter extends OncePerRequestFilter {
 
     private boolean hasTrustedOrigin(HttpServletRequest request) {
         String origin = request.getHeader(HttpHeaders.ORIGIN);
-        if (origin != null && !allowedOrigins.contains(origin)) {
-            return false;
+        if (origin != null) {
+            return normalizeOrigin(origin)
+                    .map(allowedOrigins::contains)
+                    .orElse(false);
         }
 
         String referer = request.getHeader(HttpHeaders.REFERER);
         if (referer != null) {
-            String refererOrigin = originFromReferer(referer);
-            return refererOrigin != null && allowedOrigins.contains(refererOrigin);
+            return normalizeOrigin(referer)
+                    .map(allowedOrigins::contains)
+                    .orElse(false);
         }
 
         return true;
     }
 
-    private String originFromReferer(String referer) {
+    private Optional<String> normalizeOrigin(String value) {
         try {
-            URI uri = new URI(referer);
+            URI uri = new URI(value);
             if (uri.getScheme() == null || uri.getHost() == null) {
-                return null;
+                return Optional.empty();
             }
-            String origin = uri.getScheme() + "://" + uri.getHost();
-            if (uri.getPort() != -1) {
+            String scheme = uri.getScheme().toLowerCase(Locale.ROOT);
+            String host = uri.getHost().toLowerCase(Locale.ROOT);
+            String origin = scheme + "://" + host;
+            if (uri.getPort() != -1 && !isDefaultPort(scheme, uri.getPort())) {
                 origin += ":" + uri.getPort();
             }
-            return origin;
+            return Optional.of(origin);
         } catch (URISyntaxException ex) {
-            return null;
+            return Optional.empty();
         }
+    }
+
+    private boolean isDefaultPort(String scheme, int port) {
+        return ("https".equals(scheme) && port == 443) || ("http".equals(scheme) && port == 80);
     }
 }
