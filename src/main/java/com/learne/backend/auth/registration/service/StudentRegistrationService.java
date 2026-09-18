@@ -82,8 +82,12 @@ public class StudentRegistrationService {
         }
 
         if (!passwordEncoder.matches(request.otp(), pending.getOtpHash())) {
-            pending.setAttempts(pending.getAttempts() + 1);
+            int attempts = pending.getAttempts() + 1;
+            pending.setAttempts(attempts);
             registrationOtpRepository.save(pending);
+            if (attempts >= MAX_OTP_ATTEMPTS) {
+                throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, TOO_MANY_OTP_ATTEMPTS_MESSAGE);
+            }
             throw new ApiException(HttpStatus.BAD_REQUEST, "OTP is invalid.");
         }
 

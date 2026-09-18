@@ -135,7 +135,7 @@ class PasswordResetApiTests {
         User student = saveUser("student@example.com", "Password123", UserRole.STUDENT, true, false, false);
         savePasswordResetToken(student, "123456", OffsetDateTime.now().plusMinutes(15), null, 0);
 
-        for (int attempt = 0; attempt < 5; attempt++) {
+        for (int attempt = 0; attempt < 4; attempt++) {
             mockMvc.perform(post("/api/auth/password-reset/confirm")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
@@ -155,7 +155,7 @@ class PasswordResetApiTests {
                         .content("""
                                 {
                                   "email": "student@example.com",
-                                  "token": "123456",
+                                  "token": "000000",
                                   "newPassword": "NewPassword123",
                                   "confirmNewPassword": "NewPassword123"
                                 }

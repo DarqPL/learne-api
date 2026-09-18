@@ -71,8 +71,12 @@ public class PasswordResetService {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, TOO_MANY_OTP_ATTEMPTS_MESSAGE);
         }
         if (!passwordEncoder.matches(request.token(), resetToken.getTokenHash())) {
-            resetToken.setAttempts(resetToken.getAttempts() + 1);
+            int attempts = resetToken.getAttempts() + 1;
+            resetToken.setAttempts(attempts);
             passwordResetTokenRepository.save(resetToken);
+            if (attempts >= MAX_OTP_ATTEMPTS) {
+                throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, TOO_MANY_OTP_ATTEMPTS_MESSAGE);
+            }
             throw new ApiException(HttpStatus.BAD_REQUEST, "Password reset token is invalid.");
         }
         if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {

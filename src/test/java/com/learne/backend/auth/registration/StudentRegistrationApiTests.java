@@ -191,7 +191,7 @@ class StudentRegistrationApiTests {
     void verifyOtpRejectsAfterFiveInvalidAttemptsUntilNewCodeIsRequested() throws Exception {
         savePendingRegistration("student@example.com", "Nguyen Van A", "Password123", "123456", OffsetDateTime.now().plusMinutes(5));
 
-        for (int attempt = 0; attempt < 5; attempt++) {
+        for (int attempt = 0; attempt < 4; attempt++) {
             mockMvc.perform(post("/api/auth/register/verify-otp")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
@@ -209,7 +209,7 @@ class StudentRegistrationApiTests {
                         .content("""
                                 {
                                   "email": "student@example.com",
-                                  "otp": "123456"
+                                  "otp": "000000"
                                 }
                                 """))
                 .andExpect(status().isTooManyRequests())
