@@ -26,6 +26,11 @@ public class HttpAiGrammarCheckClient implements AiGrammarCheckClient {
 
         this.restClient = restClientBuilder
                 .baseUrl(properties.baseUrl())
+                .defaultHeaders(headers -> {
+                    if (!properties.internalToken().isBlank()) {
+                        headers.set("X-Internal-Service-Token", properties.internalToken());
+                    }
+                })
                 .requestFactory(requestFactory)
                 .build();
     }

@@ -13,16 +13,18 @@ class AiServicePropertiesTests {
             .withPropertyValues(
                     "app.ai-service.base-url=${AI_SERVICE_URL:http://ai-service:5000}",
                     "app.ai-service.timeout-ms=${AI_SERVICE_TIMEOUT_MS:8000}",
-                    "app.ai-service.enabled=${AI_SERVICE_ENABLED:true}")
+                    "app.ai-service.enabled=${AI_SERVICE_ENABLED:true}",
+                    "app.ai-service.internal-token=${AI_SERVICE_INTERNAL_TOKEN:}")
             .withUserConfiguration(TestConfiguration.class);
 
     @Test
     void defaultsBlankBaseUrlNonPositiveTimeoutAndOmittedEnabled() {
-        AiServiceProperties properties = new AiServiceProperties("", 0, null);
+        AiServiceProperties properties = new AiServiceProperties("", 0, null, null);
 
         assertEquals("http://ai-service:5000", properties.baseUrl());
         assertEquals(8000, properties.timeoutMs());
         assertTrue(properties.enabled());
+        assertEquals("", properties.internalToken());
     }
 
     @Test
@@ -31,13 +33,15 @@ class AiServicePropertiesTests {
                 .withPropertyValues(
                         "AI_SERVICE_URL=http://localhost:5100",
                         "AI_SERVICE_TIMEOUT_MS=1234",
-                        "AI_SERVICE_ENABLED=false")
+                        "AI_SERVICE_ENABLED=false",
+                        "AI_SERVICE_INTERNAL_TOKEN=secret-token")
                 .run(context -> {
                     AiServiceProperties properties = context.getBean(AiServiceProperties.class);
 
                     assertEquals("http://localhost:5100", properties.baseUrl());
                     assertEquals(1234, properties.timeoutMs());
                     assertEquals(false, properties.enabled());
+                    assertEquals("secret-token", properties.internalToken());
                 });
     }
 

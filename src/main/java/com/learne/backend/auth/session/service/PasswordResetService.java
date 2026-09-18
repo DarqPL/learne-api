@@ -9,6 +9,7 @@ import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.shared.api.ApiException;
 import java.time.OffsetDateTime;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class PasswordResetService {
 
     public static final String REQUEST_MESSAGE = "If the email is registered, password reset instructions have been sent.";
+    private static final int MAX_OTP_ATTEMPTS = 5;
+    private static final String TOO_MANY_OTP_ATTEMPTS_MESSAGE = "Too many invalid OTP attempts. Please request a new code.";
 
     private final UserRepository userRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
@@ -57,15 +60,23 @@ public class PasswordResetService {
     public void confirmReset(ConfirmPasswordResetRequest request) {
         User user = userRepository.findByEmail(normalizeEmail(request.email()))
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Password reset token is invalid."));
-        PasswordResetToken resetToken = passwordResetTokenRepository.findTopByUserAndUsedAtIsNullOrderByCreatedAtDesc(user)
+        PasswordResetToken resetToken = passwordResetTokenRepository.findLatestUnusedByUserForUpdate(user, PageRequest.of(0, 1)).stream()
+                .findFirst()
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Password reset token is invalid."));
 
         if (resetToken.getExpiresAt().isBefore(OffsetDateTime.now())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Password reset token has expired.");
         }
+        if (resetToken.getAttempts() >= MAX_OTP_ATTEMPTS) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, TOO_MANY_OTP_ATTEMPTS_MESSAGE);
+        }
         if (!passwordEncoder.matches(request.token(), resetToken.getTokenHash())) {
-            resetToken.setAttempts(resetToken.getAttempts() + 1);
+            int attempts = resetToken.getAttempts() + 1;
+            resetToken.setAttempts(attempts);
             passwordResetTokenRepository.save(resetToken);
+            if (attempts >= MAX_OTP_ATTEMPTS) {
+                throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, TOO_MANY_OTP_ATTEMPTS_MESSAGE);
+            }
             throw new ApiException(HttpStatus.BAD_REQUEST, "Password reset token is invalid.");
         }
         if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {

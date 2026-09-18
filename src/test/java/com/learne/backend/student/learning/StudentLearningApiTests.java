@@ -141,6 +141,36 @@ class StudentLearningApiTests {
     }
 
     @Test
+    void enrollingSameCourseTwiceReturnsSameEnrollmentWithoutDuplicatingProgress() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedCourseWithTwoLessons(teacherToken, adminToken);
+
+        MvcResult firstResult = mockMvc.perform(post("/api/student/courses/%d/enroll".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        MvcResult secondResult = mockMvc.perform(post("/api/student/courses/%d/enroll".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode firstJson = objectMapper.readTree(firstResult.getResponse().getContentAsString());
+        JsonNode secondJson = objectMapper.readTree(secondResult.getResponse().getContentAsString());
+        assertEquals(firstJson.get("id").asLong(), secondJson.get("id").asLong());
+
+        Course course = courseRepository.findById(courseId).orElseThrow();
+        CourseEnrollment enrollment = courseEnrollmentRepository.findByUserAndCourse(student, course).orElseThrow();
+        assertEquals(1, courseEnrollmentRepository.countByUser(student));
+        assertEquals(2, lessonProgressRepository.findByCourseEnrollmentOrderedForLearning(enrollment).size());
+    }
+
+    @Test
     void catalogReturnsOnlyApprovedCoursesWithEnrollmentFlag() throws Exception {
         User admin = saveUser("admin@example.com", UserRole.ADMIN);
         User teacher = saveUser("teacher@example.com", UserRole.TEACHER);

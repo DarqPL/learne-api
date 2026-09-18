@@ -18,6 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class StudentRegistrationService {
+    private static final int MAX_OTP_ATTEMPTS = 5;
+    private static final String TOO_MANY_OTP_ATTEMPTS_MESSAGE = "Too many invalid OTP attempts. Please request a new code.";
+
     private final RegistrationOtpRepository registrationOtpRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -67,16 +70,24 @@ public class StudentRegistrationService {
     @Transactional(noRollbackFor = ApiException.class)
     public void verifyOtp(VerifyRegistrationOtpRequest request) {
         String email = normalizeEmail(request.email());
-        RegistrationOtp pending = registrationOtpRepository.findByEmail(email)
+        RegistrationOtp pending = registrationOtpRepository.findByEmailForUpdate(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "No pending registration found for this email."));
 
         if (pending.getExpiresAt().isBefore(OffsetDateTime.now())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "OTP has expired.");
         }
 
+        if (pending.getAttempts() >= MAX_OTP_ATTEMPTS) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, TOO_MANY_OTP_ATTEMPTS_MESSAGE);
+        }
+
         if (!passwordEncoder.matches(request.otp(), pending.getOtpHash())) {
-            pending.setAttempts(pending.getAttempts() + 1);
+            int attempts = pending.getAttempts() + 1;
+            pending.setAttempts(attempts);
             registrationOtpRepository.save(pending);
+            if (attempts >= MAX_OTP_ATTEMPTS) {
+                throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, TOO_MANY_OTP_ATTEMPTS_MESSAGE);
+            }
             throw new ApiException(HttpStatus.BAD_REQUEST, "OTP is invalid.");
         }
 

@@ -20,30 +20,45 @@ public class AuthSessionService {
     private final PasswordPolicy passwordPolicy;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
+    private final LoginAttemptService loginAttemptService;
 
     public AuthSessionService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             PasswordPolicy passwordPolicy,
             JwtService jwtService,
-            RefreshTokenService refreshTokenService
+            RefreshTokenService refreshTokenService,
+            LoginAttemptService loginAttemptService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.passwordPolicy = passwordPolicy;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
+        this.loginAttemptService = loginAttemptService;
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ApiException.class)
     public LoginResult login(String email, String password, String ipAddress, String userAgent) {
-        User user = userRepository.findByEmail(email.toLowerCase().trim())
-                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Invalid email or password."));
+        String normalizedEmail = email.toLowerCase().trim();
+        return loginAttemptService.withEmailLock(normalizedEmail, () -> loginWithEmailLock(normalizedEmail, password, ipAddress, userAgent));
+    }
+
+    private LoginResult loginWithEmailLock(String normalizedEmail, String password, String ipAddress, String userAgent) {
+        loginAttemptService.assertCanAttempt(normalizedEmail);
+
+        User user = userRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> {
+                    loginAttemptService.recordFailure(normalizedEmail);
+                    return new ApiException(HttpStatus.UNAUTHORIZED, "Invalid email or password.");
+                });
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+            loginAttemptService.recordFailure(normalizedEmail);
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Invalid email or password.");
         }
         assertCanSignIn(user);
 
+        loginAttemptService.clear(normalizedEmail);
         RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issue(user, ipAddress, userAgent);
         return new LoginResult(tokenResponse(user), refreshToken.rawToken());
     }

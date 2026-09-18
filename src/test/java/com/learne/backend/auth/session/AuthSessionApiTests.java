@@ -117,6 +117,86 @@ class AuthSessionApiTests {
     }
 
     @Test
+    void loginRejectsAttemptsAfterFiveFailedPasswordsForNormalizedEmail() throws Exception {
+        saveUser("limited-login@example.com", "Password123", UserRole.STUDENT, true, false, false);
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+            mockMvc.perform(post("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "email": "Limited-Login@Example.com",
+                                      "password": "WrongPassword123"
+                                    }
+                                    """))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.message").value("Invalid email or password."));
+        }
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "limited-login@example.com",
+                                  "password": "Password123"
+                                }
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.message").value("Too many failed login attempts. Please try again later."));
+
+        assertThat(refreshTokenRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    void successfulLoginClearsFailedAttemptCount() throws Exception {
+        saveUser("cleared-login@example.com", "Password123", UserRole.STUDENT, true, false, false);
+
+        for (int attempt = 0; attempt < 4; attempt++) {
+            mockMvc.perform(post("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "email": "cleared-login@example.com",
+                                      "password": "WrongPassword123"
+                                    }
+                                    """))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "cleared-login@example.com",
+                                  "password": "Password123"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        for (int attempt = 0; attempt < 4; attempt++) {
+            mockMvc.perform(post("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "email": "cleared-login@example.com",
+                                      "password": "WrongPassword123"
+                                    }
+                                    """))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "cleared-login@example.com",
+                                  "password": "Password123"
+                                }
+                                """))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void loginRejectsInactiveOrLockedAccounts() throws Exception {
         saveUser("inactive@example.com", "Password123", UserRole.STUDENT, false, false, false);
         saveUser("locked@example.com", "Password123", UserRole.STUDENT, true, true, false);
