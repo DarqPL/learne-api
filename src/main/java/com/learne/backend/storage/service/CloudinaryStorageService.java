@@ -7,6 +7,7 @@ import com.learne.backend.storage.config.CloudinaryProperties;
 import com.learne.backend.storage.dto.StorageResourceType;
 import com.learne.backend.storage.dto.StorageUploadResult;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
@@ -15,7 +16,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Service
 class CloudinaryStorageService implements StorageService {
-    private static final Set<String> AVATAR_CONTENT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
+    private static final int MAX_SIGNATURE_BYTES = 12;
+    private static final Set<String> AVATAR_CONTENT_TYPES = Set.of("image/jpeg", "image/png", "image/gif", "image/webp");
     private static final Set<String> VIDEO_CONTENT_TYPES = Set.of("video/mp4", "video/webm", "video/quicktime");
 
     private final CloudinaryProperties properties;
@@ -75,6 +77,44 @@ class CloudinaryStorageService implements StorageService {
         if (contentType == null || !allowedContentTypes.contains(contentType)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, message);
         }
+        if (!hasAllowedSignature(file, contentType)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, message);
+        }
+    }
+
+    private boolean hasAllowedSignature(MultipartFile file, String contentType) {
+        byte[] signature;
+        try (InputStream inputStream = file.getInputStream()) {
+            signature = inputStream.readNBytes(MAX_SIGNATURE_BYTES);
+        } catch (IOException ex) {
+            return false;
+        }
+
+        return switch (contentType) {
+            case "image/png" -> startsWith(signature, 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A);
+            case "image/jpeg" -> startsWith(signature, 0xFF, 0xD8, 0xFF);
+            case "image/gif" -> startsWith(signature, 0x47, 0x49, 0x46, 0x38);
+            case "image/webp" -> startsWith(signature, 0x52, 0x49, 0x46, 0x46) && matchesAt(signature, 8, 0x57, 0x45, 0x42, 0x50);
+            case "video/mp4", "video/quicktime" -> matchesAt(signature, 4, 0x66, 0x74, 0x79, 0x70);
+            case "video/webm" -> startsWith(signature, 0x1A, 0x45, 0xDF, 0xA3);
+            default -> false;
+        };
+    }
+
+    private boolean startsWith(byte[] bytes, int... expected) {
+        return matchesAt(bytes, 0, expected);
+    }
+
+    private boolean matchesAt(byte[] bytes, int offset, int... expected) {
+        if (bytes.length < offset + expected.length) {
+            return false;
+        }
+        for (int index = 0; index < expected.length; index++) {
+            if ((bytes[offset + index] & 0xFF) != expected[index]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void ensureConfigured() {
