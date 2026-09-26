@@ -30,6 +30,9 @@ public class QuestionOption {
     @Column(name = "order_index", nullable = false)
     private int orderIndex;
 
+    @Column(name = "is_active", nullable = false)
+    private boolean active = true;
+
     public Long getId() { return id; }
     public Question getQuestion() { return question; }
     public void setQuestion(Question question) { this.question = question; }
@@ -39,4 +42,6 @@ public class QuestionOption {
     public void setCorrect(boolean correct) { this.correct = correct; }
     public int getOrderIndex() { return orderIndex; }
     public void setOrderIndex(int orderIndex) { this.orderIndex = orderIndex; }
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
 }

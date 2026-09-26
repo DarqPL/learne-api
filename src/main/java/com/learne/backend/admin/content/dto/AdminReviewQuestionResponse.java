@@ -3,6 +3,8 @@ package com.learne.backend.admin.content.dto;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.teacher.content.entity.Question;
 import com.learne.backend.teacher.content.entity.QuestionOption;
+import com.learne.backend.teacher.content.entity.QuestionOptionRevision;
+import com.learne.backend.teacher.content.entity.QuestionRevision;
 import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.enums.QuestionType;
 import java.time.Instant;
@@ -44,6 +46,28 @@ public record AdminReviewQuestionResponse(
                 question.getReviewedAt(),
                 question.getOptions().stream()
                         .sorted(Comparator.comparingInt(QuestionOption::getOrderIndex).thenComparing(QuestionOption::getId))
+                        .map(AdminReviewQuestionOptionResponse::from)
+                        .toList()
+        );
+    }
+
+    public static AdminReviewQuestionResponse from(QuestionRevision question) {
+        return new AdminReviewQuestionResponse(
+                question.getId(),
+                question.getType(),
+                question.getQuestionText(),
+                question.getExplanation(),
+                question.getCorrectAnswer(),
+                question.getKnowledgePoint(),
+                question.getOrderIndex(),
+                question.getDifficulty(),
+                question.getXpReward(),
+                ContentStatus.PENDING_REVIEW,
+                null,
+                null,
+                null,
+                question.getOptions().stream()
+                        .sorted(Comparator.comparingInt(QuestionOptionRevision::getOrderIndex).thenComparing(QuestionOptionRevision::getId))
                         .map(AdminReviewQuestionOptionResponse::from)
                         .toList()
         );

@@ -84,6 +84,7 @@ public class StudentQuizGradingService {
         }
         if (usesOptionGrading(question)) {
             QuestionOption selectedOption = question.getOptions().stream()
+                    .filter(QuestionOption::isActive)
                     .filter(option -> option.getId().equals(answer.selectedOptionId()))
                     .findFirst()
                     .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Option does not belong to this question."));
@@ -128,11 +129,12 @@ public class StudentQuizGradingService {
 
     private boolean usesOptionGrading(Question question) {
         return question.getType() == QuestionType.MULTIPLE_CHOICE
-                || (question.getType() == QuestionType.TRUE_FALSE && !question.getOptions().isEmpty());
+                || (question.getType() == QuestionType.TRUE_FALSE && question.getOptions().stream().anyMatch(QuestionOption::isActive));
     }
 
     private Long correctOptionId(Question question) {
         return question.getOptions().stream()
+                .filter(QuestionOption::isActive)
                 .filter(QuestionOption::isCorrect)
                 .findFirst()
                 .map(QuestionOption::getId)

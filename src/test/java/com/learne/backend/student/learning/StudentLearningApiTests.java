@@ -567,6 +567,41 @@ class StudentLearningApiTests {
     }
 
     @Test
+    void quizEndpointAndSubmitIgnoreInactiveOptions() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedCourseWithTwoLessons(teacherToken, adminToken);
+        long enrollmentId = enrollAndGetId(studentToken, courseId);
+        long firstLessonId = firstLessonId(enrollmentId);
+        long questionId = firstQuestionId(firstLessonId);
+        long inactiveOptionId = wrongOptionId(questionId);
+        jdbcTemplate.update("update question_options set is_active = false where id = ?", inactiveOptionId);
+
+        mockMvc.perform(get("/api/student/enrollments/%d/lessons/%d/quiz".formatted(enrollmentId, firstLessonId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.questions[0].options", hasSize(1)))
+                .andExpect(jsonPath("$.questions[0].options[0].id").value(correctOptionId(questionId)));
+
+        mockMvc.perform(post("/api/student/enrollments/%d/lessons/%d/quiz/submit".formatted(enrollmentId, firstLessonId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "answers": [
+                                    { "questionId": %d, "selectedOptionId": %d }
+                                  ]
+                                }
+                                """.formatted(questionId, inactiveOptionId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Option does not belong to this question."));
+    }
+
+    @Test
     void submitRejectsDuplicateQuestionIdsAsMissingRequiredAnswer() throws Exception {
         User admin = saveUser("admin@example.com", UserRole.ADMIN);
         User teacher = saveUser("teacher@example.com", UserRole.TEACHER);

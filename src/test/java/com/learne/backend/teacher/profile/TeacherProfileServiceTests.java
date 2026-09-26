@@ -115,6 +115,11 @@ class TeacherProfileServiceTests {
         }
 
         @Override
+        public StorageUploadResult uploadLessonAudio(MultipartFile file) {
+            return new StorageUploadResult("https://example.com/audio.mp3", "audio-public-id");
+        }
+
+        @Override
         public void delete(String publicId, StorageResourceType resourceType) {
         }
     }

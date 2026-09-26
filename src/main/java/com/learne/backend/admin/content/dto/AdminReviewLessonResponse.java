@@ -2,7 +2,9 @@ package com.learne.backend.admin.content.dto;
 
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.teacher.content.entity.Lesson;
+import com.learne.backend.teacher.content.entity.LessonRevision;
 import com.learne.backend.teacher.content.entity.Question;
+import com.learne.backend.teacher.content.entity.QuestionRevision;
 import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.enums.SkillType;
 import java.time.Instant;
@@ -44,6 +46,28 @@ public record AdminReviewLessonResponse(
                 lesson.getPublishedAt(),
                 lesson.getQuestions().stream()
                         .sorted(Comparator.comparingInt(Question::getOrderIndex).thenComparing(Question::getId))
+                        .map(AdminReviewQuestionResponse::from)
+                        .toList()
+        );
+    }
+
+    public static AdminReviewLessonResponse from(LessonRevision lesson) {
+        return new AdminReviewLessonResponse(
+                lesson.getId(),
+                lesson.getTitle(),
+                lesson.getDescription(),
+                lesson.getContent(),
+                lesson.getSkillType(),
+                lesson.getOrderIndex(),
+                lesson.getXpReward(),
+                lesson.isPlacementTest(),
+                ContentStatus.PENDING_REVIEW,
+                null,
+                null,
+                null,
+                null,
+                lesson.getQuestions().stream()
+                        .sorted(Comparator.comparingInt(QuestionRevision::getOrderIndex).thenComparing(QuestionRevision::getId))
                         .map(AdminReviewQuestionResponse::from)
                         .toList()
         );

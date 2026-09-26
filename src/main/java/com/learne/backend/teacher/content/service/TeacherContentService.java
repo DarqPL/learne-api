@@ -12,17 +12,29 @@ import com.learne.backend.teacher.content.dto.QuestionResponse;
 import com.learne.backend.teacher.content.dto.TopicRequest;
 import com.learne.backend.teacher.content.dto.TopicResponse;
 import com.learne.backend.teacher.content.entity.Course;
+import com.learne.backend.teacher.content.entity.CourseRevision;
 import com.learne.backend.teacher.content.entity.Lesson;
+import com.learne.backend.teacher.content.entity.LessonRevision;
 import com.learne.backend.teacher.content.entity.Question;
 import com.learne.backend.teacher.content.entity.QuestionOption;
+import com.learne.backend.teacher.content.entity.QuestionOptionRevision;
+import com.learne.backend.teacher.content.entity.QuestionRevision;
 import com.learne.backend.teacher.content.entity.Topic;
+import com.learne.backend.teacher.content.entity.TopicRevision;
 import com.learne.backend.teacher.content.enums.ContentStatus;
+import com.learne.backend.teacher.content.enums.CourseRevisionStatus;
 import com.learne.backend.teacher.content.enums.QuestionType;
 import com.learne.backend.teacher.content.repository.CourseRepository;
+import com.learne.backend.teacher.content.repository.CourseRevisionRepository;
 import com.learne.backend.teacher.content.repository.LessonRepository;
 import com.learne.backend.teacher.content.repository.QuestionRepository;
 import com.learne.backend.teacher.content.repository.TopicRepository;
+import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,15 +42,18 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class TeacherContentService {
     private final CourseRepository courseRepository;
+    private final CourseRevisionRepository courseRevisionRepository;
     private final TopicRepository topicRepository;
     private final LessonRepository lessonRepository;
     private final QuestionRepository questionRepository;
 
     public TeacherContentService(CourseRepository courseRepository,
-                          TopicRepository topicRepository,
-                          LessonRepository lessonRepository,
-                          QuestionRepository questionRepository) {
+                          CourseRevisionRepository courseRevisionRepository,
+                           TopicRepository topicRepository,
+                           LessonRepository lessonRepository,
+                           QuestionRepository questionRepository) {
         this.courseRepository = courseRepository;
+        this.courseRevisionRepository = courseRevisionRepository;
         this.topicRepository = topicRepository;
         this.lessonRepository = lessonRepository;
         this.questionRepository = questionRepository;
@@ -46,14 +61,22 @@ public class TeacherContentService {
 
     @Transactional(readOnly = true)
     public List<CourseResponse> listCourses(User teacher) {
-        return courseRepository.findByTeacherOrderByOrderIndexAscIdAsc(teacher).stream()
-                .map(CourseResponse::from)
+        List<Course> courses = courseRepository.findByTeacherOrderByOrderIndexAscIdAsc(teacher);
+        if (courses.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, CourseRevision> latestRevisions = courseRevisionRepository.findLatestByCourseIds(
+                        courses.stream().map(Course::getId).toList()).stream()
+                .collect(Collectors.toMap(revision -> revision.getCourse().getId(), Function.identity()));
+        return courses.stream()
+                .map(course -> CourseResponse.from(course, latestRevisions.get(course.getId())))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public CourseResponse getCourse(User teacher, Long courseId) {
-        return CourseResponse.from(findCourse(teacher, courseId));
+        Course course = findCourse(teacher, courseId);
+        return CourseResponse.from(course, findLatestRevision(course));
     }
 
     @Transactional
@@ -62,7 +85,15 @@ public class TeacherContentService {
         course.setTeacher(teacher);
         course.setStatus(ContentStatus.DRAFT);
         applyCourseRequest(course, request);
-        return CourseResponse.from(courseRepository.save(course));
+        Course savedCourse = courseRepository.save(course);
+        CourseRevision revision = new CourseRevision();
+        revision.setCourse(savedCourse);
+        revision.setTeacher(teacher);
+        revision.setRevisionNumber(1);
+        revision.setStatus(CourseRevisionStatus.DRAFT);
+        applyRevisionMetadata(revision, savedCourse);
+        CourseRevision savedRevision = courseRevisionRepository.save(revision);
+        return CourseResponse.from(savedCourse, savedRevision);
     }
 
     @Transactional
@@ -70,7 +101,9 @@ public class TeacherContentService {
         Course course = findCourse(teacher, courseId);
         ensureEditable(course);
         applyCourseRequest(course, request);
-        return CourseResponse.from(courseRepository.save(course));
+        Course savedCourse = courseRepository.save(course);
+        CourseRevision revision = syncEditableRevision(savedCourse);
+        return CourseResponse.from(savedCourse, revision);
     }
 
     @Transactional
@@ -87,7 +120,10 @@ public class TeacherContentService {
         Topic topic = new Topic();
         topic.setCourse(course);
         applyTopicRequest(topic, request);
-        return TopicResponse.from(topicRepository.save(topic));
+        course.getTopics().add(topic);
+        Topic savedTopic = topicRepository.save(topic);
+        syncEditableRevision(course);
+        return TopicResponse.from(savedTopic);
     }
 
     @Transactional
@@ -95,14 +131,19 @@ public class TeacherContentService {
         Topic topic = findTopic(teacher, topicId);
         ensureEditable(topic.getCourse());
         applyTopicRequest(topic, request);
-        return TopicResponse.from(topicRepository.save(topic));
+        Topic savedTopic = topicRepository.save(topic);
+        syncEditableRevision(savedTopic.getCourse());
+        return TopicResponse.from(savedTopic);
     }
 
     @Transactional
     public void deleteTopic(User teacher, Long topicId) {
         Topic topic = findTopic(teacher, topicId);
         ensureEditable(topic.getCourse());
+        Course course = topic.getCourse();
         topicRepository.delete(topic);
+        course.getTopics().remove(topic);
+        syncEditableRevision(course);
     }
 
     @Transactional
@@ -114,7 +155,10 @@ public class TeacherContentService {
         lesson.setTeacher(teacher);
         lesson.setStatus(ContentStatus.DRAFT);
         applyLessonRequest(lesson, request);
-        return LessonResponse.from(lessonRepository.save(lesson));
+        topic.getLessons().add(lesson);
+        Lesson savedLesson = lessonRepository.save(lesson);
+        syncEditableRevision(topic.getCourse());
+        return LessonResponse.from(savedLesson);
     }
 
     @Transactional
@@ -122,14 +166,19 @@ public class TeacherContentService {
         Lesson lesson = findLesson(teacher, lessonId);
         ensureEditable(lesson.getTopic().getCourse());
         applyLessonRequest(lesson, request);
-        return LessonResponse.from(lessonRepository.save(lesson));
+        Lesson savedLesson = lessonRepository.save(lesson);
+        syncEditableRevision(savedLesson.getTopic().getCourse());
+        return LessonResponse.from(savedLesson);
     }
 
     @Transactional
     public void deleteLesson(User teacher, Long lessonId) {
         Lesson lesson = findLesson(teacher, lessonId);
         ensureEditable(lesson.getTopic().getCourse());
+        Course course = lesson.getTopic().getCourse();
+        lesson.getTopic().getLessons().remove(lesson);
         lessonRepository.delete(lesson);
+        syncEditableRevision(course);
     }
 
     @Transactional
@@ -142,7 +191,10 @@ public class TeacherContentService {
         question.setTeacher(teacher);
         question.setStatus(ContentStatus.DRAFT);
         applyQuestionRequest(question, request);
-        return QuestionResponse.from(questionRepository.save(question));
+        lesson.getQuestions().add(question);
+        Question savedQuestion = questionRepository.save(question);
+        syncEditableRevision(lesson.getTopic().getCourse());
+        return QuestionResponse.from(savedQuestion);
     }
 
     @Transactional
@@ -152,31 +204,52 @@ public class TeacherContentService {
         validateQuestion(request);
         question.getOptions().clear();
         applyQuestionRequest(question, request);
-        return QuestionResponse.from(questionRepository.save(question));
+        Question savedQuestion = questionRepository.save(question);
+        syncEditableRevision(savedQuestion.getLesson().getTopic().getCourse());
+        return QuestionResponse.from(savedQuestion);
     }
 
     @Transactional
     public void deleteQuestion(User teacher, Long questionId) {
         Question question = findQuestion(teacher, questionId);
         ensureEditable(question.getLesson().getTopic().getCourse());
+        Course course = question.getLesson().getTopic().getCourse();
+        question.getLesson().getQuestions().remove(question);
         questionRepository.delete(question);
+        syncEditableRevision(course);
     }
 
     @Transactional
     public CourseResponse submitCourse(User teacher, Long courseId) {
         Course course = findCourse(teacher, courseId);
-        if (course.getStatus() != ContentStatus.DRAFT && course.getStatus() != ContentStatus.REJECTED) {
+        CourseRevision latestRevision = courseRevisionRepository.findTopByCourseIdOrderByRevisionNumberDesc(courseId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course revision not found."));
+        if (!latestRevision.getTeacher().getId().equals(teacher.getId())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Course not found.");
+        }
+        if (latestRevision.getStatus() != CourseRevisionStatus.DRAFT
+                && latestRevision.getStatus() != CourseRevisionStatus.REJECTED) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Only draft or rejected content can be submitted for review.");
         }
-        if (!hasMinimumReviewContent(course)) {
+        if (!hasMinimumReviewContent(latestRevision)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Course must have at least one topic, lesson, and question before review.");
         }
-        course.setStatus(ContentStatus.PENDING_REVIEW);
-        course.getTopics().forEach(topic -> topic.getLessons().forEach(lesson -> {
-            lesson.setStatus(ContentStatus.PENDING_REVIEW);
-            lesson.getQuestions().forEach(question -> question.setStatus(ContentStatus.PENDING_REVIEW));
-        }));
-        return CourseResponse.from(courseRepository.save(course));
+        courseRevisionRepository.findByCourseAndStatus(course, CourseRevisionStatus.PENDING_REVIEW).stream()
+                .filter(revision -> !revision.getId().equals(latestRevision.getId()))
+                .forEach(revision -> revision.setStatus(CourseRevisionStatus.SUPERSEDED));
+        latestRevision.setStatus(CourseRevisionStatus.PENDING_REVIEW);
+        latestRevision.setSubmittedAt(Instant.now());
+        latestRevision.setRejectionReason(null);
+        if (course.getPublishedAt() == null) {
+            course.setStatus(ContentStatus.PENDING_REVIEW);
+            applyCourseMetadata(course, latestRevision);
+        }
+        return CourseResponse.from(courseRepository.save(course), latestRevision);
+    }
+
+    private CourseRevision findLatestRevision(Course course) {
+        return courseRevisionRepository.findTopByCourseOrderByRevisionNumberDesc(course)
+                .orElse(null);
     }
 
     private Course findCourse(User teacher, Long courseId) {
@@ -223,12 +296,118 @@ public class TeacherContentService {
                         .anyMatch(lesson -> !lesson.getQuestions().isEmpty()));
     }
 
+    private boolean hasMinimumReviewContent(CourseRevision revision) {
+        return revision.getTopics().stream()
+                .anyMatch(topic -> topic.getLessons().stream()
+                        .anyMatch(lesson -> !lesson.getQuestions().isEmpty()));
+    }
+
+    private void applyCourseMetadata(Course course, CourseRevision revision) {
+        course.setName(revision.getName());
+        course.setDescription(revision.getDescription());
+        course.setType(revision.getType());
+        course.setLevel(revision.getLevel());
+        course.setOrderIndex(revision.getOrderIndex());
+        course.setRejectionReason(null);
+    }
+
     private void applyCourseRequest(Course course, CourseRequest request) {
         course.setName(request.name());
         course.setDescription(request.description());
         course.setType(request.type());
         course.setLevel(request.level());
         course.setOrderIndex(valueOrZero(request.orderIndex()));
+    }
+
+    private void applyRevisionMetadata(CourseRevision revision, Course course) {
+        revision.setName(course.getName());
+        revision.setDescription(course.getDescription());
+        revision.setType(course.getType());
+        revision.setLevel(course.getLevel());
+        revision.setOrderIndex(course.getOrderIndex());
+    }
+
+    private CourseRevision syncEditableRevision(Course course) {
+        return latestEditableRevision(course).map(revision -> {
+            applyRevisionMetadata(revision, course);
+            revision.getTopics().clear();
+            course.getTopics().stream()
+                    .sorted(Comparator.comparingInt(Topic::getOrderIndex)
+                            .thenComparing(Topic::getId, Comparator.nullsLast(Long::compareTo)))
+                    .forEach(topic -> revision.getTopics().add(toTopicRevision(revision, topic)));
+            return courseRevisionRepository.save(revision);
+        }).orElse(null);
+    }
+
+    private java.util.Optional<CourseRevision> latestEditableRevision(Course course) {
+        return courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(course, CourseRevisionStatus.DRAFT)
+                .or(() -> courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(
+                        course, CourseRevisionStatus.REJECTED));
+    }
+
+    private TopicRevision toTopicRevision(CourseRevision revision, Topic topic) {
+        TopicRevision topicRevision = new TopicRevision();
+        topicRevision.setCourseRevision(revision);
+        topicRevision.setSourceTopic(topic);
+        topicRevision.setName(topic.getName());
+        topicRevision.setDescription(topic.getDescription());
+        topicRevision.setOrderIndex(topic.getOrderIndex());
+        topic.getLessons().stream()
+                .sorted(Comparator.comparingInt(Lesson::getOrderIndex)
+                        .thenComparing(Lesson::getId, Comparator.nullsLast(Long::compareTo)))
+                .forEach(lesson -> topicRevision.getLessons().add(toLessonRevision(topicRevision, lesson)));
+        return topicRevision;
+    }
+
+    private LessonRevision toLessonRevision(TopicRevision topicRevision, Lesson lesson) {
+        LessonRevision lessonRevision = new LessonRevision();
+        lessonRevision.setTopicRevision(topicRevision);
+        lessonRevision.setSourceLesson(lesson);
+        lessonRevision.setTeacher(lesson.getTeacher());
+        lessonRevision.setTitle(lesson.getTitle());
+        lessonRevision.setDescription(lesson.getDescription());
+        lessonRevision.setContent(lesson.getContent());
+        lessonRevision.setAudioUrl(lesson.getAudioUrl());
+        lessonRevision.setAudioPublicId(lesson.getAudioPublicId());
+        lessonRevision.setSkillType(lesson.getSkillType());
+        lessonRevision.setOrderIndex(lesson.getOrderIndex());
+        lessonRevision.setXpReward(lesson.getXpReward());
+        lessonRevision.setPlacementTest(lesson.isPlacementTest());
+        lesson.getQuestions().stream()
+                .sorted(Comparator.comparingInt(Question::getOrderIndex)
+                        .thenComparing(Question::getId, Comparator.nullsLast(Long::compareTo)))
+                .forEach(question -> lessonRevision.getQuestions().add(toQuestionRevision(lessonRevision, question)));
+        return lessonRevision;
+    }
+
+    private QuestionRevision toQuestionRevision(LessonRevision lessonRevision, Question question) {
+        QuestionRevision questionRevision = new QuestionRevision();
+        questionRevision.setLessonRevision(lessonRevision);
+        questionRevision.setSourceQuestion(question);
+        questionRevision.setTeacher(question.getTeacher());
+        questionRevision.setType(question.getType());
+        questionRevision.setQuestionText(question.getQuestionText());
+        questionRevision.setExplanation(question.getExplanation());
+        questionRevision.setCorrectAnswer(question.getCorrectAnswer());
+        questionRevision.setKnowledgePoint(question.getKnowledgePoint());
+        questionRevision.setOrderIndex(question.getOrderIndex());
+        questionRevision.setDifficulty(question.getDifficulty());
+        questionRevision.setXpReward(question.getXpReward());
+        question.getOptions().stream()
+                .sorted(Comparator.comparingInt(QuestionOption::getOrderIndex)
+                        .thenComparing(QuestionOption::getId, Comparator.nullsLast(Long::compareTo)))
+                .forEach(option -> questionRevision.getOptions().add(toQuestionOptionRevision(questionRevision, option)));
+        return questionRevision;
+    }
+
+    private QuestionOptionRevision toQuestionOptionRevision(QuestionRevision questionRevision, QuestionOption option) {
+        QuestionOptionRevision optionRevision = new QuestionOptionRevision();
+        optionRevision.setQuestionRevision(questionRevision);
+        optionRevision.setSourceOption(option);
+        optionRevision.setOptionText(option.getOptionText());
+        optionRevision.setCorrect(option.isCorrect());
+        optionRevision.setOrderIndex(option.getOrderIndex());
+        return optionRevision;
     }
 
     private void applyTopicRequest(Topic topic, TopicRequest request) {
