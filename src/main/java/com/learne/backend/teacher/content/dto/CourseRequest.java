@@ -1,5 +1,6 @@
 package com.learne.backend.teacher.content.dto;
 
+import com.learne.backend.teacher.content.enums.CoursePricingType;
 import com.learne.backend.teacher.content.enums.CourseType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -10,7 +11,9 @@ public record CourseRequest(
         String description,
         @NotNull CourseType type,
         @NotBlank @Size(max = 50) String level,
-        Integer orderIndex
+        Integer orderIndex,
+        CoursePricingType pricingType,
+        Long proposedPriceAmountVnd
 ) {
     public CourseRequest {
         if (name != null) name = name.trim();

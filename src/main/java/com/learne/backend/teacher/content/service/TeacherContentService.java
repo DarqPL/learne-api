@@ -22,6 +22,8 @@ import com.learne.backend.teacher.content.entity.QuestionRevision;
 import com.learne.backend.teacher.content.entity.Topic;
 import com.learne.backend.teacher.content.entity.TopicRevision;
 import com.learne.backend.teacher.content.enums.ContentStatus;
+import com.learne.backend.teacher.content.enums.CoursePriceStatus;
+import com.learne.backend.teacher.content.enums.CoursePricingType;
 import com.learne.backend.teacher.content.enums.CourseRevisionStatus;
 import com.learne.backend.teacher.content.enums.QuestionType;
 import com.learne.backend.teacher.content.repository.CourseRepository;
@@ -317,6 +319,24 @@ public class TeacherContentService {
         course.setType(request.type());
         course.setLevel(request.level());
         course.setOrderIndex(valueOrZero(request.orderIndex()));
+        applyPricingRequest(course, request);
+    }
+
+    private void applyPricingRequest(Course course, CourseRequest request) {
+        CoursePricingType pricingType = request.pricingType() == null ? CoursePricingType.FREE : request.pricingType();
+        if (pricingType == CoursePricingType.FREE) {
+            course.setPricingType(CoursePricingType.FREE);
+            course.setPriceAmountVnd(null);
+            course.setProposedPriceAmountVnd(null);
+            course.setPriceStatus(CoursePriceStatus.NONE);
+            return;
+        }
+        if (request.proposedPriceAmountVnd() == null || request.proposedPriceAmountVnd() <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Paid course requires a positive proposed price.");
+        }
+        course.setPricingType(CoursePricingType.PAID);
+        course.setProposedPriceAmountVnd(request.proposedPriceAmountVnd());
+        course.setPriceStatus(CoursePriceStatus.PENDING_REVIEW);
     }
 
     private void applyRevisionMetadata(CourseRevision revision, Course course) {
@@ -325,6 +345,8 @@ public class TeacherContentService {
         revision.setType(course.getType());
         revision.setLevel(course.getLevel());
         revision.setOrderIndex(course.getOrderIndex());
+        revision.setPricingType(course.getPricingType());
+        revision.setProposedPriceAmountVnd(course.getProposedPriceAmountVnd());
     }
 
     private CourseRevision syncEditableRevision(Course course) {
