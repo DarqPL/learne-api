@@ -225,6 +225,41 @@ class AdminContentReviewApiTests {
     }
 
     @Test
+    void adminReviewShowsProposedPaidPriceAndApprovesIt() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        long courseId = createSubmittedCourse(teacherToken, "B1", "PAID", 300000L);
+
+        mockMvc.perform(get("/api/admin/content/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pricingType").value("PAID"))
+                .andExpect(jsonPath("$.proposedPriceAmountVnd").value(300000));
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pricingType").value("PAID"))
+                .andExpect(jsonPath("$.priceStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.priceAmountVnd").value(300000));
+    }
+
+    @Test
+    void adminCannotApproveA1PaidCourse() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        long courseId = createSubmittedCourse(teacherToken, "A1", "PAID", 300000L);
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void adminCanRejectPendingCourseWithReasonAndCascadeStatus() throws Exception {
         User admin = saveUser("admin@example.com", UserRole.ADMIN);
         User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
@@ -651,6 +686,16 @@ class AdminContentReviewApiTests {
 
     private long createSubmittedCourse(String teacherToken) throws Exception {
         long courseId = createCourse(teacherToken);
+        return submitCourseWithReviewContent(teacherToken, courseId);
+    }
+
+    private long createSubmittedCourse(String teacherToken, String level, String pricingType,
+                                       Long proposedPriceAmountVnd) throws Exception {
+        long courseId = createCourse(teacherToken, level, pricingType, proposedPriceAmountVnd);
+        return submitCourseWithReviewContent(teacherToken, courseId);
+    }
+
+    private long submitCourseWithReviewContent(String teacherToken, long courseId) throws Exception {
         long topicId = createTopic(teacherToken, courseId);
         long lessonId = createLesson(teacherToken, topicId);
         createQuestion(teacherToken, lessonId);
@@ -662,6 +707,12 @@ class AdminContentReviewApiTests {
     }
 
     private long createCourse(String teacherToken) throws Exception {
+        return createCourse(teacherToken, "A1", null, null);
+    }
+
+    private long createCourse(String teacherToken, String level, String pricingType, Long proposedPriceAmountVnd) throws Exception {
+        String pricingJson = pricingType == null ? "" : ",\n  \"pricingType\": \"%s\",\n  \"proposedPriceAmountVnd\": %d"
+                .formatted(pricingType, proposedPriceAmountVnd);
         MvcResult result = mockMvc.perform(post("/api/teacher/content/courses")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -670,10 +721,10 @@ class AdminContentReviewApiTests {
                                   "name": "English A1 Foundation",
                                   "description": "Starter English course",
                                   "type": "COMPREHENSIVE",
-                                  "level": "A1",
-                                  "orderIndex": 1
+                                  "level": "%s",
+                                  "orderIndex": 1%s
                                 }
-                                """))
+                                """.formatted(level, pricingJson)))
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
