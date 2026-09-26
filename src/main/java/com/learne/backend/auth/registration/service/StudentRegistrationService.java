@@ -3,6 +3,7 @@ package com.learne.backend.auth.registration.service;
 import com.learne.backend.auth.registration.dto.RequestRegistrationOtpRequest;
 import com.learne.backend.auth.registration.dto.ResendRegistrationOtpRequest;
 import com.learne.backend.auth.registration.dto.VerifyRegistrationOtpRequest;
+import com.learne.backend.domain.auth.AccountOrigin;
 import com.learne.backend.domain.auth.RegistrationOtp;
 import com.learne.backend.domain.auth.RegistrationOtpRepository;
 import com.learne.backend.domain.auth.PasswordPolicy;
@@ -104,6 +105,7 @@ public class StudentRegistrationService {
         student.setActive(true);
         student.setLocked(false);
         student.setMustChangePassword(false);
+        student.setAccountOrigin(AccountOrigin.SELF_REGISTERED);
         userRepository.save(student);
         registrationOtpRepository.delete(pending);
     }

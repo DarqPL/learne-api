@@ -11,6 +11,7 @@ import com.learne.backend.admin.user.dto.CreateTeacherRequest;
 import com.learne.backend.ai.grammar.repository.GrammarCheckRepository;
 import com.learne.backend.ai.tutor.repository.AiConversationRepository;
 import com.learne.backend.auth.session.service.RefreshTokenService;
+import com.learne.backend.domain.auth.AccountOrigin;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
@@ -170,6 +171,7 @@ public class AdminUserService {
         teacher.setActive(true);
         teacher.setLocked(false);
         teacher.setMustChangePassword(true);
+        teacher.setAccountOrigin(AccountOrigin.ADMIN_CREATED);
 
         User savedTeacher = userRepository.save(teacher);
         teacherInvitationMailService.sendTeacherInvitation(savedTeacher.getEmail(), savedTeacher.getFullName(), temporaryPassword);

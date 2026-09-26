@@ -1,6 +1,7 @@
 package com.learne.backend.teacher.content.entity;
 
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.teacher.content.enums.CoursePricingType;
 import com.learne.backend.teacher.content.enums.CourseRevisionStatus;
 import com.learne.backend.teacher.content.enums.CourseType;
 import jakarta.persistence.CascadeType;
@@ -76,6 +77,13 @@ public class CourseRevision {
     @Column(name = "published_at")
     private Instant publishedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "pricing_type", nullable = false)
+    private CoursePricingType pricingType = CoursePricingType.FREE;
+
+    @Column(name = "proposed_price_amount_vnd")
+    private Long proposedPriceAmountVnd;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -124,6 +132,10 @@ public class CourseRevision {
     public void setReviewedAt(Instant reviewedAt) { this.reviewedAt = reviewedAt; }
     public Instant getPublishedAt() { return publishedAt; }
     public void setPublishedAt(Instant publishedAt) { this.publishedAt = publishedAt; }
+    public CoursePricingType getPricingType() { return pricingType; }
+    public void setPricingType(CoursePricingType pricingType) { this.pricingType = pricingType; }
+    public Long getProposedPriceAmountVnd() { return proposedPriceAmountVnd; }
+    public void setProposedPriceAmountVnd(Long proposedPriceAmountVnd) { this.proposedPriceAmountVnd = proposedPriceAmountVnd; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public List<TopicRevision> getTopics() { return topics; }

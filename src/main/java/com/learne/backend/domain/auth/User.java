@@ -7,6 +7,9 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -47,6 +50,14 @@ public class User {
 
     @Column(name = "must_change_password", nullable = false)
     private boolean mustChangePassword;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "account_origin", nullable = false)
+    private AccountOrigin accountOrigin = AccountOrigin.SELF_REGISTERED;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_teacher_id")
+    private User ownerTeacher;
 
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
@@ -140,6 +151,22 @@ public class User {
 
     public void setMustChangePassword(boolean mustChangePassword) {
         this.mustChangePassword = mustChangePassword;
+    }
+
+    public AccountOrigin getAccountOrigin() {
+        return accountOrigin;
+    }
+
+    public void setAccountOrigin(AccountOrigin accountOrigin) {
+        this.accountOrigin = accountOrigin;
+    }
+
+    public User getOwnerTeacher() {
+        return ownerTeacher;
+    }
+
+    public void setOwnerTeacher(User ownerTeacher) {
+        this.ownerTeacher = ownerTeacher;
     }
 
     public OffsetDateTime getCreatedAt() {
