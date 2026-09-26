@@ -693,6 +693,47 @@ class TeacherContentApiTests {
     }
 
     @Test
+    void teacherCanUpdatePaidCourseWithoutClearingPricingWhenPricingFieldsAreOmitted() throws Exception {
+        User teacher = saveUser("paid-course-update-teacher@example.com", UserRole.TEACHER);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+
+        MvcResult createResult = mockMvc.perform(post("/api/teacher/content/courses")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Paid English A1",
+                                  "description": "Paid course proposal.",
+                                  "type": "COMPREHENSIVE",
+                                  "level": "A1",
+                                  "orderIndex": 1,
+                                  "pricingType": "PAID",
+                                  "proposedPriceAmountVnd": 300000
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+        long courseId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(put("/api/teacher/content/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Paid English A1 Updated",
+                                  "description": "Updated description.",
+                                  "type": "COMPREHENSIVE",
+                                  "level": "A1",
+                                  "orderIndex": 2
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pricingType").value("PAID"))
+                .andExpect(jsonPath("$.priceStatus").value("PENDING_REVIEW"))
+                .andExpect(jsonPath("$.proposedPriceAmountVnd").value(300000));
+    }
+
+    @Test
     void courseRevisionTablesSupportLatestDraftAndPendingReview() throws Exception {
         User teacher = saveUser("revision-teacher@example.com", UserRole.TEACHER);
         String token = loginAndGetAccessToken(teacher.getEmail());

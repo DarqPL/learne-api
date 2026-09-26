@@ -86,7 +86,7 @@ public class TeacherContentService {
         Course course = new Course();
         course.setTeacher(teacher);
         course.setStatus(ContentStatus.DRAFT);
-        applyCourseRequest(course, request);
+        applyCourseRequest(course, request, true);
         Course savedCourse = courseRepository.save(course);
         CourseRevision revision = new CourseRevision();
         revision.setCourse(savedCourse);
@@ -102,7 +102,7 @@ public class TeacherContentService {
     public CourseResponse updateCourse(User teacher, Long courseId, CourseRequest request) {
         Course course = findCourse(teacher, courseId);
         ensureEditable(course);
-        applyCourseRequest(course, request);
+        applyCourseRequest(course, request, false);
         Course savedCourse = courseRepository.save(course);
         CourseRevision revision = syncEditableRevision(savedCourse);
         return CourseResponse.from(savedCourse, revision);
@@ -313,16 +313,19 @@ public class TeacherContentService {
         course.setRejectionReason(null);
     }
 
-    private void applyCourseRequest(Course course, CourseRequest request) {
+    private void applyCourseRequest(Course course, CourseRequest request, boolean defaultMissingPricingTypeToFree) {
         course.setName(request.name());
         course.setDescription(request.description());
         course.setType(request.type());
         course.setLevel(request.level());
         course.setOrderIndex(valueOrZero(request.orderIndex()));
-        applyPricingRequest(course, request);
+        applyPricingRequest(course, request, defaultMissingPricingTypeToFree);
     }
 
-    private void applyPricingRequest(Course course, CourseRequest request) {
+    private void applyPricingRequest(Course course, CourseRequest request, boolean defaultMissingPricingTypeToFree) {
+        if (request.pricingType() == null && !defaultMissingPricingTypeToFree) {
+            return;
+        }
         CoursePricingType pricingType = request.pricingType() == null ? CoursePricingType.FREE : request.pricingType();
         if (pricingType == CoursePricingType.FREE) {
             course.setPricingType(CoursePricingType.FREE);
