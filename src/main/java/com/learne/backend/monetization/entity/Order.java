@@ -114,4 +114,8 @@ public class Order {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public List<OrderItem> getItems() { return items; }
+    public void addItem(OrderItem item) {
+        item.setOrder(this);
+        items.add(item);
+    }
 }

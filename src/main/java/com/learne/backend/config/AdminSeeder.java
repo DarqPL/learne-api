@@ -1,5 +1,6 @@
 package com.learne.backend.config;
 
+import com.learne.backend.domain.auth.AccountOrigin;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
@@ -32,8 +33,8 @@ public class AdminSeeder implements ApplicationRunner {
             return;
         }
 
-        userRepository.findByEmail(properties.getEmail()).ifPresentOrElse(user -> {
-        }, this::createAdmin);
+        userRepository.findByEmail(properties.getEmail())
+                .ifPresentOrElse(this::updateSeededAdminOrigin, this::createAdmin);
     }
 
     private void createAdmin() {
@@ -45,6 +46,14 @@ public class AdminSeeder implements ApplicationRunner {
         admin.setActive(true);
         admin.setLocked(false);
         admin.setMustChangePassword(false);
+        admin.setAccountOrigin(AccountOrigin.ADMIN_CREATED);
         userRepository.save(admin);
+    }
+
+    private void updateSeededAdminOrigin(User user) {
+        if (user.getRole() == UserRole.ADMIN && user.getAccountOrigin() != AccountOrigin.ADMIN_CREATED) {
+            user.setAccountOrigin(AccountOrigin.ADMIN_CREATED);
+            userRepository.save(user);
+        }
     }
 }

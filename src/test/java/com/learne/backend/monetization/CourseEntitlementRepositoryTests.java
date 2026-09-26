@@ -23,7 +23,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 @ActiveProfiles("test")
 @SpringBootTest
-class CourseAccessServiceTests {
+class CourseEntitlementRepositoryTests {
     @Autowired
     private UserRepository userRepository;
 

@@ -2,6 +2,7 @@ package com.learne.backend.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.learne.backend.domain.auth.AccountOrigin;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
@@ -36,6 +37,7 @@ class AdminSeederTests {
         assertThat(admin.isActive()).isTrue();
         assertThat(admin.isLocked()).isFalse();
         assertThat(admin.isMustChangePassword()).isFalse();
+        assertThat(admin.getAccountOrigin()).isEqualTo(AccountOrigin.ADMIN_CREATED);
         assertThat(admin.getPasswordHash()).isNotEqualTo("Admin123");
         assertThat(passwordEncoder.matches("Admin123", admin.getPasswordHash())).isTrue();
     }
