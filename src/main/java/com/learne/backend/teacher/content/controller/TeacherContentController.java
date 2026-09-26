@@ -10,9 +10,15 @@ import com.learne.backend.teacher.content.dto.QuestionRequest;
 import com.learne.backend.teacher.content.dto.QuestionResponse;
 import com.learne.backend.teacher.content.dto.TopicRequest;
 import com.learne.backend.teacher.content.dto.TopicResponse;
+import com.learne.backend.teacher.content.importexport.dto.CourseImportResponse;
+import com.learne.backend.teacher.content.importexport.service.CourseImportExportService;
+import com.learne.backend.teacher.content.importexport.template.CourseExcelTemplateExporter;
 import com.learne.backend.teacher.content.service.TeacherContentService;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,15 +27,47 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/teacher/content")
 class TeacherContentController {
     private final TeacherContentService teacherContentService;
+    private final CourseExcelTemplateExporter courseExcelTemplateExporter;
+    private final CourseImportExportService courseImportExportService;
 
-    TeacherContentController(TeacherContentService teacherContentService) {
+    TeacherContentController(TeacherContentService teacherContentService,
+                             CourseExcelTemplateExporter courseExcelTemplateExporter,
+                             CourseImportExportService courseImportExportService) {
         this.teacherContentService = teacherContentService;
+        this.courseExcelTemplateExporter = courseExcelTemplateExporter;
+        this.courseImportExportService = courseImportExportService;
+    }
+
+    @GetMapping(value = "/course-template", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    ResponseEntity<byte[]> downloadCourseTemplate(Authentication authentication) {
+        currentUser(authentication);
+        byte[] workbook = courseExcelTemplateExporter.blankTemplate();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=course-template.xlsx")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(workbook);
+    }
+
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    CourseImportResponse importCourse(@RequestParam("file") MultipartFile file, Authentication authentication) {
+        return courseImportExportService.importCourse(currentUser(authentication), file);
+    }
+
+    @GetMapping(value = "/courses/{courseId}/export", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    ResponseEntity<byte[]> exportCourse(@PathVariable Long courseId, Authentication authentication) {
+        byte[] workbook = courseImportExportService.exportCourse(currentUser(authentication), courseId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=course-" + courseId + ".xlsx")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(workbook);
     }
 
     @GetMapping("/courses")

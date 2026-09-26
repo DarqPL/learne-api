@@ -509,6 +509,14 @@ class TeacherProfileApiTests {
         }
 
         @Override
+        public StorageUploadResult uploadLessonAudio(MultipartFile file) {
+            return new StorageUploadResult(
+                    "https://res.cloudinary.com/demo/video/upload/audio.mp3",
+                    "learne/course-audio/audio"
+            );
+        }
+
+        @Override
         public void delete(String publicId, StorageResourceType resourceType) {
             deletedPublicIds.add(publicId);
         }

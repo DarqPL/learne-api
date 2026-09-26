@@ -1,7 +1,9 @@
 package com.learne.backend.admin.content.dto;
 
 import com.learne.backend.teacher.content.entity.Lesson;
+import com.learne.backend.teacher.content.entity.LessonRevision;
 import com.learne.backend.teacher.content.entity.Topic;
+import com.learne.backend.teacher.content.entity.TopicRevision;
 import java.util.Comparator;
 import java.util.List;
 
@@ -20,6 +22,19 @@ public record AdminReviewTopicResponse(
                 topic.getOrderIndex(),
                 topic.getLessons().stream()
                         .sorted(Comparator.comparingInt(Lesson::getOrderIndex).thenComparing(Lesson::getId))
+                        .map(AdminReviewLessonResponse::from)
+                        .toList()
+        );
+    }
+
+    public static AdminReviewTopicResponse from(TopicRevision topic) {
+        return new AdminReviewTopicResponse(
+                topic.getId(),
+                topic.getName(),
+                topic.getDescription(),
+                topic.getOrderIndex(),
+                topic.getLessons().stream()
+                        .sorted(Comparator.comparingInt(LessonRevision::getOrderIndex).thenComparing(LessonRevision::getId))
                         .map(AdminReviewLessonResponse::from)
                         .toList()
         );

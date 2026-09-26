@@ -10,5 +10,7 @@ public interface StorageService {
 
     StorageUploadResult uploadTeacherIntroductionVideo(MultipartFile file);
 
+    StorageUploadResult uploadLessonAudio(MultipartFile file);
+
     void delete(String publicId, StorageResourceType resourceType);
 }

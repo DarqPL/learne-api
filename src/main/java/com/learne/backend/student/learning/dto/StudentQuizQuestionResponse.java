@@ -29,6 +29,7 @@ public record StudentQuizQuestionResponse(
                 question.getOrderIndex(),
                 targetText,
                 question.getOptions().stream()
+                        .filter(QuestionOption::isActive)
                         .sorted(Comparator.comparingInt(QuestionOption::getOrderIndex).thenComparing(QuestionOption::getId))
                         .map(StudentQuizOptionResponse::from)
                         .toList()

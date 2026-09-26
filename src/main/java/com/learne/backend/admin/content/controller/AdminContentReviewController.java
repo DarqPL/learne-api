@@ -41,9 +41,21 @@ class AdminContentReviewController {
 
     @PostMapping("/courses/{courseId}/reject")
     AdminReviewCourseDetailResponse rejectCourse(@PathVariable Long courseId,
-                                                 @Valid @RequestBody RejectContentRequest request,
-                                                 Authentication authentication) {
+                                                  @Valid @RequestBody RejectContentRequest request,
+                                                  Authentication authentication) {
         return adminContentReviewService.rejectCourse(currentUser(authentication), courseId, request.reason());
+    }
+
+    @PostMapping("/course-revisions/{revisionId}/approve")
+    AdminReviewCourseDetailResponse approveRevision(@PathVariable Long revisionId, Authentication authentication) {
+        return adminContentReviewService.approveRevision(currentUser(authentication), revisionId);
+    }
+
+    @PostMapping("/course-revisions/{revisionId}/reject")
+    AdminReviewCourseDetailResponse rejectRevision(@PathVariable Long revisionId,
+                                                   @Valid @RequestBody RejectContentRequest request,
+                                                   Authentication authentication) {
+        return adminContentReviewService.rejectRevision(currentUser(authentication), revisionId, request.reason());
     }
 
     private User currentUser(Authentication authentication) {

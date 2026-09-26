@@ -1,8 +1,10 @@
 package com.learne.backend.teacher.content.dto;
 
 import com.learne.backend.teacher.content.entity.Course;
+import com.learne.backend.teacher.content.entity.CourseRevision;
 import com.learne.backend.teacher.content.entity.Topic;
 import com.learne.backend.teacher.content.enums.ContentStatus;
+import com.learne.backend.teacher.content.enums.CourseRevisionStatus;
 import com.learne.backend.teacher.content.enums.CourseType;
 import java.util.Comparator;
 import java.util.List;
@@ -16,9 +18,16 @@ public record CourseResponse(
         int orderIndex,
         ContentStatus status,
         String rejectionReason,
+        Long latestRevisionId,
+        CourseRevisionStatus latestRevisionStatus,
+        boolean hasEditableRevision,
         List<TopicResponse> topics
 ) {
     public static CourseResponse from(Course course) {
+        return from(course, null);
+    }
+
+    public static CourseResponse from(Course course, CourseRevision latestRevision) {
         return new CourseResponse(
                 course.getId(),
                 course.getName(),
@@ -28,10 +37,17 @@ public record CourseResponse(
                 course.getOrderIndex(),
                 course.getStatus(),
                 course.getRejectionReason(),
+                latestRevision == null ? null : latestRevision.getId(),
+                latestRevision == null ? null : latestRevision.getStatus(),
+                latestRevision != null && isEditable(latestRevision.getStatus()),
                 course.getTopics().stream()
                         .sorted(Comparator.comparingInt(Topic::getOrderIndex).thenComparing(Topic::getId))
                         .map(TopicResponse::from)
                         .toList()
-        );
+                );
+    }
+
+    private static boolean isEditable(CourseRevisionStatus status) {
+        return status == CourseRevisionStatus.DRAFT || status == CourseRevisionStatus.REJECTED;
     }
 }

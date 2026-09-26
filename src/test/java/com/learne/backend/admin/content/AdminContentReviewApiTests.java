@@ -3,6 +3,7 @@ package com.learne.backend.admin.content;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -26,6 +27,13 @@ import com.learne.backend.teacher.content.repository.LessonRepository;
 import com.learne.backend.teacher.content.repository.QuestionOptionRepository;
 import com.learne.backend.teacher.content.repository.QuestionRepository;
 import com.learne.backend.teacher.content.repository.TopicRepository;
+import java.io.ByteArrayOutputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +41,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
@@ -300,6 +309,309 @@ class AdminContentReviewApiTests {
                 .andExpect(jsonPath("$.message").value("Course must have at least one topic, lesson, and question before approval."));
     }
 
+    @Test
+    void adminCannotApproveSupersededCourseRevision() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+
+        MvcResult importResult = importWorkbook(teacherToken, validCourseImportWorkbook())
+                .andExpect(status().isOk())
+                .andReturn();
+        long courseId = objectMapper.readTree(importResult.getResponse().getContentAsString()).get("courseId").asLong();
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+
+        MvcResult pendingDetail = mockMvc.perform(get("/api/admin/content/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revisionId", notNullValue()))
+                .andExpect(jsonPath("$.revisionNumber").value(1))
+                .andReturn();
+        long oldRevisionId = objectMapper.readTree(pendingDetail.getResponse().getContentAsString())
+                .get("revisionId").asLong();
+
+        MvcResult exportResult = mockMvc.perform(get("/api/teacher/content/courses/%d/export".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        importWorkbook(teacherToken, replaceExportedQuestion(exportResult.getResponse().getContentAsByteArray()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courseId").value(courseId))
+                .andExpect(jsonPath("$.status").value("DRAFT"));
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/admin/content/course-revisions/%d/approve".formatted(oldRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Nội dung này không còn là phiên bản mới nhất."));
+    }
+
+    @Test
+    void adminCannotRejectSupersededCourseRevision() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+
+        MvcResult importResult = importWorkbook(teacherToken, validCourseImportWorkbook())
+                .andExpect(status().isOk())
+                .andReturn();
+        long courseId = objectMapper.readTree(importResult.getResponse().getContentAsString()).get("courseId").asLong();
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+
+        MvcResult pendingDetail = mockMvc.perform(get("/api/admin/content/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        long oldRevisionId = objectMapper.readTree(pendingDetail.getResponse().getContentAsString())
+                .get("revisionId").asLong();
+
+        MvcResult exportResult = mockMvc.perform(get("/api/teacher/content/courses/%d/export".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        importWorkbook(teacherToken, replaceExportedQuestion(exportResult.getResponse().getContentAsByteArray()))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/admin/content/course-revisions/%d/reject".formatted(oldRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "Không còn là phiên bản mới nhất."
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Nội dung này không còn là phiên bản mới nhất."));
+    }
+
+    @Test
+    void rejectingNewRevisionPreservesApprovedLiveCourse() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+
+        MvcResult importResult = importWorkbook(teacherToken, validCourseImportWorkbook())
+                .andExpect(status().isOk())
+                .andReturn();
+        long courseId = objectMapper.readTree(importResult.getResponse().getContentAsString()).get("courseId").asLong();
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+
+        MvcResult exportResult = mockMvc.perform(get("/api/teacher/content/courses/%d/export".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        byte[] editedWorkbook = replaceCourseMetadata(
+                replaceExportedQuestion(exportResult.getResponse().getContentAsByteArray()),
+                "Edited English A1", "Edited course description.");
+        importWorkbook(teacherToken, editedWorkbook)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"));
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/reject".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "Giữ lại phiên bản đã duyệt."
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPROVED"))
+                .andExpect(jsonPath("$.name").value("Imported English A1"));
+
+        org.junit.jupiter.api.Assertions.assertEquals("APPROVED", jdbcTemplate.queryForObject(
+                "select status from courses where id = ?", String.class, courseId));
+        org.junit.jupiter.api.Assertions.assertEquals("Imported English A1", jdbcTemplate.queryForObject(
+                "select name from courses where id = ?", String.class, courseId));
+        org.junit.jupiter.api.Assertions.assertEquals(1, jdbcTemplate.queryForObject(
+                "select count(*) from questions q join lessons l on q.lesson_id = l.id "
+                        + "join topics t on l.topic_id = t.id where t.course_id = ? and q.question_text = ?",
+                Integer.class, courseId, "Choose the correct greeting."));
+        org.junit.jupiter.api.Assertions.assertEquals(0, jdbcTemplate.queryForObject(
+                "select count(*) from questions q join lessons l on q.lesson_id = l.id "
+                        + "join topics t on l.topic_id = t.id where t.course_id = ? and q.question_text = ?",
+                Integer.class, courseId, "Choose the updated greeting."));
+    }
+
+    @Test
+    void coursePathApproveUsesLatestPendingRevisionWhenRevisionIdDiffersFromCourseId() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+
+        MvcResult importResult = importWorkbook(teacherToken, validCourseImportWorkbook())
+                .andExpect(status().isOk())
+                .andReturn();
+        long courseId = objectMapper.readTree(importResult.getResponse().getContentAsString()).get("courseId").asLong();
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk());
+
+        MvcResult exportResult = mockMvc.perform(get("/api/teacher/content/courses/%d/export".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        importWorkbook(teacherToken, replaceCourseMetadata(
+                        replaceExportedQuestion(exportResult.getResponse().getContentAsByteArray()),
+                        "Approved Revision 2", "Revision 2 description."))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"));
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revisionNumber").value(2))
+                .andExpect(jsonPath("$.status").value("APPROVED"))
+                .andExpect(jsonPath("$.name").value("Approved Revision 2"));
+    }
+
+    @Test
+    void approvingEditedRevisionUpdatesLiveRowsInPlace() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+
+        MvcResult importResult = importWorkbook(teacherToken, validCourseImportWorkbook())
+                .andExpect(status().isOk())
+                .andReturn();
+        long courseId = objectMapper.readTree(importResult.getResponse().getContentAsString()).get("courseId").asLong();
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk());
+
+        Long liveLessonId = jdbcTemplate.queryForObject(
+                "select l.id from lessons l join topics t on l.topic_id = t.id where t.course_id = ?",
+                Long.class, courseId);
+        Long liveQuestionId = jdbcTemplate.queryForObject(
+                "select q.id from questions q join lessons l on q.lesson_id = l.id "
+                        + "join topics t on l.topic_id = t.id where t.course_id = ?",
+                Long.class, courseId);
+        Long liveOptionId = jdbcTemplate.queryForObject(
+                "select qo.id from question_options qo join questions q on qo.question_id = q.id "
+                        + "join lessons l on q.lesson_id = l.id join topics t on l.topic_id = t.id "
+                        + "where t.course_id = ? and qo.is_correct = true",
+                Long.class, courseId);
+        jdbcTemplate.update("insert into course_enrollments (user_id, course_id, status) values (?, ?, 'ACTIVE')",
+                student.getId(), courseId);
+        Long enrollmentId = jdbcTemplate.queryForObject(
+                "select id from course_enrollments where user_id = ? and course_id = ?",
+                Long.class, student.getId(), courseId);
+        jdbcTemplate.update("insert into lesson_progress (user_id, course_enrollment_id, lesson_id, status) "
+                        + "values (?, ?, ?, 'IN_PROGRESS')",
+                student.getId(), enrollmentId, liveLessonId);
+
+        MvcResult exportResult = mockMvc.perform(get("/api/teacher/content/courses/%d/export".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        importWorkbook(teacherToken, replaceExportedQuestion(exportResult.getResponse().getContentAsByteArray()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"));
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revisionNumber").value(2));
+
+        org.junit.jupiter.api.Assertions.assertEquals(liveLessonId, jdbcTemplate.queryForObject(
+                "select l.id from lessons l join topics t on l.topic_id = t.id where t.course_id = ? and l.status = 'APPROVED'",
+                Long.class, courseId));
+        org.junit.jupiter.api.Assertions.assertEquals(liveQuestionId, jdbcTemplate.queryForObject(
+                "select q.id from questions q join lessons l on q.lesson_id = l.id "
+                        + "join topics t on l.topic_id = t.id where t.course_id = ? and q.status = 'APPROVED'",
+                Long.class, courseId));
+        org.junit.jupiter.api.Assertions.assertEquals(liveOptionId, jdbcTemplate.queryForObject(
+                "select qo.id from question_options qo join questions q on qo.question_id = q.id "
+                        + "join lessons l on q.lesson_id = l.id join topics t on l.topic_id = t.id "
+                        + "where t.course_id = ? and qo.is_correct = true",
+                Long.class, courseId));
+        org.junit.jupiter.api.Assertions.assertEquals("Choose the updated greeting.", jdbcTemplate.queryForObject(
+                "select question_text from questions where id = ?", String.class, liveQuestionId));
+        org.junit.jupiter.api.Assertions.assertEquals(1, jdbcTemplate.queryForObject(
+                "select count(*) from lesson_progress where lesson_id = ?", Integer.class, liveLessonId));
+    }
+
+    @Test
+    void approvingEditedRevisionMarksRemovedLiveOptionsInactive() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+
+        MvcResult importResult = importWorkbook(teacherToken, addThirdOption(validCourseImportWorkbook()))
+                .andExpect(status().isOk())
+                .andReturn();
+        long courseId = objectMapper.readTree(importResult.getResponse().getContentAsString()).get("courseId").asLong();
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk());
+
+        Long removedOptionId = jdbcTemplate.queryForObject(
+                "select qo.id from question_options qo join questions q on qo.question_id = q.id "
+                        + "join lessons l on q.lesson_id = l.id join topics t on l.topic_id = t.id "
+                        + "where t.course_id = ? and qo.option_text = ?",
+                Long.class, courseId, "Orange");
+
+        MvcResult exportResult = mockMvc.perform(get("/api/teacher/content/courses/%d/export".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        importWorkbook(teacherToken, removeThirdOption(exportResult.getResponse().getContentAsByteArray()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"));
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revisionNumber").value(2));
+
+        org.junit.jupiter.api.Assertions.assertEquals(1, jdbcTemplate.queryForObject(
+                "select count(*) from question_options where id = ?", Integer.class, removedOptionId));
+        org.junit.jupiter.api.Assertions.assertFalse(jdbcTemplate.queryForObject(
+                "select is_active from question_options where id = ?", Boolean.class, removedOptionId));
+    }
+
     private User saveUser(String email, UserRole role) {
         User user = new User();
         user.setEmail(email);
@@ -324,6 +636,17 @@ class AdminContentReviewApiTests {
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("accessToken").asText();
+    }
+
+    private org.springframework.test.web.servlet.ResultActions importWorkbook(String teacherToken, byte[] workbook) throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "course-import.zip",
+                "application/zip",
+                zipWorkbook(workbook));
+        return mockMvc.perform(multipart("/api/teacher/content/import")
+                .file(file)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken));
     }
 
     private long createSubmittedCourse(String teacherToken) throws Exception {
@@ -419,6 +742,7 @@ class AdminContentReviewApiTests {
             course.setStatus(status);
             courseRepository.save(course);
         });
+        jdbcTemplate.update("update course_revisions set status = ? where course_id = ?", status.name(), courseId);
     }
 
     private String validRejectJson() {
@@ -427,5 +751,103 @@ class AdminContentReviewApiTests {
                   "reason": "Content needs clearer explanations."
                 }
                 """;
+    }
+
+    private byte[] validCourseImportWorkbook() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Content");
+            Row header = sheet.createRow(0);
+            String[] headers = {
+                    "course_name", "course_description", "course_type", "course_level", "course_order_index",
+                    "topic_order", "topic_title", "topic_description",
+                    "lesson_order", "lesson_title", "lesson_description", "lesson_content", "skill_type", "xp_reward",
+                    "placement_test", "audio_file",
+                    "question_order", "question_type", "question_text", "explanation", "correct_answer",
+                    "option_a", "option_b", "option_c", "option_d", "correct_option", "difficulty", "knowledge_point",
+                    "_course_id", "_topic_id", "_lesson_id", "_question_id", "_option_a_id", "_option_b_id",
+                    "_option_c_id", "_option_d_id", "_row_fingerprint"
+            };
+            for (int index = 0; index < headers.length; index++) {
+                header.createCell(index).setCellValue(headers[index]);
+            }
+
+            Row row = sheet.createRow(1);
+            row.createCell(0).setCellValue("Imported English A1");
+            row.createCell(1).setCellValue("Course imported from ZIP.");
+            row.createCell(2).setCellValue("COMPREHENSIVE");
+            row.createCell(3).setCellValue("A1");
+            row.createCell(4).setCellValue(1);
+            row.createCell(5).setCellValue(1);
+            row.createCell(6).setCellValue("Greetings");
+            row.createCell(7).setCellValue("Basic greetings.");
+            row.createCell(8).setCellValue(1);
+            row.createCell(9).setCellValue("Hello");
+            row.createCell(10).setCellValue("Greeting lesson.");
+            row.createCell(11).setCellValue("Practice saying hello.");
+            row.createCell(12).setCellValue("READING");
+            row.createCell(13).setCellValue(10);
+            row.createCell(14).setCellValue(false);
+            row.createCell(16).setCellValue(1);
+            row.createCell(17).setCellValue("MULTIPLE_CHOICE");
+            row.createCell(18).setCellValue("Choose the correct greeting.");
+            row.createCell(19).setCellValue("Hello is the greeting.");
+            row.createCell(21).setCellValue("Hello");
+            row.createCell(22).setCellValue("Apple");
+            row.createCell(25).setCellValue("a");
+            row.createCell(26).setCellValue("easy");
+            row.createCell(27).setCellValue("greetings");
+            return writeWorkbook(workbook);
+        }
+    }
+
+    private byte[] replaceExportedQuestion(byte[] workbookBytes) throws Exception {
+        try (Workbook workbook = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbookBytes))) {
+            Row row = workbook.getSheet("Content").getRow(1);
+            row.getCell(18).setCellValue("Choose the updated greeting.");
+            row.getCell(21).setCellValue("Hi");
+            row.getCell(22).setCellValue("Banana");
+            return writeWorkbook(workbook);
+        }
+    }
+
+    private byte[] replaceCourseMetadata(byte[] workbookBytes, String name, String description) throws Exception {
+        try (Workbook workbook = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbookBytes))) {
+            Row row = workbook.getSheet("Content").getRow(1);
+            row.getCell(0).setCellValue(name);
+            row.getCell(1).setCellValue(description);
+            return writeWorkbook(workbook);
+        }
+    }
+
+    private byte[] addThirdOption(byte[] workbookBytes) throws Exception {
+        try (Workbook workbook = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbookBytes))) {
+            Row row = workbook.getSheet("Content").getRow(1);
+            row.createCell(23).setCellValue("Orange");
+            return writeWorkbook(workbook);
+        }
+    }
+
+    private byte[] removeThirdOption(byte[] workbookBytes) throws Exception {
+        try (Workbook workbook = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbookBytes))) {
+            Row row = workbook.getSheet("Content").getRow(1);
+            row.getCell(23).setBlank();
+            return writeWorkbook(workbook);
+        }
+    }
+
+    private byte[] writeWorkbook(Workbook workbook) throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        workbook.write(output);
+        return output.toByteArray();
+    }
+
+    private byte[] zipWorkbook(byte[] workbook) throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        try (ZipOutputStream zip = new ZipOutputStream(output)) {
+            zip.putNextEntry(new ZipEntry("course.xlsx"));
+            zip.write(workbook);
+            zip.closeEntry();
+        }
+        return output.toByteArray();
     }
 }

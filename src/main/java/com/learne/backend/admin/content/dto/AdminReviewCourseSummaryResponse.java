@@ -2,12 +2,15 @@ package com.learne.backend.admin.content.dto;
 
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.teacher.content.entity.Course;
+import com.learne.backend.teacher.content.entity.CourseRevision;
 import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.enums.CourseType;
 import java.time.Instant;
 
 public record AdminReviewCourseSummaryResponse(
         Long id,
+        Long revisionId,
+        int revisionNumber,
         String name,
         String description,
         CourseType type,
@@ -33,6 +36,8 @@ public record AdminReviewCourseSummaryResponse(
 
         return new AdminReviewCourseSummaryResponse(
                 course.getId(),
+                null,
+                0,
                 course.getName(),
                 course.getDescription(),
                 course.getType(),
@@ -45,6 +50,35 @@ public record AdminReviewCourseSummaryResponse(
                 lessonCount,
                 questionCount,
                 course.getUpdatedAt()
+        );
+    }
+
+    public static AdminReviewCourseSummaryResponse from(CourseRevision revision) {
+        User teacher = revision.getTeacher();
+        long lessonCount = revision.getTopics().stream()
+                .flatMap(topic -> topic.getLessons().stream())
+                .count();
+        long questionCount = revision.getTopics().stream()
+                .flatMap(topic -> topic.getLessons().stream())
+                .flatMap(lesson -> lesson.getQuestions().stream())
+                .count();
+
+        return new AdminReviewCourseSummaryResponse(
+                revision.getCourse().getId(),
+                revision.getId(),
+                revision.getRevisionNumber(),
+                revision.getName(),
+                revision.getDescription(),
+                revision.getType(),
+                revision.getLevel(),
+                ContentStatus.valueOf(revision.getStatus().name()),
+                teacher.getId(),
+                teacher.getFullName(),
+                teacher.getEmail(),
+                revision.getTopics().size(),
+                lessonCount,
+                questionCount,
+                revision.getUpdatedAt()
         );
     }
 }

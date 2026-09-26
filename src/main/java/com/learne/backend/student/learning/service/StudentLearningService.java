@@ -508,11 +508,12 @@ public class StudentLearningService {
 
     private boolean usesOptionGrading(Question question) {
         return question.getType() == QuestionType.MULTIPLE_CHOICE
-                || (question.getType() == QuestionType.TRUE_FALSE && !question.getOptions().isEmpty());
+                || (question.getType() == QuestionType.TRUE_FALSE && question.getOptions().stream().anyMatch(QuestionOption::isActive));
     }
 
     private Long correctOptionId(Question question) {
         return question.getOptions().stream()
+                .filter(QuestionOption::isActive)
                 .filter(QuestionOption::isCorrect)
                 .findFirst()
                 .map(QuestionOption::getId)
@@ -521,6 +522,7 @@ public class StudentLearningService {
 
     private String correctOptionText(Question question) {
         return question.getOptions().stream()
+                .filter(QuestionOption::isActive)
                 .filter(QuestionOption::isCorrect)
                 .findFirst()
                 .map(QuestionOption::getOptionText)
@@ -532,6 +534,7 @@ public class StudentLearningService {
             return null;
         }
         return question.getOptions().stream()
+                .filter(QuestionOption::isActive)
                 .filter(option -> option.getId().equals(correctOptionId))
                 .findFirst()
                 .map(QuestionOption::getOptionText)

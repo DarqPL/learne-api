@@ -17,8 +17,11 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 class CloudinaryStorageService implements StorageService {
     private static final int MAX_SIGNATURE_BYTES = 12;
+    private static final long MAX_AUDIO_BYTES = 20L * 1024L * 1024L;
     private static final Set<String> AVATAR_CONTENT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
     private static final Set<String> VIDEO_CONTENT_TYPES = Set.of("video/mp4", "video/webm", "video/quicktime");
+    private static final Set<String> AUDIO_CONTENT_TYPES = Set.of(
+            "audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/ogg");
 
     private final CloudinaryProperties properties;
 
@@ -36,6 +39,12 @@ class CloudinaryStorageService implements StorageService {
     public StorageUploadResult uploadTeacherIntroductionVideo(MultipartFile file) {
         validateFile(file, VIDEO_CONTENT_TYPES, properties.getMaxVideoBytes(), "Video giới thiệu không hợp lệ.");
         return upload(file, videoFolder(), StorageResourceType.VIDEO);
+    }
+
+    @Override
+    public StorageUploadResult uploadLessonAudio(MultipartFile file) {
+        validateFile(file, AUDIO_CONTENT_TYPES, MAX_AUDIO_BYTES, "File audio không hợp lệ.");
+        return upload(file, courseAudioFolder(), StorageResourceType.VIDEO);
     }
 
     @Override
@@ -96,6 +105,12 @@ class CloudinaryStorageService implements StorageService {
             case "image/webp" -> startsWith(signature, 0x52, 0x49, 0x46, 0x46) && matchesAt(signature, 8, 0x57, 0x45, 0x42, 0x50);
             case "video/mp4", "video/quicktime" -> matchesAt(signature, 4, 0x66, 0x74, 0x79, 0x70);
             case "video/webm" -> startsWith(signature, 0x1A, 0x45, 0xDF, 0xA3);
+            case "audio/mpeg" -> startsWith(signature, 0x49, 0x44, 0x33)
+                    || (signature.length >= 2 && (signature[0] & 0xFF) == 0xFF && (signature[1] & 0xE0) == 0xE0);
+            case "audio/wav", "audio/x-wav" -> startsWith(signature, 0x52, 0x49, 0x46, 0x46)
+                    && matchesAt(signature, 8, 0x57, 0x41, 0x56, 0x45);
+            case "audio/mp4" -> matchesAt(signature, 4, 0x66, 0x74, 0x79, 0x70);
+            case "audio/ogg" -> startsWith(signature, 0x4F, 0x67, 0x67, 0x53);
             default -> false;
         };
     }
@@ -137,6 +152,10 @@ class CloudinaryStorageService implements StorageService {
 
     private String videoFolder() {
         return normalizedProfileFolder() + "/introduction-videos";
+    }
+
+    private String courseAudioFolder() {
+        return "learne/course-audio";
     }
 
     private String normalizedProfileFolder() {
