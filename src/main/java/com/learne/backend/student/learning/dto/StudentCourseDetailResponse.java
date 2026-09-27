@@ -31,7 +31,8 @@ public record StudentCourseDetailResponse(
         List<StudentTopicResponse> topics
 ) {
     public static StudentCourseDetailResponse from(Course course, CourseEnrollment enrollment,
-                                                   CourseAccessStatus accessStatus, String accessReason) {
+                                                   CourseAccessStatus accessStatus, String accessReason,
+                                                   boolean includeContent) {
         return new StudentCourseDetailResponse(
                 course.getId(),
                 course.getName(),
@@ -49,11 +50,13 @@ public record StudentCourseDetailResponse(
                 accessReason,
                 enrollment != null,
                 enrollment == null ? null : enrollment.getId(),
-                course.getTopics().stream()
-                        .filter(topic -> topic.getLessons().stream().anyMatch(lesson -> lesson.getStatus() == ContentStatus.APPROVED))
-                        .sorted(Comparator.comparingInt(Topic::getOrderIndex).thenComparing(Topic::getId))
-                        .map(StudentTopicResponse::from)
-                        .toList()
+                includeContent
+                        ? course.getTopics().stream()
+                                .filter(topic -> topic.getLessons().stream().anyMatch(lesson -> lesson.getStatus() == ContentStatus.APPROVED))
+                                .sorted(Comparator.comparingInt(Topic::getOrderIndex).thenComparing(Topic::getId))
+                                .map(StudentTopicResponse::from)
+                                .toList()
+                        : List.of()
         );
     }
 }

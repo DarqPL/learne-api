@@ -234,6 +234,29 @@ class StudentLearningApiTests {
     }
 
     @Test
+    void lockedPaidCourseDetailReturnsMetadataWithoutLearningContent() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 300000L);
+
+        mockMvc.perform(get("/api/student/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(courseId))
+                .andExpect(jsonPath("$.name").value("English A2 Premium"))
+                .andExpect(jsonPath("$.pricingType").value("PAID"))
+                .andExpect(jsonPath("$.priceAmountVnd").value(300000))
+                .andExpect(jsonPath("$.accessStatus").value("LOCKED"))
+                .andExpect(jsonPath("$.accessReason").value("Purchase is required."))
+                .andExpect(jsonPath("$.enrolled").value(false))
+                .andExpect(jsonPath("$.topics", hasSize(0)));
+    }
+
+    @Test
     void a1PaidDataStillBehavesAsFreeForEnrollment() throws Exception {
         User admin = saveUser("admin@example.com", UserRole.ADMIN);
         User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
@@ -349,6 +372,73 @@ class StudentLearningApiTests {
                 .andExpect(jsonPath("$.topics[0].lessons[0].content").value("Use hello, hi, and goodbye in short conversations."))
                 .andExpect(jsonPath("$.topics[0].lessons[0].status").value("UNLOCKED"))
                 .andExpect(jsonPath("$.topics[0].lessons[1].status").value("LOCKED"));
+    }
+
+    @Test
+    void staleEnrollmentCannotAccessLearningContentAfterCourseBecomesPaid() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedCourse(teacherToken, adminToken, "English A2 Foundation", "A2");
+        long enrollmentId = enrollAndGetId(studentToken, courseId);
+        long firstLessonId = firstLessonId(enrollmentId);
+        long questionId = firstQuestionId(firstLessonId);
+        long wrongOptionId = wrongOptionId(questionId);
+        MvcResult attemptResult = mockMvc.perform(post("/api/student/enrollments/%d/lessons/%d/quiz/submit".formatted(enrollmentId, firstLessonId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "answers": [
+                                    { "questionId": %d, "selectedOptionId": %d }
+                                  ]
+                                }
+                                """.formatted(questionId, wrongOptionId)))
+                .andExpect(status().isOk())
+                .andReturn();
+        long attemptId = objectMapper.readTree(attemptResult.getResponse().getContentAsString()).get("attemptId").asLong();
+
+        jdbcTemplate.update("""
+                UPDATE courses
+                SET pricing_type = 'PAID', price_amount_vnd = 300000
+                WHERE id = ?
+                """, courseId);
+
+        mockMvc.perform(get("/api/student/enrollments/%d/progress".formatted(enrollmentId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Course access is required."));
+
+        mockMvc.perform(post("/api/student/enrollments/%d/lessons/%d/start".formatted(enrollmentId, firstLessonId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Course access is required."));
+
+        mockMvc.perform(get("/api/student/enrollments/%d/lessons/%d/quiz".formatted(enrollmentId, firstLessonId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Course access is required."));
+
+        mockMvc.perform(post("/api/student/enrollments/%d/lessons/%d/quiz/submit".formatted(enrollmentId, firstLessonId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "answers": [
+                                    { "questionId": %d, "selectedOptionId": %d }
+                                  ]
+                                }
+                                """.formatted(questionId, wrongOptionId)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Course access is required."));
+
+        mockMvc.perform(get("/api/student/quiz-attempts/%d".formatted(attemptId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Course access is required."));
     }
 
     @Test

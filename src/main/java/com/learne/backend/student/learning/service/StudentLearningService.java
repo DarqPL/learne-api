@@ -153,6 +153,7 @@ public class StudentLearningService {
     @Transactional(readOnly = true)
     public StudentQuizResponse getLessonQuiz(User student, Long enrollmentId, Long lessonId) {
         CourseEnrollment enrollment = findEnrollment(student, enrollmentId);
+        ensureCourseAccess(student, enrollment);
         LessonProgress progress = findLessonProgress(enrollment, lessonId);
         ensureLessonStillApproved(progress);
         if (progress.getStatus() == LessonProgressStatus.LOCKED) {
@@ -171,6 +172,7 @@ public class StudentLearningService {
     @Transactional
     public SubmitQuizResponse submitLessonQuiz(User student, Long enrollmentId, Long lessonId, SubmitQuizRequest request) {
         CourseEnrollment enrollment = findEnrollment(student, enrollmentId);
+        ensureCourseAccess(student, enrollment);
         LessonProgress progress = findLessonProgress(enrollment, lessonId);
         ensureLessonStillApproved(progress);
         if (progress.getStatus() == LessonProgressStatus.LOCKED) {
@@ -283,6 +285,7 @@ public class StudentLearningService {
         QuizAttempt attempt = quizAttemptRepository.findByIdAndUser(attemptId, student)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Quiz attempt not found."));
         CourseEnrollment enrollment = attempt.getCourseEnrollment();
+        ensureCourseAccess(student, enrollment);
         LessonProgress progress = findLessonProgress(enrollment, attempt.getLesson().getId());
         List<QuestionAnswer> answers = questionAnswerRepository.findByQuizAttemptOrderByQuestionOrderIndexAscQuestionIdAsc(attempt);
 
@@ -314,17 +317,20 @@ public class StudentLearningService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
         CourseEnrollment enrollment = courseEnrollmentRepository.findByUserAndCourse(student, course).orElse(null);
         CourseAccessStatus accessStatus = courseAccessService.accessStatus(student, course);
-        return StudentCourseDetailResponse.from(course, enrollment, accessStatus, accessReason(accessStatus));
+        return StudentCourseDetailResponse.from(course, enrollment, accessStatus, accessReason(accessStatus), accessStatus != CourseAccessStatus.LOCKED);
     }
 
     @Transactional(readOnly = true)
     public StudentEnrollmentProgressResponse getEnrollmentProgress(User student, Long enrollmentId) {
-        return StudentEnrollmentProgressResponse.from(findEnrollment(student, enrollmentId));
+        CourseEnrollment enrollment = findEnrollment(student, enrollmentId);
+        ensureCourseAccess(student, enrollment);
+        return StudentEnrollmentProgressResponse.from(enrollment);
     }
 
     @Transactional
     public StudentEnrollmentProgressResponse startLesson(User student, Long enrollmentId, Long lessonId) {
         CourseEnrollment enrollment = findEnrollment(student, enrollmentId);
+        ensureCourseAccess(student, enrollment);
         LessonProgress progress = findLessonProgress(enrollment, lessonId);
         ensureLessonStillApproved(progress);
         if (progress.getStatus() == LessonProgressStatus.LOCKED) {
@@ -341,6 +347,7 @@ public class StudentLearningService {
     @Transactional
     public StudentEnrollmentProgressResponse completeLesson(User student, Long enrollmentId, Long lessonId) {
         CourseEnrollment enrollment = findEnrollment(student, enrollmentId);
+        ensureCourseAccess(student, enrollment);
         LessonProgress progress = findLessonProgress(enrollment, lessonId);
         ensureLessonStillApproved(progress);
         if (progress.getStatus() == LessonProgressStatus.LOCKED) {
@@ -407,6 +414,12 @@ public class StudentLearningService {
     private CourseEnrollment findEnrollment(User student, Long enrollmentId) {
         return courseEnrollmentRepository.findByIdAndUser(enrollmentId, student)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Enrollment not found."));
+    }
+
+    private void ensureCourseAccess(User student, CourseEnrollment enrollment) {
+        if (!courseAccessService.canEnroll(student, enrollment.getCourse())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Course access is required.");
+        }
     }
 
     private LessonProgress findLessonProgress(CourseEnrollment enrollment, Long lessonId) {
