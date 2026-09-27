@@ -21,6 +21,8 @@ import com.learne.backend.ai.tutor.repository.AiFeedbackRepository;
 import com.learne.backend.ai.tutor.repository.AiMessageRepository;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.monetization.enums.AiUsageFeature;
+import com.learne.backend.monetization.service.AiUsageGuard;
 import com.learne.backend.shared.api.ApiException;
 import java.time.Clock;
 import java.time.Duration;
@@ -52,6 +54,7 @@ public class AiTutorService {
     private final AiMessageRepository messageRepository;
     private final AiFeedbackRepository feedbackRepository;
     private final AiTutorClient aiTutorClient;
+    private final AiUsageGuard aiUsageGuard;
     private final Clock clock;
 
     public AiTutorService(
@@ -59,11 +62,13 @@ public class AiTutorService {
             AiMessageRepository messageRepository,
             AiFeedbackRepository feedbackRepository,
             AiTutorClient aiTutorClient,
+            AiUsageGuard aiUsageGuard,
             Clock clock) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.feedbackRepository = feedbackRepository;
         this.aiTutorClient = aiTutorClient;
+        this.aiUsageGuard = aiUsageGuard;
         this.clock = clock;
     }
 
@@ -112,6 +117,7 @@ public class AiTutorService {
         conversation.addMessage(userMessage);
         userMessage = messageRepository.save(userMessage);
 
+        aiUsageGuard.recordAcceptedUsage(user, AiUsageFeature.AI_TUTOR);
         AiTutorResponse aiResponse;
         try {
             aiResponse = aiTutorClient.generateReply(AiTutorRequest.create(

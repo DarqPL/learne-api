@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.monetization.service.AiUsageGuard;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.student.learning.ai.AiCourseRecommendationRequest;
 import com.learne.backend.student.learning.ai.AiCourseRecommendationResponse;
@@ -58,6 +59,7 @@ class StudentCourseRecommendationServiceTests {
     @Mock private CourseRecommendationPathRepository courseRecommendationPathRepository;
     @Mock private CourseRecommendationItemRepository courseRecommendationItemRepository;
     @Mock private AiLearningPathClient aiLearningPathClient;
+    @Mock private AiUsageGuard aiUsageGuard;
 
     @Test
     void generateArchivesPreviousActivePathAndMapsRecommendedCourses() throws Exception {
@@ -162,6 +164,7 @@ class StudentCourseRecommendationServiceTests {
                 courseRecommendationPathRepository,
                 courseRecommendationItemRepository,
                 aiLearningPathClient,
+                aiUsageGuard,
                 new ObjectMapper(),
                 null);
     }

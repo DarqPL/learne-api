@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.monetization.service.AiUsageGuard;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.student.learning.ai.AiLearningPathClient;
 import com.learne.backend.student.learning.dto.NextLessonRecommendationResponse;
@@ -53,6 +54,7 @@ class StudentLearningPathServiceTests {
     @Mock private LearningPathRepository learningPathRepository;
     @Mock private LearningPathItemRepository learningPathItemRepository;
     @Mock private AiLearningPathClient aiLearningPathClient;
+    @Mock private AiUsageGuard aiUsageGuard;
 
     @Test
     void currentReturnsLatestActiveLearningPathMappedToResponse() throws Exception {
@@ -238,6 +240,7 @@ class StudentLearningPathServiceTests {
                 learningPathRepository,
                 learningPathItemRepository,
                 aiLearningPathClient,
+                aiUsageGuard,
                 new ObjectMapper(),
                 null);
     }

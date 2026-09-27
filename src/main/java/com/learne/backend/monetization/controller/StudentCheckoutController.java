@@ -2,6 +2,7 @@ package com.learne.backend.monetization.controller;
 
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.monetization.dto.OrderResponse;
+import com.learne.backend.monetization.enums.PlanCode;
 import com.learne.backend.monetization.service.CheckoutService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -24,5 +25,11 @@ class StudentCheckoutController {
     @ResponseStatus(HttpStatus.CREATED)
     OrderResponse checkoutCourse(@PathVariable Long courseId, Authentication authentication) {
         return checkoutService.createCourseOrder((User) authentication.getPrincipal(), courseId);
+    }
+
+    @PostMapping("/plans/{planCode}")
+    @ResponseStatus(HttpStatus.CREATED)
+    OrderResponse checkoutPlan(@PathVariable PlanCode planCode, Authentication authentication) {
+        return checkoutService.createPlanOrder((User) authentication.getPrincipal(), planCode);
     }
 }

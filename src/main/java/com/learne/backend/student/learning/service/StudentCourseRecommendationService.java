@@ -2,6 +2,8 @@ package com.learne.backend.student.learning.service;
 
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.monetization.enums.AiUsageFeature;
+import com.learne.backend.monetization.service.AiUsageGuard;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.student.learning.ai.AiCourseRecommendationRequest;
 import com.learne.backend.student.learning.ai.AiCourseRecommendationResponse;
@@ -61,6 +63,7 @@ public class StudentCourseRecommendationService {
     private final CourseRecommendationPathRepository courseRecommendationPathRepository;
     private final CourseRecommendationItemRepository courseRecommendationItemRepository;
     private final AiLearningPathClient aiLearningPathClient;
+    private final AiUsageGuard aiUsageGuard;
     private final ObjectMapper objectMapper;
     private final PlatformTransactionManager transactionManager;
 
@@ -71,6 +74,7 @@ public class StudentCourseRecommendationService {
             CourseRecommendationPathRepository courseRecommendationPathRepository,
             CourseRecommendationItemRepository courseRecommendationItemRepository,
             AiLearningPathClient aiLearningPathClient,
+            AiUsageGuard aiUsageGuard,
             ObjectMapper objectMapper,
             PlatformTransactionManager transactionManager) {
         this.courseRepository = courseRepository;
@@ -79,6 +83,7 @@ public class StudentCourseRecommendationService {
         this.courseRecommendationPathRepository = courseRecommendationPathRepository;
         this.courseRecommendationItemRepository = courseRecommendationItemRepository;
         this.aiLearningPathClient = aiLearningPathClient;
+        this.aiUsageGuard = aiUsageGuard;
         this.objectMapper = objectMapper;
         this.transactionManager = transactionManager;
     }
@@ -88,6 +93,7 @@ public class StudentCourseRecommendationService {
         int maxItems = boundedMaxItems(request);
         GenerateContext context = readOnlyTransaction(() -> generateContext(student, maxItems));
 
+        aiUsageGuard.recordAcceptedUsage(student, AiUsageFeature.COURSE_RECOMMENDATION);
         AiCourseRecommendationResponse aiResponse = aiLearningPathClient.generateCourseRecommendations(context.aiRequest());
 
         return writeTransaction(() -> saveGeneratedPath(student, context.candidates(), context.enrollmentsByCourseId(), maxItems, aiResponse));

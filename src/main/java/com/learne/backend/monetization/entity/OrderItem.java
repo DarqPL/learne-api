@@ -1,6 +1,7 @@
 package com.learne.backend.monetization.entity;
 
 import com.learne.backend.monetization.enums.OrderItemProductType;
+import com.learne.backend.monetization.enums.PlanCode;
 import com.learne.backend.teacher.content.entity.Course;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -35,6 +36,10 @@ public class OrderItem {
     @JoinColumn(name = "course_id")
     private Course course;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "plan_code", length = 32)
+    private PlanCode planCode;
+
     @Column(name = "item_name_snapshot", nullable = false)
     private String itemNameSnapshot;
 
@@ -62,6 +67,8 @@ public class OrderItem {
     public void setProductType(OrderItemProductType productType) { this.productType = productType; }
     public Course getCourse() { return course; }
     public void setCourse(Course course) { this.course = course; }
+    public PlanCode getPlanCode() { return planCode; }
+    public void setPlanCode(PlanCode planCode) { this.planCode = planCode; }
     public String getItemNameSnapshot() { return itemNameSnapshot; }
     public void setItemNameSnapshot(String itemNameSnapshot) { this.itemNameSnapshot = itemNameSnapshot; }
     public Long getUnitAmountVnd() { return unitAmountVnd; }

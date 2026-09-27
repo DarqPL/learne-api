@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -13,6 +15,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.monetization.entity.AiUsageEvent;
+import com.learne.backend.monetization.enums.AiUsageFeature;
+import com.learne.backend.monetization.repository.AiUsageEventRepository;
 import com.learne.backend.testsupport.TestDatabaseCleaner;
 import com.learne.backend.student.learning.ai.AiCourseRecommendationRequest;
 import com.learne.backend.student.learning.ai.AiCourseRecommendationResponse;
@@ -78,6 +83,7 @@ class StudentCourseRecommendationApiTests {
     @Autowired private CourseEnrollmentRepository courseEnrollmentRepository;
     @Autowired private CourseRecommendationPathRepository courseRecommendationPathRepository;
     @Autowired private CourseRecommendationItemRepository courseRecommendationItemRepository;
+    @Autowired private AiUsageEventRepository aiUsageEventRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private MockMvc mockMvc;
@@ -149,6 +155,20 @@ class StudentCourseRecommendationApiTests {
 
         assertThrows(DataIntegrityViolationException.class, () ->
                 courseRecommendationPathRepository.saveAndFlush(recommendationPath(scenario.student(), LearningPathStatus.ACTIVE)));
+    }
+
+    @Test
+    void generateCourseRecommendationsReturnsTooManyRequestsAtFreeQuotaAndDoesNotCallAi() throws Exception {
+        CourseRecommendationScenario scenario = createSubmittedPlacementAndApprovedCoursesScenario();
+        fillFreeQuota(scenario.student(), AiUsageFeature.COURSE_RECOMMENDATION);
+
+        mockMvc.perform(post("/api/student/course-recommendations/generate")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + scenario.studentToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"maxItems\":8}"))
+                .andExpect(status().isTooManyRequests());
+
+        verify(aiLearningPathClient, never()).generateCourseRecommendations(any(AiCourseRecommendationRequest.class));
     }
 
     private CourseRecommendationScenario createSubmittedPlacementAndApprovedCoursesScenario() throws Exception {
@@ -305,6 +325,16 @@ class StudentCourseRecommendationApiTests {
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("accessToken").asText();
+    }
+
+    private void fillFreeQuota(User user, AiUsageFeature feature) {
+        for (int i = 0; i < 5; i++) {
+            AiUsageEvent event = new AiUsageEvent();
+            event.setUser(user);
+            event.setFeature(feature);
+            event.setUsedAt(Instant.now());
+            aiUsageEventRepository.save(event);
+        }
     }
 
     private record StudentScenario(User student, String studentToken) {}

@@ -23,6 +23,7 @@ import com.learne.backend.ai.grammar.service.GrammarCheckFailedException;
 import com.learne.backend.ai.grammar.service.GrammarCheckService;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.monetization.service.AiUsageGuard;
 import com.learne.backend.shared.api.ApiException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -47,6 +48,7 @@ class GrammarCheckServiceTests {
     @Mock private GrammarCheckRepository grammarCheckRepository;
     @Mock private GrammarCheckErrorRepository grammarCheckErrorRepository;
     @Mock private AiGrammarCheckClient aiGrammarCheckClient;
+    @Mock private AiUsageGuard aiUsageGuard;
 
     @Test
     void submitDoesNotRollbackFailedGrammarCheckException() throws Exception {
@@ -308,7 +310,7 @@ class GrammarCheckServiceTests {
     }
 
     private GrammarCheckService service() {
-        return new GrammarCheckService(grammarCheckRepository, grammarCheckErrorRepository, aiGrammarCheckClient);
+        return new GrammarCheckService(grammarCheckRepository, grammarCheckErrorRepository, aiGrammarCheckClient, aiUsageGuard);
     }
 
     private void assertAiContractFailure(User student, Long checkId) {

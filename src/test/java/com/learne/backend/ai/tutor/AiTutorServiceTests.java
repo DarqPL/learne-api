@@ -31,6 +31,7 @@ import com.learne.backend.ai.tutor.repository.AiMessageRepository;
 import com.learne.backend.ai.tutor.service.AiTutorService;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.monetization.service.AiUsageGuard;
 import com.learne.backend.shared.api.ApiException;
 import java.lang.reflect.Field;
 import java.time.Clock;
@@ -58,6 +59,7 @@ class AiTutorServiceTests {
     @Mock private AiMessageRepository messageRepository;
     @Mock private AiFeedbackRepository feedbackRepository;
     @Mock private AiTutorClient aiTutorClient;
+    @Mock private AiUsageGuard aiUsageGuard;
 
     @Test
     void createStoresActiveConversationWithTrimmedTitleAndRetention() throws Exception {
@@ -435,7 +437,8 @@ class AiTutorServiceTests {
     }
 
     private AiTutorService service() {
-        return new AiTutorService(conversationRepository, messageRepository, feedbackRepository, aiTutorClient, CLOCK);
+        return new AiTutorService(conversationRepository, messageRepository, feedbackRepository, aiTutorClient,
+                aiUsageGuard, CLOCK);
     }
 
     private User user(Long id, UserRole role) throws Exception {

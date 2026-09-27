@@ -5,10 +5,14 @@ import com.learne.backend.monetization.dto.OrderResponse;
 import com.learne.backend.monetization.entity.CourseEntitlement;
 import com.learne.backend.monetization.entity.Order;
 import com.learne.backend.monetization.entity.OrderItem;
+import com.learne.backend.monetization.entity.Subscription;
 import com.learne.backend.monetization.enums.CourseEntitlementSource;
 import com.learne.backend.monetization.enums.OrderStatus;
+import com.learne.backend.monetization.enums.OrderType;
+import com.learne.backend.monetization.enums.SubscriptionStatus;
 import com.learne.backend.monetization.repository.CourseEntitlementRepository;
 import com.learne.backend.monetization.repository.OrderRepository;
+import com.learne.backend.monetization.repository.SubscriptionRepository;
 import com.learne.backend.shared.api.ApiException;
 import java.time.Instant;
 import org.springframework.http.HttpStatus;
@@ -20,13 +24,16 @@ public class AdminOrderService {
     private final OrderRepository orderRepository;
     private final CourseEntitlementRepository courseEntitlementRepository;
     private final UserRepository userRepository;
+    private final SubscriptionRepository subscriptionRepository;
 
     public AdminOrderService(OrderRepository orderRepository,
-                             CourseEntitlementRepository courseEntitlementRepository,
-                             UserRepository userRepository) {
+                              CourseEntitlementRepository courseEntitlementRepository,
+                              UserRepository userRepository,
+                              SubscriptionRepository subscriptionRepository) {
         this.orderRepository = orderRepository;
         this.courseEntitlementRepository = courseEntitlementRepository;
         this.userRepository = userRepository;
+        this.subscriptionRepository = subscriptionRepository;
     }
 
     @Transactional(noRollbackFor = ApiException.class)
@@ -52,6 +59,10 @@ public class AdminOrderService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Order user not found."));
         order.setStatus(OrderStatus.PAID);
         order.setPaidAt(paidAt);
+        if (order.getOrderType() == OrderType.PLAN_SUBSCRIPTION) {
+            createSubscription(order, paidAt);
+            return OrderResponse.from(orderRepository.save(order));
+        }
         for (OrderItem item : order.getItems()) {
             if (item.getCourse() == null) {
                 continue;
@@ -69,5 +80,22 @@ public class AdminOrderService {
         }
 
         return OrderResponse.from(orderRepository.save(order));
+    }
+
+    private void createSubscription(Order order, Instant paidAt) {
+        for (OrderItem item : order.getItems()) {
+            if (item.getPlanCode() == null
+                    || subscriptionRepository.existsActivePlan(order.getUser(), item.getPlanCode(), paidAt)) {
+                continue;
+            }
+            Subscription subscription = new Subscription();
+            subscription.setUser(order.getUser());
+            subscription.setPlanCode(item.getPlanCode());
+            subscription.setStatus(SubscriptionStatus.ACTIVE);
+            subscription.setStartsAt(paidAt);
+            subscription.setEndsAt(paidAt.plusSeconds(30L * 24 * 60 * 60));
+            subscription.setOrder(order);
+            subscriptionRepository.save(subscription);
+        }
     }
 }

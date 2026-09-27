@@ -16,6 +16,8 @@ import com.learne.backend.ai.grammar.repository.GrammarCheckErrorRepository;
 import com.learne.backend.ai.grammar.repository.GrammarCheckRepository;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.monetization.enums.AiUsageFeature;
+import com.learne.backend.monetization.service.AiUsageGuard;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.student.learning.entity.CourseEnrollment;
 import com.learne.backend.student.learning.enums.EnrollmentStatus;
@@ -51,6 +53,7 @@ public class GrammarCheckService {
     private final GrammarCheckRepository grammarCheckRepository;
     private final GrammarCheckErrorRepository grammarCheckErrorRepository;
     private final AiGrammarCheckClient aiGrammarCheckClient;
+    private final AiUsageGuard aiUsageGuard;
     private final CourseEnrollmentRepository courseEnrollmentRepository;
     private final LessonRepository lessonRepository;
     private final QuestionRepository questionRepository;
@@ -59,8 +62,9 @@ public class GrammarCheckService {
     public GrammarCheckService(
             GrammarCheckRepository grammarCheckRepository,
             GrammarCheckErrorRepository grammarCheckErrorRepository,
-            AiGrammarCheckClient aiGrammarCheckClient) {
-        this(grammarCheckRepository, grammarCheckErrorRepository, aiGrammarCheckClient, null, null, null, null);
+            AiGrammarCheckClient aiGrammarCheckClient,
+            AiUsageGuard aiUsageGuard) {
+        this(grammarCheckRepository, grammarCheckErrorRepository, aiGrammarCheckClient, aiUsageGuard, null, null, null, null);
     }
 
     @Autowired
@@ -68,6 +72,7 @@ public class GrammarCheckService {
             GrammarCheckRepository grammarCheckRepository,
             GrammarCheckErrorRepository grammarCheckErrorRepository,
             AiGrammarCheckClient aiGrammarCheckClient,
+            AiUsageGuard aiUsageGuard,
             CourseEnrollmentRepository courseEnrollmentRepository,
             LessonRepository lessonRepository,
             QuestionRepository questionRepository,
@@ -75,6 +80,7 @@ public class GrammarCheckService {
         this.grammarCheckRepository = grammarCheckRepository;
         this.grammarCheckErrorRepository = grammarCheckErrorRepository;
         this.aiGrammarCheckClient = aiGrammarCheckClient;
+        this.aiUsageGuard = aiUsageGuard;
         this.courseEnrollmentRepository = courseEnrollmentRepository;
         this.lessonRepository = lessonRepository;
         this.questionRepository = questionRepository;
@@ -97,6 +103,7 @@ public class GrammarCheckService {
         applyContext(check, user, context);
         check = grammarCheckRepository.save(check);
 
+        aiUsageGuard.recordAcceptedUsage(user, AiUsageFeature.GRAMMAR_CHECK);
         try {
             AiGrammarCheckResponse aiResponse = aiGrammarCheckClient.checkGrammar(AiGrammarCheckRequest.create(inputText));
             check.getErrors().clear();
