@@ -36,6 +36,7 @@ public class CheckoutService {
 
     @Transactional
     public OrderResponse createCourseOrder(User student, Long courseId) {
+        Instant now = Instant.now();
         Course course = courseRepository.findStudentDetailByIdAndStatus(courseId, ContentStatus.APPROVED)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
         if (courseAccessService.canEnroll(student, course)) {
@@ -48,6 +49,9 @@ public class CheckoutService {
                 || priceAmountVnd <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Course is not available for purchase.");
         }
+        if (orderRepository.existsPendingUnexpiredCourseOrder(student, course, OrderStatus.PENDING_PAYMENT, now)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Pending order already exists.");
+        }
 
         Order order = new Order();
         order.setUser(student);
@@ -57,7 +61,7 @@ public class CheckoutService {
         order.setOriginalAmountVnd(priceAmountVnd);
         order.setDiscountAmountVnd(0L);
         order.setFinalAmountVnd(priceAmountVnd);
-        order.setExpiresAt(Instant.now().plusSeconds(900));
+        order.setExpiresAt(now.plusSeconds(900));
 
         OrderItem item = new OrderItem();
         item.setProductType(OrderItemProductType.COURSE);

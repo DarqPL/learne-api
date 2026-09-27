@@ -25,8 +25,9 @@ public class AdminOrderService {
         this.courseEntitlementRepository = courseEntitlementRepository;
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ApiException.class)
     public OrderResponse markPaid(Long orderId) {
+        Instant now = Instant.now();
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Order not found."));
         if (order.getStatus() == OrderStatus.PAID) {
@@ -35,12 +36,20 @@ public class AdminOrderService {
         if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Only pending orders can be marked paid.");
         }
+        if (order.getExpiresAt().isBefore(now)) {
+            order.setStatus(OrderStatus.EXPIRED);
+            orderRepository.save(order);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Order has expired.");
+        }
 
-        Instant paidAt = Instant.now();
+        Instant paidAt = now;
         order.setStatus(OrderStatus.PAID);
         order.setPaidAt(paidAt);
         for (OrderItem item : order.getItems()) {
             if (item.getCourse() == null) {
+                continue;
+            }
+            if (courseEntitlementRepository.existsActiveCourseAccess(order.getUser(), item.getCourse(), paidAt)) {
                 continue;
             }
             CourseEntitlement entitlement = new CourseEntitlement();

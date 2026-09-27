@@ -11,6 +11,7 @@ import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
 import com.learne.backend.testsupport.TestDatabaseCleaner;
+import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -71,6 +72,82 @@ class CheckoutApiTests {
                 .andExpect(jsonPath("$.courseId").value(courseId));
     }
 
+    @Test
+    void duplicateCheckoutWhilePendingReturnsBadRequest() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 250000L);
+        checkoutCourse(studentToken, courseId);
+
+        mockMvc.perform(post("/api/student/checkout/course/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Pending order already exists."));
+    }
+
+    @Test
+    void markPaidTwiceIsIdempotentAndLeavesOneEntitlement() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 250000L);
+        long orderId = checkoutCourse(studentToken, courseId);
+
+        markPaid(adminToken, orderId);
+        markPaid(adminToken, orderId);
+
+        org.assertj.core.api.Assertions.assertThat(activeEntitlementCount(student.getId(), courseId)).isEqualTo(1);
+    }
+
+    @Test
+    void payingLegacyDuplicatePendingOrdersDoesNotCreateDuplicateEntitlements() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 250000L);
+        long firstOrderId = checkoutCourse(studentToken, courseId);
+        jdbcTemplate.update("update orders set expires_at = ? where id = ?", Instant.now().minusSeconds(1), firstOrderId);
+        long secondOrderId = checkoutCourse(studentToken, courseId);
+        jdbcTemplate.update("update orders set expires_at = ? where id = ?", Instant.now().plusSeconds(900), firstOrderId);
+
+        markPaid(adminToken, secondOrderId);
+        markPaid(adminToken, firstOrderId);
+
+        org.assertj.core.api.Assertions.assertThat(activeEntitlementCount(student.getId(), courseId)).isEqualTo(1);
+    }
+
+    @Test
+    void expiredPendingOrderMarkPaidReturnsBadRequestAndExpiresOrder() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 250000L);
+        long orderId = checkoutCourse(studentToken, courseId);
+        jdbcTemplate.update("update orders set expires_at = ? where id = ?", Instant.now().minusSeconds(1), orderId);
+
+        mockMvc.perform(post("/api/admin/orders/%d/mark-paid".formatted(orderId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Order has expired."));
+
+        String orderStatus = jdbcTemplate.queryForObject("select status from orders where id = ?", String.class, orderId);
+        org.assertj.core.api.Assertions.assertThat(orderStatus).isEqualTo("EXPIRED");
+        org.assertj.core.api.Assertions.assertThat(activeEntitlementCount(student.getId(), courseId)).isZero();
+    }
+
     private long createApprovedPaidCourse(String teacherToken, String adminToken, String name, String level,
                                           long proposedPriceAmountVnd) throws Exception {
         long courseId = createCourse(teacherToken, name, level, proposedPriceAmountVnd);
@@ -80,6 +157,34 @@ class CheckoutApiTests {
         approveCourse(teacherToken, adminToken, courseId);
 
         return courseId;
+    }
+
+    private long checkoutCourse(String studentToken, long courseId) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/student/checkout/course/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
+    }
+
+    private void markPaid(String adminToken, long orderId) throws Exception {
+        mockMvc.perform(post("/api/admin/orders/%d/mark-paid".formatted(orderId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PAID"));
+    }
+
+    private int activeEntitlementCount(Long userId, long courseId) {
+        return jdbcTemplate.queryForObject("""
+                select count(*)
+                from course_entitlements
+                where user_id = ?
+                  and course_id = ?
+                  and revoked_at is null
+                  and starts_at <= ?
+                  and (ends_at is null or ends_at > ?)
+                """, Integer.class, userId, courseId, Instant.now(), Instant.now());
     }
 
     private void approveCourse(String teacherToken, String adminToken, long courseId) throws Exception {
