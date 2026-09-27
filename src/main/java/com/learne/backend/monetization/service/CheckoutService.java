@@ -16,6 +16,7 @@ import com.learne.backend.teacher.content.enums.CoursePriceStatus;
 import com.learne.backend.teacher.content.enums.CoursePricingType;
 import com.learne.backend.teacher.content.repository.CourseRepository;
 import java.time.Instant;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,12 +50,15 @@ public class CheckoutService {
                 || priceAmountVnd <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Course is not available for purchase.");
         }
-        if (orderRepository.existsPendingUnexpiredCourseOrder(student, course, OrderStatus.PENDING_PAYMENT, now)) {
+        String dedupeKey = coursePurchaseDedupeKey(student.getId(), course.getId());
+        if (!orderRepository.findByDedupeKeyForUpdate(dedupeKey).isEmpty()
+                || orderRepository.existsPendingUnexpiredCourseOrder(student, course, OrderStatus.PENDING_PAYMENT, now)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Pending order already exists.");
         }
 
         Order order = new Order();
         order.setUser(student);
+        order.setDedupeKey(dedupeKey);
         order.setOrderType(OrderType.COURSE_PURCHASE);
         order.setStatus(OrderStatus.PENDING_PAYMENT);
         order.setPaymentProvider(PaymentProvider.INTERNAL);
@@ -72,6 +76,14 @@ public class CheckoutService {
         item.setTotalAmountVnd(priceAmountVnd);
         order.addItem(item);
 
-        return OrderResponse.from(orderRepository.save(order));
+        try {
+            return OrderResponse.from(orderRepository.saveAndFlush(order));
+        } catch (DataIntegrityViolationException ex) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Pending order already exists.");
+        }
+    }
+
+    private String coursePurchaseDedupeKey(Long userId, Long courseId) {
+        return "COURSE:" + userId + ":" + courseId;
     }
 }

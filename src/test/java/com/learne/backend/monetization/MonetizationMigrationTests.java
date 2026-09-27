@@ -28,6 +28,7 @@ class MonetizationMigrationTests {
             assertColumnExists(connection, "course_revisions", "pricing_type");
             assertColumnExists(connection, "course_revisions", "proposed_price_amount_vnd");
             assertTableExists(connection, "orders");
+            assertColumnExists(connection, "orders", "dedupe_key");
             assertTableExists(connection, "order_items");
             assertTableExists(connection, "course_entitlements");
         }

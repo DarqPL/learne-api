@@ -28,7 +28,7 @@ public class AdminOrderService {
     @Transactional(noRollbackFor = ApiException.class)
     public OrderResponse markPaid(Long orderId) {
         Instant now = Instant.now();
-        Order order = orderRepository.findById(orderId)
+        Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Order not found."));
         if (order.getStatus() == OrderStatus.PAID) {
             return OrderResponse.from(order);
@@ -38,6 +38,7 @@ public class AdminOrderService {
         }
         if (order.getExpiresAt().isBefore(now)) {
             order.setStatus(OrderStatus.EXPIRED);
+            order.setDedupeKey(null);
             orderRepository.save(order);
             throw new ApiException(HttpStatus.BAD_REQUEST, "Order has expired.");
         }

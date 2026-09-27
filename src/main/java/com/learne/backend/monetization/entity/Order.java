@@ -61,6 +61,9 @@ public class Order {
     @Column(name = "payment_reference", length = 120)
     private String paymentReference;
 
+    @Column(name = "dedupe_key", length = 120, unique = true)
+    private String dedupeKey;
+
     @Column(name = "paid_at")
     private Instant paidAt;
 
@@ -107,6 +110,8 @@ public class Order {
     public void setPaymentProvider(PaymentProvider paymentProvider) { this.paymentProvider = paymentProvider; }
     public String getPaymentReference() { return paymentReference; }
     public void setPaymentReference(String paymentReference) { this.paymentReference = paymentReference; }
+    public String getDedupeKey() { return dedupeKey; }
+    public void setDedupeKey(String dedupeKey) { this.dedupeKey = dedupeKey; }
     public Instant getPaidAt() { return paidAt; }
     public void setPaidAt(Instant paidAt) { this.paidAt = paidAt; }
     public Instant getExpiresAt() { return expiresAt; }

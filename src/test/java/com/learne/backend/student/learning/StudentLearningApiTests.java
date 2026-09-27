@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learne.backend.domain.auth.AccountOrigin;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
@@ -236,6 +237,35 @@ class StudentLearningApiTests {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value("Course access is required."));
+    }
+
+    @Test
+    void ownerTeacherAccessRequiresTeacherCreatedAccount() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User selfRegisteredStudent = saveUser("self-student@example.com", UserRole.STUDENT);
+        User teacherCreatedStudent = saveUser("teacher-student@example.com", UserRole.STUDENT);
+        selfRegisteredStudent.setOwnerTeacher(teacher);
+        teacherCreatedStudent.setAccountOrigin(AccountOrigin.TEACHER_CREATED);
+        teacherCreatedStudent.setOwnerTeacher(teacher);
+        userRepository.save(selfRegisteredStudent);
+        userRepository.save(teacherCreatedStudent);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String selfRegisteredToken = loginAndGetAccessToken(selfRegisteredStudent.getEmail());
+        String teacherCreatedToken = loginAndGetAccessToken(teacherCreatedStudent.getEmail());
+        long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 300000L);
+
+        mockMvc.perform(get("/api/student/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + selfRegisteredToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessStatus").value("LOCKED"));
+
+        mockMvc.perform(get("/api/student/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherCreatedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessStatus").value("OWNED"))
+                .andExpect(jsonPath("$.topics", hasSize(1)));
     }
 
     @Test

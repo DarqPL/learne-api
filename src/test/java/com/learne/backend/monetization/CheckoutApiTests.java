@@ -116,7 +116,7 @@ class CheckoutApiTests {
         String studentToken = loginAndGetAccessToken(student.getEmail());
         long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 250000L);
         long firstOrderId = checkoutCourse(studentToken, courseId);
-        jdbcTemplate.update("update orders set expires_at = ? where id = ?", Instant.now().minusSeconds(1), firstOrderId);
+        jdbcTemplate.update("update orders set expires_at = ?, dedupe_key = null where id = ?", Instant.now().minusSeconds(1), firstOrderId);
         long secondOrderId = checkoutCourse(studentToken, courseId);
         jdbcTemplate.update("update orders set expires_at = ? where id = ?", Instant.now().plusSeconds(900), firstOrderId);
 
@@ -146,6 +146,29 @@ class CheckoutApiTests {
         String orderStatus = jdbcTemplate.queryForObject("select status from orders where id = ?", String.class, orderId);
         org.assertj.core.api.Assertions.assertThat(orderStatus).isEqualTo("EXPIRED");
         org.assertj.core.api.Assertions.assertThat(activeEntitlementCount(student.getId(), courseId)).isZero();
+    }
+
+    @Test
+    void expiredPendingOrderClearsDedupeKeyAndAllowsFreshCheckout() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 250000L);
+        long orderId = checkoutCourse(studentToken, courseId);
+        jdbcTemplate.update("update orders set expires_at = ? where id = ?", Instant.now().minusSeconds(1), orderId);
+
+        mockMvc.perform(post("/api/admin/orders/%d/mark-paid".formatted(orderId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Order has expired."));
+
+        org.assertj.core.api.Assertions.assertThat(
+                jdbcTemplate.queryForObject("select dedupe_key from orders where id = ?", String.class, orderId))
+                .isNull();
+        checkoutCourse(studentToken, courseId);
     }
 
     private long createApprovedPaidCourse(String teacherToken, String adminToken, String name, String level,

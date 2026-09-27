@@ -1,6 +1,7 @@
 package com.learne.backend.monetization.service;
 
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.domain.auth.AccountOrigin;
 import com.learne.backend.monetization.repository.CourseEntitlementRepository;
 import com.learne.backend.student.learning.enums.CourseAccessStatus;
 import com.learne.backend.teacher.content.entity.Course;
@@ -27,6 +28,7 @@ public class CourseAccessService {
             return CourseAccessStatus.OWNED;
         }
         if (student != null
+                && student.getAccountOrigin() == AccountOrigin.TEACHER_CREATED
                 && student.getOwnerTeacher() != null
                 && course.getTeacher() != null
                 && student.getOwnerTeacher().getId().equals(course.getTeacher().getId())) {
