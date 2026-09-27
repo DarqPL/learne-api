@@ -1,5 +1,6 @@
 package com.learne.backend.monetization.service;
 
+import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.monetization.dto.OrderResponse;
 import com.learne.backend.monetization.entity.CourseEntitlement;
 import com.learne.backend.monetization.entity.Order;
@@ -18,11 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminOrderService {
     private final OrderRepository orderRepository;
     private final CourseEntitlementRepository courseEntitlementRepository;
+    private final UserRepository userRepository;
 
     public AdminOrderService(OrderRepository orderRepository,
-                             CourseEntitlementRepository courseEntitlementRepository) {
+                             CourseEntitlementRepository courseEntitlementRepository,
+                             UserRepository userRepository) {
         this.orderRepository = orderRepository;
         this.courseEntitlementRepository = courseEntitlementRepository;
+        this.userRepository = userRepository;
     }
 
     @Transactional(noRollbackFor = ApiException.class)
@@ -44,6 +48,8 @@ public class AdminOrderService {
         }
 
         Instant paidAt = now;
+        userRepository.findByIdForUpdate(order.getUser().getId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Order user not found."));
         order.setStatus(OrderStatus.PAID);
         order.setPaidAt(paidAt);
         for (OrderItem item : order.getItems()) {

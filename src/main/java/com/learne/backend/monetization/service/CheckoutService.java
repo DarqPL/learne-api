@@ -16,6 +16,7 @@ import com.learne.backend.teacher.content.enums.CoursePriceStatus;
 import com.learne.backend.teacher.content.enums.CoursePricingType;
 import com.learne.backend.teacher.content.repository.CourseRepository;
 import java.time.Instant;
+import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -51,7 +52,20 @@ public class CheckoutService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Course is not available for purchase.");
         }
         String dedupeKey = coursePurchaseDedupeKey(student.getId(), course.getId());
-        if (!orderRepository.findByDedupeKeyForUpdate(dedupeKey).isEmpty()
+        List<Order> duplicateOrders = orderRepository.findByDedupeKeyForUpdate(dedupeKey);
+        boolean hasBlockingDuplicate = false;
+        for (Order duplicateOrder : duplicateOrders) {
+            if (duplicateOrder.getStatus() == OrderStatus.PENDING_PAYMENT && !duplicateOrder.getExpiresAt().isAfter(now)) {
+                duplicateOrder.setStatus(OrderStatus.EXPIRED);
+                duplicateOrder.setDedupeKey(null);
+            } else {
+                hasBlockingDuplicate = true;
+            }
+        }
+        if (!duplicateOrders.isEmpty()) {
+            orderRepository.saveAllAndFlush(duplicateOrders);
+        }
+        if (hasBlockingDuplicate
                 || orderRepository.existsPendingUnexpiredCourseOrder(student, course, OrderStatus.PENDING_PAYMENT, now)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Pending order already exists.");
         }

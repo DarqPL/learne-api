@@ -171,6 +171,29 @@ class CheckoutApiTests {
         checkoutCourse(studentToken, courseId);
     }
 
+    @Test
+    void naturallyExpiredPendingOrderAllowsFreshCheckoutWithoutAdminAction() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 250000L);
+        long orderId = checkoutCourse(studentToken, courseId);
+        jdbcTemplate.update("update orders set expires_at = ? where id = ?", Instant.now().minusSeconds(1), orderId);
+
+        long freshOrderId = checkoutCourse(studentToken, courseId);
+
+        org.assertj.core.api.Assertions.assertThat(freshOrderId).isNotEqualTo(orderId);
+        org.assertj.core.api.Assertions.assertThat(
+                jdbcTemplate.queryForObject("select status from orders where id = ?", String.class, orderId))
+                .isEqualTo("EXPIRED");
+        org.assertj.core.api.Assertions.assertThat(
+                jdbcTemplate.queryForObject("select dedupe_key from orders where id = ?", String.class, orderId))
+                .isNull();
+    }
+
     private long createApprovedPaidCourse(String teacherToken, String adminToken, String name, String level,
                                           long proposedPriceAmountVnd) throws Exception {
         long courseId = createCourse(teacherToken, name, level, proposedPriceAmountVnd);
