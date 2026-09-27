@@ -260,6 +260,71 @@ class AdminContentReviewApiTests {
     }
 
     @Test
+    void adminCannotApprovePaidCourseWithoutPositiveProposedPrice() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        long nullPriceCourseId = createSubmittedCourse(teacherToken, "B1", "PAID", 300000L);
+        jdbcTemplate.update("update course_revisions set proposed_price_amount_vnd = null where course_id = ?",
+                nullPriceCourseId);
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(nullPriceCourseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Paid courses require a positive proposed price."));
+
+        long zeroPriceCourseId = createSubmittedCourse(teacherToken, "B1", "PAID", 300000L);
+        jdbcTemplate.update("update course_revisions set proposed_price_amount_vnd = 0 where course_id = ?",
+                zeroPriceCourseId);
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(zeroPriceCourseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Paid courses require a positive proposed price."));
+    }
+
+    @Test
+    void adminApprovingFreeCourseClearsPricingState() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        long courseId = createSubmittedCourse(teacherToken);
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pricingType").value("FREE"))
+                .andExpect(jsonPath("$.priceStatus").value("NONE"))
+                .andExpect(jsonPath("$.priceAmountVnd").doesNotExist())
+                .andExpect(jsonPath("$.proposedPriceAmountVnd").doesNotExist());
+    }
+
+    @Test
+    void adminRejectingUnpublishedPaidCourseMarksPriceRejected() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        long courseId = createSubmittedCourse(teacherToken, "B1", "PAID", 300000L);
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/reject".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "Giá khóa học chưa phù hợp."
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.priceStatus").value("REJECTED"));
+
+        org.junit.jupiter.api.Assertions.assertEquals("REJECTED", jdbcTemplate.queryForObject(
+                "select price_status from courses where id = ?", String.class, courseId));
+    }
+
+    @Test
     void adminCanRejectPendingCourseWithReasonAndCascadeStatus() throws Exception {
         User admin = saveUser("admin@example.com", UserRole.ADMIN);
         User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
