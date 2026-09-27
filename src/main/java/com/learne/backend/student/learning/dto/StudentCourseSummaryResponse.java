@@ -1,5 +1,7 @@
 package com.learne.backend.student.learning.dto;
 
+import com.learne.backend.student.learning.enums.CourseAccessStatus;
+import com.learne.backend.teacher.content.enums.CoursePricingType;
 import com.learne.backend.teacher.content.enums.CourseType;
 import java.time.Instant;
 
@@ -17,6 +19,10 @@ public record StudentCourseSummaryResponse(
         long lessonCount,
         long questionCount,
         Instant publishedAt,
+        CoursePricingType pricingType,
+        Long priceAmountVnd,
+        CourseAccessStatus accessStatus,
+        String accessReason,
         boolean enrolled
 ) {
 }

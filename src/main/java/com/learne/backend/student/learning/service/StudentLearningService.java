@@ -1,6 +1,7 @@
 package com.learne.backend.student.learning.service;
 
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.monetization.service.CourseAccessService;
 import com.learne.backend.shared.dashboard.service.LeaderboardService;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.student.learning.dto.SubmitQuizRequest;
@@ -24,6 +25,7 @@ import com.learne.backend.student.learning.entity.LessonProgress;
 import com.learne.backend.student.learning.entity.QuestionAnswer;
 import com.learne.backend.student.learning.entity.QuizAttempt;
 import com.learne.backend.student.learning.enums.EnrollmentStatus;
+import com.learne.backend.student.learning.enums.CourseAccessStatus;
 import com.learne.backend.student.learning.enums.LessonProgressStatus;
 import com.learne.backend.student.learning.enums.QuizAttemptStatus;
 import com.learne.backend.student.learning.repository.CourseEnrollmentRepository;
@@ -65,6 +67,7 @@ public class StudentLearningService {
     private final StudentQuizGradingService studentQuizGradingService;
     private final StudentStatsService studentStatsService;
     private final LeaderboardService leaderboardService;
+    private final CourseAccessService courseAccessService;
     private final EntityManager entityManager;
     private final TransactionTemplate createEnrollmentTransactionTemplate;
 
@@ -76,10 +79,11 @@ public class StudentLearningService {
                                        QuestionAnswerRepository questionAnswerRepository,
                                        LearningActivityRepository learningActivityRepository,
                                        StudentQuizGradingService studentQuizGradingService,
-                                      StudentStatsService studentStatsService,
-                                      LeaderboardService leaderboardService,
-                                      EntityManager entityManager,
-                                      PlatformTransactionManager transactionManager) {
+                                       StudentStatsService studentStatsService,
+                                       LeaderboardService leaderboardService,
+                                       CourseAccessService courseAccessService,
+                                       EntityManager entityManager,
+                                       PlatformTransactionManager transactionManager) {
         this.courseRepository = courseRepository;
         this.courseEnrollmentRepository = courseEnrollmentRepository;
         this.lessonProgressRepository = lessonProgressRepository;
@@ -90,6 +94,7 @@ public class StudentLearningService {
         this.studentQuizGradingService = studentQuizGradingService;
         this.studentStatsService = studentStatsService;
         this.leaderboardService = leaderboardService;
+        this.courseAccessService = courseAccessService;
         this.entityManager = entityManager;
         this.createEnrollmentTransactionTemplate = new TransactionTemplate(transactionManager);
         this.createEnrollmentTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -107,6 +112,9 @@ public class StudentLearningService {
         Course course = courseRepository.findById(courseId)
                 .filter(found -> found.getStatus() == ContentStatus.APPROVED)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
+        if (!courseAccessService.canEnroll(student, course)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Course access is required.");
+        }
 
         CourseEnrollment enrollment = courseEnrollmentRepository.findByUserAndCourse(student, course)
                 .orElseGet(() -> findOrCreateEnrollment(student, course));
@@ -305,7 +313,8 @@ public class StudentLearningService {
         Course course = courseRepository.findStudentDetailByIdAndStatus(courseId, ContentStatus.APPROVED)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
         CourseEnrollment enrollment = courseEnrollmentRepository.findByUserAndCourse(student, course).orElse(null);
-        return StudentCourseDetailResponse.from(course, enrollment);
+        CourseAccessStatus accessStatus = courseAccessService.accessStatus(student, course);
+        return StudentCourseDetailResponse.from(course, enrollment, accessStatus, accessReason(accessStatus));
     }
 
     @Transactional(readOnly = true)
@@ -543,6 +552,7 @@ public class StudentLearningService {
 
     private StudentCourseSummaryResponse toCourseSummary(User student, Course course) {
         List<Lesson> approvedLessons = orderedApprovedLessons(course);
+        CourseAccessStatus accessStatus = courseAccessService.accessStatus(student, course);
         long approvedTopicCount = course.getTopics().stream()
                 .filter(topic -> topic.getLessons().stream()
                         .anyMatch(lesson -> lesson.getStatus() == ContentStatus.APPROVED))
@@ -566,8 +576,20 @@ public class StudentLearningService {
                 approvedLessons.size(),
                 approvedQuestionCount,
                 course.getPublishedAt(),
+                course.getPricingType(),
+                course.getPriceAmountVnd(),
+                accessStatus,
+                accessReason(accessStatus),
                 courseEnrollmentRepository.existsByUserAndCourse(student, course)
         );
+    }
+
+    private String accessReason(CourseAccessStatus accessStatus) {
+        return switch (accessStatus) {
+            case FREE -> "Course is free.";
+            case OWNED -> "Course is unlocked.";
+            case LOCKED -> "Purchase is required.";
+        };
     }
 
     private String normalize(String value) {
