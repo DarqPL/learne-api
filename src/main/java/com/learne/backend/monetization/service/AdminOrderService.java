@@ -2,6 +2,8 @@ package com.learne.backend.monetization.service;
 
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.monetization.dto.OrderResponse;
+import com.learne.backend.monetization.entity.Coupon;
+import com.learne.backend.monetization.entity.CouponRedemption;
 import com.learne.backend.monetization.entity.CourseEntitlement;
 import com.learne.backend.monetization.entity.Order;
 import com.learne.backend.monetization.entity.OrderItem;
@@ -10,6 +12,8 @@ import com.learne.backend.monetization.enums.CourseEntitlementSource;
 import com.learne.backend.monetization.enums.OrderStatus;
 import com.learne.backend.monetization.enums.OrderType;
 import com.learne.backend.monetization.enums.SubscriptionStatus;
+import com.learne.backend.monetization.repository.CouponRedemptionRepository;
+import com.learne.backend.monetization.repository.CouponRepository;
 import com.learne.backend.monetization.repository.CourseEntitlementRepository;
 import com.learne.backend.monetization.repository.OrderRepository;
 import com.learne.backend.monetization.repository.SubscriptionRepository;
@@ -25,15 +29,21 @@ public class AdminOrderService {
     private final CourseEntitlementRepository courseEntitlementRepository;
     private final UserRepository userRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final CouponRepository couponRepository;
+    private final CouponRedemptionRepository couponRedemptionRepository;
 
     public AdminOrderService(OrderRepository orderRepository,
                               CourseEntitlementRepository courseEntitlementRepository,
                               UserRepository userRepository,
-                              SubscriptionRepository subscriptionRepository) {
+                              SubscriptionRepository subscriptionRepository,
+                              CouponRepository couponRepository,
+                              CouponRedemptionRepository couponRedemptionRepository) {
         this.orderRepository = orderRepository;
         this.courseEntitlementRepository = courseEntitlementRepository;
         this.userRepository = userRepository;
         this.subscriptionRepository = subscriptionRepository;
+        this.couponRepository = couponRepository;
+        this.couponRedemptionRepository = couponRedemptionRepository;
     }
 
     @Transactional(noRollbackFor = ApiException.class)
@@ -57,10 +67,12 @@ public class AdminOrderService {
         Instant paidAt = now;
         userRepository.findByIdForUpdate(order.getUser().getId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Order user not found."));
+        Coupon coupon = lockAndValidateCouponUsage(order);
         order.setStatus(OrderStatus.PAID);
         order.setPaidAt(paidAt);
         if (order.getOrderType() == OrderType.PLAN_SUBSCRIPTION) {
             createSubscription(order, paidAt);
+            createCouponRedemptionIfNeeded(order, coupon, paidAt);
             return OrderResponse.from(orderRepository.save(order));
         }
         for (OrderItem item : order.getItems()) {
@@ -78,8 +90,42 @@ public class AdminOrderService {
             entitlement.setStartsAt(paidAt);
             courseEntitlementRepository.save(entitlement);
         }
+        createCouponRedemptionIfNeeded(order, coupon, paidAt);
 
         return OrderResponse.from(orderRepository.save(order));
+    }
+
+    private Coupon lockAndValidateCouponUsage(Order order) {
+        if (order.getCouponId() == null || order.getDiscountAmountVnd() == null || order.getDiscountAmountVnd() <= 0) {
+            return null;
+        }
+        if (couponRedemptionRepository.existsByOrderId(order.getId())) {
+            return null;
+        }
+        Coupon coupon = couponRepository.findByIdForUpdate(order.getCouponId())
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Coupon not found."));
+        if (coupon.getUsageLimitTotal() != null
+                && couponRedemptionRepository.countByCouponId(coupon.getId()) >= coupon.getUsageLimitTotal()) {
+            throw new ApiException(HttpStatus.CONFLICT, "Coupon usage limit has been reached.");
+        }
+        if (coupon.getUsageLimitPerUser() != null
+                && couponRedemptionRepository.countByCouponIdAndUser(coupon.getId(), order.getUser()) >= coupon.getUsageLimitPerUser()) {
+            throw new ApiException(HttpStatus.CONFLICT, "Coupon usage limit has been reached.");
+        }
+        return coupon;
+    }
+
+    private void createCouponRedemptionIfNeeded(Order order, Coupon coupon, Instant paidAt) {
+        if (coupon == null || couponRedemptionRepository.existsByOrderId(order.getId())) {
+            return;
+        }
+        CouponRedemption redemption = new CouponRedemption();
+        redemption.setCoupon(coupon);
+        redemption.setUser(order.getUser());
+        redemption.setOrder(order);
+        redemption.setDiscountAmountVnd(order.getDiscountAmountVnd());
+        redemption.setRedeemedAt(paidAt);
+        couponRedemptionRepository.save(redemption);
     }
 
     private void createSubscription(Order order, Instant paidAt) {

@@ -2,6 +2,7 @@ package com.learne.backend.monetization;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -199,6 +200,63 @@ class PlanSubscriptionApiTests {
     }
 
     @Test
+    void duplicatePlanCheckoutWithCouponWhilePendingReturnsBadRequest() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        createCoupon(adminToken, planCouponRequest("VIP20"));
+
+        mockMvc.perform(post("/api/student/checkout/plans/VIP")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"));
+
+        mockMvc.perform(post("/api/student/checkout/plans/VIP")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "couponCode": "VIP20" }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Pending order already exists."));
+
+        Integer orderCount = jdbcTemplate.queryForObject("select count(*) from orders", Integer.class);
+        assertThat(orderCount).isEqualTo(1);
+    }
+
+    @Test
+    void duplicatePlanCheckoutWithDifferentCouponWhilePendingReturnsBadRequest() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        createCoupon(adminToken, planCouponRequest("VIP20"));
+        createCoupon(adminToken, planCouponRequest("VIP25"));
+
+        mockMvc.perform(post("/api/student/checkout/plans/VIP")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "couponCode": "VIP20" }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"));
+
+        mockMvc.perform(post("/api/student/checkout/plans/VIP")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "couponCode": "VIP25" }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Pending order already exists."));
+
+        Integer orderCount = jdbcTemplate.queryForObject("select count(*) from orders", Integer.class);
+        assertThat(orderCount).isEqualTo(1);
+    }
+
+    @Test
     void subscriptionSummaryIncludesPeriod() throws Exception {
         User admin = saveUser("admin@example.com", UserRole.ADMIN);
         User student = saveUser("student@example.com", UserRole.STUDENT);
@@ -249,6 +307,24 @@ class PlanSubscriptionApiTests {
     }
 
     @Test
+    void selfRegisteredStudentCannotPreviewProPlusCheckout() throws Exception {
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+
+        mockMvc.perform(post("/api/student/checkout/preview")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "productType": "PLAN",
+                                  "planCode": "PRO_PLUS"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("PRO_PLUS is only available for teacher-created students."));
+    }
+
+    @Test
     void teacherCreatedStudentCanCheckoutProPlus() throws Exception {
         User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
         User student = new User();
@@ -269,6 +345,104 @@ class PlanSubscriptionApiTests {
                 .andExpect(jsonPath("$.finalAmountVnd").value(350000))
                 .andExpect(jsonPath("$.items[0].productType").value("PLAN"))
                 .andExpect(jsonPath("$.items[0].planCode").value("PRO_PLUS"));
+    }
+
+    @Test
+    void planCheckoutWithValidCouponStoresDiscountAndCouponId() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long couponId = createCoupon(adminToken, planCouponRequest("VIP20"));
+
+        MvcResult checkoutResult = mockMvc.perform(post("/api/student/checkout/plans/VIP")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "couponCode": "VIP20" }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.couponId").value(couponId))
+                .andExpect(jsonPath("$.originalAmountVnd").value(200000))
+                .andExpect(jsonPath("$.discountAmountVnd").value(40000))
+                .andExpect(jsonPath("$.finalAmountVnd").value(160000))
+                .andReturn();
+        long orderId = objectMapper.readTree(checkoutResult.getResponse().getContentAsString()).get("id").asLong();
+
+        Long storedCouponId = jdbcTemplate.queryForObject("select coupon_id from orders where id = ?", Long.class, orderId);
+        Long storedDiscount = jdbcTemplate.queryForObject("select discount_amount_vnd from orders where id = ?", Long.class, orderId);
+        assertThat(storedCouponId).isEqualTo(couponId);
+        assertThat(storedDiscount).isEqualTo(40000L);
+    }
+
+    @Test
+    void markPaidCreatesCouponRedemptionForDiscountedPlanOrder() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long couponId = createCoupon(adminToken, planCouponRequest("VIP20"));
+
+        MvcResult checkoutResult = mockMvc.perform(post("/api/student/checkout/plans/VIP")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "couponCode": "VIP20" }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long orderId = objectMapper.readTree(checkoutResult.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(post("/api/admin/orders/%d/mark-paid".formatted(orderId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PAID"));
+
+        Integer redemptionCount = jdbcTemplate.queryForObject("""
+                select count(*)
+                from coupon_redemptions
+                where coupon_id = ?
+                  and user_id = ?
+                  and order_id = ?
+                  and discount_amount_vnd = 40000
+                  and redeemed_at is not null
+                """, Integer.class, couponId, student.getId(), orderId);
+        assertThat(redemptionCount).isEqualTo(1);
+    }
+
+    @Test
+    void repeatedMarkPaidDoesNotCreateDuplicateCouponRedemptionForDiscountedPlanOrder() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long couponId = createCoupon(adminToken, planCouponRequest("VIP20"));
+
+        MvcResult checkoutResult = mockMvc.perform(post("/api/student/checkout/plans/VIP")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "couponCode": "VIP20" }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long orderId = objectMapper.readTree(checkoutResult.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(post("/api/admin/orders/%d/mark-paid".formatted(orderId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PAID"));
+        mockMvc.perform(post("/api/admin/orders/%d/mark-paid".formatted(orderId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PAID"));
+
+        Integer redemptionCount = jdbcTemplate.queryForObject(
+                "select count(*) from coupon_redemptions where coupon_id = ? and order_id = ?",
+                Integer.class,
+                couponId,
+                orderId);
+        assertThat(redemptionCount).isEqualTo(1);
     }
 
     private Order savePaidPlanOrder(User student, PlanCode planCode) {
@@ -304,6 +478,38 @@ class PlanSubscriptionApiTests {
         subscription.setEndsAt(endsAt);
         subscription.setOrder(savePaidPlanOrder(student, planCode));
         subscriptionRepository.save(subscription);
+    }
+
+    private long createCoupon(String adminToken, String requestBody) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/admin/coupons")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id", notNullValue()))
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
+    }
+
+    private String planCouponRequest(String code) {
+        Instant now = Instant.now();
+        return """
+                {
+                  "code": "%s",
+                  "discountType": "PERCENT",
+                  "discountValue": 20,
+                  "minOrderAmountVnd": 100000,
+                  "maxDiscountAmountVnd": null,
+                  "minimumFinalAmountVnd": 10000,
+                  "usageLimitTotal": 100,
+                  "usageLimitPerUser": 1,
+                  "validFrom": "%s",
+                  "validUntil": "%s",
+                  "productScopes": ["VIP"],
+                  "courseIds": [],
+                  "teacherIds": []
+                }
+                """.formatted(code, now.minusSeconds(86_400), now.plusSeconds(86_400));
     }
 
     private User saveUser(String email, UserRole role) {

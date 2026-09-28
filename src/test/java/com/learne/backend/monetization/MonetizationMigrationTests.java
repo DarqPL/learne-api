@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
@@ -63,6 +65,68 @@ class MonetizationMigrationTests {
                     unit_amount_vnd, quantity, total_amount_vnd)
                 values (?, 'PLAN', 'VIP', 'VIP plan', 100000, 1, 100000)
                 """, orderId);
+    }
+
+    @Test
+    void couponTablesAndIndexesExist() throws Exception {
+        try (Connection connection = dataSource.getConnection()) {
+            assertTableExists(connection, "coupons");
+            assertTableExists(connection, "coupon_product_scopes");
+            assertTableExists(connection, "coupon_course_scopes");
+            assertTableExists(connection, "coupon_teacher_scopes");
+            assertTableExists(connection, "coupon_redemptions");
+            assertColumnExists(connection, "coupons", "code_normalized");
+            assertColumnExists(connection, "coupon_redemptions", "order_id");
+            assertIndexExists(connection, "coupons", "idx_coupons_created_by");
+            assertIndexExists(connection, "coupon_course_scopes", "idx_coupon_course_scopes_course_id");
+            assertIndexExists(connection, "coupon_teacher_scopes", "idx_coupon_teacher_scopes_teacher_id");
+            assertIndexExists(connection, "coupon_redemptions", "idx_coupon_redemptions_user_id");
+            assertIndexExists(connection, "orders", "idx_orders_coupon_id");
+        }
+    }
+
+    @Test
+    void couponSchemaRejectsInvalidCoreValues() {
+        Long adminId = insertUser("coupon-admin-" + UUID.randomUUID() + "@example.com", "ADMIN");
+
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                insert into coupons (
+                    code, code_normalized, discount_type, discount_value,
+                    min_order_amount_vnd, minimum_final_amount_vnd,
+                    usage_limit_total, usage_limit_per_user, valid_from,
+                    valid_until, active, created_by, created_at, updated_at
+                ) values (
+                    'BAD', 'BAD', 'INVALID', 10,
+                    0, 0,
+                    null, null, current_timestamp,
+                    ?, true, ?, current_timestamp, current_timestamp
+                )
+                """, Instant.now().plus(1, ChronoUnit.DAYS), adminId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void couponSchemaRejectsDuplicateNormalizedCodes() {
+        Long adminId = insertUser("coupon-admin-" + UUID.randomUUID() + "@example.com", "ADMIN");
+
+        insertCoupon(adminId, "SAVE10", "SAVE10");
+
+        assertThatThrownBy(() -> insertCoupon(adminId, "save10", "SAVE10"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void couponRedemptionsRejectDuplicateOrders() {
+        String suffix = UUID.randomUUID().toString();
+        Long adminId = insertUser("coupon-admin-" + suffix + "@example.com", "ADMIN");
+        Long studentId = insertUser("coupon-student-" + suffix + "@example.com", "STUDENT");
+        Long couponId = insertCoupon(adminId, "SAVE10-" + suffix, "SAVE10-" + suffix);
+        Long orderId = insertPlanSubscriptionOrder(studentId);
+
+        insertCouponRedemption(couponId, studentId, orderId);
+
+        assertThatThrownBy(() -> insertCouponRedemption(couponId, studentId, orderId))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
@@ -186,13 +250,40 @@ class MonetizationMigrationTests {
         jdbcTemplate.update(connection -> {
             var statement = connection.prepareStatement("""
                     insert into subscriptions (user_id, plan_code, status, starts_at, ends_at, order_id)
-                    values (?, 'VIP', 'ACTIVE', current_timestamp, dateadd('DAY', 30, current_timestamp), ?)
+                    values (?, 'VIP', 'ACTIVE', current_timestamp, ?, ?)
                     """, new String[] {"id"});
             statement.setLong(1, studentId);
-            statement.setLong(2, orderId);
+            statement.setObject(2, Instant.now().plus(30, ChronoUnit.DAYS));
+            statement.setLong(3, orderId);
             return statement;
         }, keyHolder);
         return keyHolder.getKey().longValue();
+    }
+
+    private Long insertCoupon(Long adminId, String code, String normalizedCode) {
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            var statement = connection.prepareStatement("""
+                    insert into coupons (code, code_normalized, discount_type, discount_value,
+                        min_order_amount_vnd, minimum_final_amount_vnd, valid_from, valid_until,
+                        active, created_by)
+                    values (?, ?, 'PERCENT', 10, 0, 0, current_timestamp,
+                        ?, true, ?)
+                    """, new String[] {"id"});
+            statement.setString(1, code);
+            statement.setString(2, normalizedCode);
+            statement.setObject(3, Instant.now().plus(7, ChronoUnit.DAYS));
+            statement.setLong(4, adminId);
+            return statement;
+        }, keyHolder);
+        return keyHolder.getKey().longValue();
+    }
+
+    private void insertCouponRedemption(Long couponId, Long userId, Long orderId) {
+        jdbcTemplate.update("""
+                insert into coupon_redemptions (coupon_id, user_id, order_id, discount_amount_vnd)
+                values (?, ?, ?, 10000)
+                """, couponId, userId, orderId);
     }
 
     private void insertVipSelection(Long subscriptionId, Long studentId, Long courseId) {

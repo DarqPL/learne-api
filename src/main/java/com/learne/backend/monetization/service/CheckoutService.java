@@ -32,21 +32,29 @@ public class CheckoutService {
     private final CourseAccessService courseAccessService;
     private final SubscriptionRepository subscriptionRepository;
     private final PlanCatalogService planCatalogService;
+    private final CouponPricingService couponPricingService;
 
     public CheckoutService(CourseRepository courseRepository,
                             OrderRepository orderRepository,
                             CourseAccessService courseAccessService,
                             SubscriptionRepository subscriptionRepository,
-                            PlanCatalogService planCatalogService) {
+                            PlanCatalogService planCatalogService,
+                            CouponPricingService couponPricingService) {
         this.courseRepository = courseRepository;
         this.orderRepository = orderRepository;
         this.courseAccessService = courseAccessService;
         this.subscriptionRepository = subscriptionRepository;
         this.planCatalogService = planCatalogService;
+        this.couponPricingService = couponPricingService;
     }
 
     @Transactional
     public OrderResponse createCourseOrder(User student, Long courseId) {
+        return createCourseOrder(student, courseId, null);
+    }
+
+    @Transactional
+    public OrderResponse createCourseOrder(User student, Long courseId, String couponCode) {
         Instant now = Instant.now();
         Course course = courseRepository.findStudentDetailByIdAndStatus(courseId, ContentStatus.APPROVED)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
@@ -60,6 +68,15 @@ public class CheckoutService {
                 || priceAmountVnd <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Course is not available for purchase.");
         }
+        Long teacherId = course.getTeacher() == null ? null : course.getTeacher().getId();
+        CouponProduct product = new CouponProduct(
+                OrderItemProductType.COURSE,
+                course.getId(),
+                null,
+                teacherId,
+                course.getName(),
+                priceAmountVnd);
+        couponPricingService.priceWithoutLock(student, product, couponCode);
         String dedupeKey = coursePurchaseDedupeKey(student.getId(), course.getId());
         List<Order> duplicateOrders = orderRepository.findByDedupeKeyForUpdate(dedupeKey);
         boolean hasBlockingDuplicate = false;
@@ -74,10 +91,10 @@ public class CheckoutService {
         if (!duplicateOrders.isEmpty()) {
             orderRepository.saveAllAndFlush(duplicateOrders);
         }
-        if (hasBlockingDuplicate
-                || orderRepository.existsPendingUnexpiredCourseOrder(student, course, OrderStatus.PENDING_PAYMENT, now)) {
+        if (hasBlockingDuplicate) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Pending order already exists.");
         }
+        CouponPricingResult pricing = couponPricingService.price(student, product, couponCode);
 
         Order order = new Order();
         order.setUser(student);
@@ -85,9 +102,10 @@ public class CheckoutService {
         order.setOrderType(OrderType.COURSE_PURCHASE);
         order.setStatus(OrderStatus.PENDING_PAYMENT);
         order.setPaymentProvider(PaymentProvider.INTERNAL);
-        order.setOriginalAmountVnd(priceAmountVnd);
-        order.setDiscountAmountVnd(0L);
-        order.setFinalAmountVnd(priceAmountVnd);
+        order.setOriginalAmountVnd(pricing.originalAmountVnd());
+        order.setDiscountAmountVnd(pricing.discountAmountVnd());
+        order.setFinalAmountVnd(pricing.finalAmountVnd());
+        order.setCouponId(pricing.couponId());
         order.setExpiresAt(now.plusSeconds(900));
 
         OrderItem item = new OrderItem();
@@ -108,6 +126,11 @@ public class CheckoutService {
 
     @Transactional
     public OrderResponse createPlanOrder(User student, PlanCode planCode) {
+        return createPlanOrder(student, planCode, null);
+    }
+
+    @Transactional
+    public OrderResponse createPlanOrder(User student, PlanCode planCode, String couponCode) {
         Instant now = Instant.now();
         if (planCode == PlanCode.PRO_PLUS && student.getAccountOrigin() != AccountOrigin.TEACHER_CREATED) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "PRO_PLUS is only available for teacher-created students.");
@@ -116,6 +139,15 @@ public class CheckoutService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Plan is already active.");
         }
 
+        PlanCatalogService.PlanCatalogItem plan = planCatalogService.get(planCode);
+        CouponProduct product = new CouponProduct(
+                OrderItemProductType.PLAN,
+                null,
+                plan.planCode(),
+                null,
+                plan.name(),
+                plan.priceVnd());
+        couponPricingService.priceWithoutLock(student, product, couponCode);
         String dedupeKey = planSubscriptionDedupeKey(student.getId(), planCode);
         List<Order> duplicateOrders = orderRepository.findByDedupeKeyForUpdate(dedupeKey);
         boolean hasBlockingDuplicate = false;
@@ -135,17 +167,18 @@ public class CheckoutService {
         if (hasBlockingDuplicate) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Pending order already exists.");
         }
+        CouponPricingResult pricing = couponPricingService.price(student, product, couponCode);
 
-        PlanCatalogService.PlanCatalogItem plan = planCatalogService.get(planCode);
         Order order = new Order();
         order.setUser(student);
         order.setDedupeKey(dedupeKey);
         order.setOrderType(OrderType.PLAN_SUBSCRIPTION);
         order.setStatus(OrderStatus.PENDING_PAYMENT);
         order.setPaymentProvider(PaymentProvider.INTERNAL);
-        order.setOriginalAmountVnd(plan.priceVnd());
-        order.setDiscountAmountVnd(0L);
-        order.setFinalAmountVnd(plan.priceVnd());
+        order.setOriginalAmountVnd(pricing.originalAmountVnd());
+        order.setDiscountAmountVnd(pricing.discountAmountVnd());
+        order.setFinalAmountVnd(pricing.finalAmountVnd());
+        order.setCouponId(pricing.couponId());
         order.setExpiresAt(now.plusSeconds(900));
 
         OrderItem item = new OrderItem();
