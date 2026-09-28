@@ -1,5 +1,6 @@
 package com.learne.backend.monetization.repository;
 
+import com.learne.backend.domain.auth.User;
 import com.learne.backend.monetization.entity.Order;
 import com.learne.backend.monetization.enums.PlanCode;
 import java.time.Instant;
@@ -13,6 +14,10 @@ import org.springframework.data.repository.query.Param;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
     boolean existsByPaymentReference(String paymentReference);
+
+    Optional<Order> findByPaymentReference(String paymentReference);
+
+    Optional<Order> findByIdAndUser(Long id, User user);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select order from Order order where order.id = :id")
