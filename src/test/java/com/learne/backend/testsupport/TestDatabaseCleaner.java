@@ -26,6 +26,7 @@ public final class TestDatabaseCleaner {
             "delete from vip_course_selections",
             "delete from subscriptions",
             "delete from course_entitlements",
+            "delete from sepay_webhook_events",
             "delete from coupon_redemptions",
             "delete from coupon_teacher_scopes",
             "delete from coupon_course_scopes",
