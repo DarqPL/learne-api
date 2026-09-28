@@ -49,6 +49,28 @@ public class OrderPaymentSettlementService {
     public Order markPaid(Long orderId, Instant paidAt) {
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Order not found."));
+        return settleLockedOrder(order, paidAt);
+    }
+
+    @Transactional(noRollbackFor = ApiException.class)
+    public SepaySettlementResult settleSepayPayment(String paymentReference, Long amountVnd, Instant paidAt) {
+        Order order = orderRepository.findByPaymentReferenceForUpdate(paymentReference).orElse(null);
+        if (order == null) {
+            return new SepaySettlementResult(null, false, "Payment reference did not match an order.");
+        }
+        if (!Long.valueOf(order.getFinalAmountVnd()).equals(amountVnd)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Insufficient amount or amount mismatch.");
+        }
+        if (order.getStatus() == OrderStatus.PAID) {
+            return new SepaySettlementResult(order, true, null);
+        }
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            return new SepaySettlementResult(order, false, "Order is not pending payment.");
+        }
+        return new SepaySettlementResult(settleLockedOrder(order, paidAt), true, null);
+    }
+
+    private Order settleLockedOrder(Order order, Instant paidAt) {
         if (order.getStatus() == OrderStatus.PAID) {
             return order;
         }
@@ -90,6 +112,9 @@ public class OrderPaymentSettlementService {
         createCouponRedemptionIfNeeded(order, coupon, paidAt);
 
         return orderRepository.save(order);
+    }
+
+    public record SepaySettlementResult(Order order, boolean processed, String ignoredReason) {
     }
 
     private Coupon lockAndValidateCouponUsage(Order order) {

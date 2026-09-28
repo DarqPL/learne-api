@@ -42,14 +42,14 @@ class SepayMigrationTests {
                     insert into sepay_webhook_events (
                         sepay_transaction_id, transfer_type, transfer_amount_vnd,
                         status, raw_payload, received_at
-                    ) values (12345, 'in', 100000, 'RECEIVED', '{}', current_timestamp)
+                    ) values (12345, 'in', 100000, 'IGNORED', '{}', current_timestamp)
                     """);
 
             assertThatThrownBy(() -> connection.createStatement().executeUpdate("""
                     insert into sepay_webhook_events (
                         sepay_transaction_id, transfer_type, transfer_amount_vnd,
                         status, raw_payload, received_at
-                    ) values (12345, 'in', 100000, 'RECEIVED', '{}', current_timestamp)
+                    ) values (12345, 'in', 100000, 'IGNORED', '{}', current_timestamp)
                     """))
                     .isInstanceOf(Exception.class);
         }
@@ -62,7 +62,7 @@ class SepayMigrationTests {
                     insert into sepay_webhook_events (
                         sepay_transaction_id, transfer_type, transfer_amount_vnd,
                         status, raw_payload, received_at
-                    ) values (999, 'in', -1, 'RECEIVED', '{}', current_timestamp)
+                    ) values (999, 'in', -1, 'FAILED', '{}', current_timestamp)
                     """))
                     .isInstanceOf(Exception.class);
 
@@ -71,6 +71,22 @@ class SepayMigrationTests {
                         sepay_transaction_id, transfer_type, transfer_amount_vnd,
                         status, raw_payload, received_at
                     ) values (1000, 'in', 100000, 'BAD', '{}', current_timestamp)
+                    """))
+                    .isInstanceOf(Exception.class);
+
+            assertThatThrownBy(() -> connection.createStatement().executeUpdate("""
+                    insert into sepay_webhook_events (
+                        sepay_transaction_id, transfer_type, transfer_amount_vnd,
+                        status, raw_payload, received_at
+                    ) values (1001, 'in', 100000, 'RECEIVED', '{}', current_timestamp)
+                    """))
+                    .isInstanceOf(Exception.class);
+
+            assertThatThrownBy(() -> connection.createStatement().executeUpdate("""
+                    insert into sepay_webhook_events (
+                        sepay_transaction_id, transfer_type, transfer_amount_vnd,
+                        status, raw_payload, received_at
+                    ) values (1002, 'in', 100000, 'UNMATCHED', '{}', current_timestamp)
                     """))
                     .isInstanceOf(Exception.class);
         }
@@ -82,7 +98,7 @@ class SepayMigrationTests {
         event.setSepayTransactionId(987654321L);
         event.setTransferType("in");
         event.setTransferAmountVnd(100000L);
-        event.setStatus(SepayWebhookEventStatus.RECEIVED);
+        event.setStatus(SepayWebhookEventStatus.IGNORED);
         event.setRawPayload("{}");
 
         SepayWebhookEvent saved = sepayWebhookEventRepository.saveAndFlush(event);

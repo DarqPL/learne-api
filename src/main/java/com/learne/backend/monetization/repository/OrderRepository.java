@@ -17,6 +17,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     Optional<Order> findByPaymentReference(String paymentReference);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select order from Order order where order.paymentReference = :paymentReference")
+    Optional<Order> findByPaymentReferenceForUpdate(@Param("paymentReference") String paymentReference);
+
     Optional<Order> findByIdAndUser(Long id, User user);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
