@@ -4,6 +4,7 @@ import com.learne.backend.auth.session.security.JwtAuthenticationFilter;
 import com.learne.backend.auth.session.security.TrustedOriginFilter;
 import com.learne.backend.auth.session.service.AuthProperties;
 import com.learne.backend.monetization.service.PlanCatalogProperties;
+import com.learne.backend.monetization.service.SepayPaymentProperties;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,7 +24,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
-@EnableConfigurationProperties({AuthProperties.class, CorsProperties.class, PlanCatalogProperties.class})
+@EnableConfigurationProperties({AuthProperties.class, CorsProperties.class, PlanCatalogProperties.class, SepayPaymentProperties.class})
 public class SecurityConfig {
 
     @Bean

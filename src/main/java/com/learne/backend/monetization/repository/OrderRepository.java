@@ -12,6 +12,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
+    boolean existsByPaymentReference(String paymentReference);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select order from Order order where order.id = :id")
     Optional<Order> findByIdForUpdate(@Param("id") Long id);

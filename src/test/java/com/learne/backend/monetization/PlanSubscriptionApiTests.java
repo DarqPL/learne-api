@@ -1,8 +1,10 @@
 package com.learne.backend.monetization;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -28,6 +30,7 @@ import com.learne.backend.monetization.repository.SubscriptionRepository;
 import com.learne.backend.testsupport.TestDatabaseCleaner;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -37,6 +40,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.NestedTestConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -119,6 +123,8 @@ class PlanSubscriptionApiTests {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.orderType").value("PLAN_SUBSCRIPTION"))
                 .andExpect(jsonPath("$.finalAmountVnd").value(500000))
+                .andExpect(jsonPath("$.paymentProvider").value("INTERNAL"))
+                .andExpect(jsonPath("$.paymentInstructions").value(nullValue()))
                 .andExpect(jsonPath("$.items", hasSize(1)))
                 .andExpect(jsonPath("$.items[0].productType").value("PLAN"))
                 .andExpect(jsonPath("$.items[0].planCode").value("PRO"))
@@ -443,6 +449,36 @@ class PlanSubscriptionApiTests {
                 couponId,
                 orderId);
         assertThat(redemptionCount).isEqualTo(1);
+    }
+
+    @Nested
+    @NestedTestConfiguration(NestedTestConfiguration.EnclosingConfiguration.OVERRIDE)
+    @ActiveProfiles("test")
+    @AutoConfigureMockMvc
+    @SpringBootTest(properties = {
+            "app.monetization.plans.vip-price-vnd=200000",
+            "app.monetization.plans.pro-price-vnd=500000",
+            "app.monetization.plans.pro-plus-price-vnd=350000",
+            "app.payments.sepay.enabled=true",
+            "app.payments.sepay.bank-code=Vietcombank",
+            "app.payments.sepay.bank-name=Vietcombank",
+            "app.payments.sepay.account-number=0010000000355",
+            "app.payments.sepay.account-name=CONG TY LEARNE"
+    })
+    class SepayEnabledPlanCheckoutTests {
+        @Test
+        void planCheckoutIncludesSepayPaymentInstructions() throws Exception {
+            User student = saveUser("sepay-student@example.com", UserRole.STUDENT);
+            String studentToken = loginAndGetAccessToken(student.getEmail());
+
+            mockMvc.perform(post("/api/student/checkout/plans/VIP")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.paymentProvider").value("SEPAY"))
+                    .andExpect(jsonPath("$.paymentReference").isNotEmpty())
+                    .andExpect(jsonPath("$.paymentInstructions.qrUrl").value(containsString("https://vietqr.app/img?")))
+                    .andExpect(jsonPath("$.paymentInstructions.amountVnd").value(200000));
+        }
     }
 
     private Order savePaidPlanOrder(User student, PlanCode planCode) {

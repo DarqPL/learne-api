@@ -27,6 +27,7 @@ import com.learne.backend.monetization.service.CouponPricingResult;
 import com.learne.backend.monetization.service.CouponPricingService;
 import com.learne.backend.monetization.service.CouponProduct;
 import com.learne.backend.monetization.service.PlanCatalogService;
+import com.learne.backend.monetization.service.SepayPaymentService;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.teacher.content.entity.Course;
 import com.learne.backend.teacher.content.enums.ContentStatus;
@@ -53,6 +54,7 @@ class CouponPricingServiceTests {
     @Mock private OrderRepository orderRepository;
     @Mock private CourseAccessService courseAccessService;
     @Mock private SubscriptionRepository subscriptionRepository;
+    @Mock private SepayPaymentService sepayPaymentService;
 
     private long nextCouponId = 100L;
 
@@ -217,7 +219,8 @@ class CouponPricingServiceTests {
                 courseAccessService,
                 subscriptionRepository,
                 planCatalogService,
-                service());
+                service(),
+                sepayPaymentService);
     }
 
     private void stubCoupon(Coupon coupon) {

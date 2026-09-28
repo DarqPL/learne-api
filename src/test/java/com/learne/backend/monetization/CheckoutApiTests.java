@@ -1,7 +1,9 @@
 package com.learne.backend.monetization;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,6 +16,7 @@ import com.learne.backend.domain.auth.UserRole;
 import com.learne.backend.testsupport.TestDatabaseCleaner;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,6 +26,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.NestedTestConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -57,6 +61,8 @@ class CheckoutApiTests {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
                 .andExpect(jsonPath("$.finalAmountVnd").value(250000))
+                .andExpect(jsonPath("$.paymentProvider").value("INTERNAL"))
+                .andExpect(jsonPath("$.paymentInstructions").value(nullValue()))
                 .andExpect(jsonPath("$.items", hasSize(1)))
                 .andExpect(jsonPath("$.items[0].courseId").value(courseId))
                 .andReturn();
@@ -511,6 +517,38 @@ class CheckoutApiTests {
 
         Integer orderCount = jdbcTemplate.queryForObject("select count(*) from orders", Integer.class);
         org.assertj.core.api.Assertions.assertThat(orderCount).isZero();
+    }
+
+    @Nested
+    @NestedTestConfiguration(NestedTestConfiguration.EnclosingConfiguration.OVERRIDE)
+    @ActiveProfiles("test")
+    @AutoConfigureMockMvc
+    @SpringBootTest(properties = {
+            "app.payments.sepay.enabled=true",
+            "app.payments.sepay.bank-code=Vietcombank",
+            "app.payments.sepay.bank-name=Vietcombank",
+            "app.payments.sepay.account-number=0010000000355",
+            "app.payments.sepay.account-name=CONG TY LEARNE"
+    })
+    class SepayEnabledCheckoutTests {
+        @Test
+        void courseCheckoutIncludesSepayPaymentInstructions() throws Exception {
+            User admin = saveUser("sepay-admin@example.com", UserRole.ADMIN);
+            User teacher = saveUser("sepay-teacher@example.com", UserRole.TEACHER);
+            User student = saveUser("sepay-student@example.com", UserRole.STUDENT);
+            String adminToken = loginAndGetAccessToken(admin.getEmail());
+            String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+            String studentToken = loginAndGetAccessToken(student.getEmail());
+            long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 SEPAY", "A2", 250000L);
+
+            mockMvc.perform(post("/api/student/checkout/course/%d".formatted(courseId))
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.paymentProvider").value("SEPAY"))
+                    .andExpect(jsonPath("$.paymentReference").isNotEmpty())
+                    .andExpect(jsonPath("$.paymentInstructions.qrUrl").value(containsString("https://vietqr.app/img?")))
+                    .andExpect(jsonPath("$.paymentInstructions.amountVnd").value(250000));
+        }
     }
 
     private long createApprovedPaidCourse(String teacherToken, String adminToken, String name, String level,

@@ -33,19 +33,22 @@ public class CheckoutService {
     private final SubscriptionRepository subscriptionRepository;
     private final PlanCatalogService planCatalogService;
     private final CouponPricingService couponPricingService;
+    private final SepayPaymentService sepayPaymentService;
 
     public CheckoutService(CourseRepository courseRepository,
                             OrderRepository orderRepository,
-                            CourseAccessService courseAccessService,
-                            SubscriptionRepository subscriptionRepository,
-                            PlanCatalogService planCatalogService,
-                            CouponPricingService couponPricingService) {
+                             CourseAccessService courseAccessService,
+                             SubscriptionRepository subscriptionRepository,
+                             PlanCatalogService planCatalogService,
+                             CouponPricingService couponPricingService,
+                             SepayPaymentService sepayPaymentService) {
         this.courseRepository = courseRepository;
         this.orderRepository = orderRepository;
         this.courseAccessService = courseAccessService;
         this.subscriptionRepository = subscriptionRepository;
         this.planCatalogService = planCatalogService;
         this.couponPricingService = couponPricingService;
+        this.sepayPaymentService = sepayPaymentService;
     }
 
     @Transactional
@@ -101,7 +104,6 @@ public class CheckoutService {
         order.setDedupeKey(dedupeKey);
         order.setOrderType(OrderType.COURSE_PURCHASE);
         order.setStatus(OrderStatus.PENDING_PAYMENT);
-        order.setPaymentProvider(PaymentProvider.INTERNAL);
         order.setOriginalAmountVnd(pricing.originalAmountVnd());
         order.setDiscountAmountVnd(pricing.discountAmountVnd());
         order.setFinalAmountVnd(pricing.finalAmountVnd());
@@ -117,8 +119,10 @@ public class CheckoutService {
         item.setTotalAmountVnd(priceAmountVnd);
         order.addItem(item);
 
+        PaymentInstruction paymentInstruction = applyPaymentMetadata(order);
+
         try {
-            return OrderResponse.from(orderRepository.saveAndFlush(order));
+            return OrderResponse.from(orderRepository.saveAndFlush(order), paymentInstruction);
         } catch (DataIntegrityViolationException ex) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Pending order already exists.");
         }
@@ -174,7 +178,6 @@ public class CheckoutService {
         order.setDedupeKey(dedupeKey);
         order.setOrderType(OrderType.PLAN_SUBSCRIPTION);
         order.setStatus(OrderStatus.PENDING_PAYMENT);
-        order.setPaymentProvider(PaymentProvider.INTERNAL);
         order.setOriginalAmountVnd(pricing.originalAmountVnd());
         order.setDiscountAmountVnd(pricing.discountAmountVnd());
         order.setFinalAmountVnd(pricing.finalAmountVnd());
@@ -190,11 +193,24 @@ public class CheckoutService {
         item.setTotalAmountVnd(plan.priceVnd());
         order.addItem(item);
 
+        PaymentInstruction paymentInstruction = applyPaymentMetadata(order);
+
         try {
-            return OrderResponse.from(orderRepository.saveAndFlush(order));
+            return OrderResponse.from(orderRepository.saveAndFlush(order), paymentInstruction);
         } catch (DataIntegrityViolationException ex) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Pending order already exists.");
         }
+    }
+
+    private PaymentInstruction applyPaymentMetadata(Order order) {
+        if (!sepayPaymentService.isEnabled()) {
+            order.setPaymentProvider(PaymentProvider.INTERNAL);
+            return null;
+        }
+        String reference = sepayPaymentService.generateUniquePaymentReference();
+        order.setPaymentProvider(PaymentProvider.SEPAY);
+        order.setPaymentReference(reference);
+        return sepayPaymentService.buildInstruction(reference, order.getFinalAmountVnd());
     }
 
     private String coursePurchaseDedupeKey(Long userId, Long courseId) {
