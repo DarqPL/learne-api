@@ -4,6 +4,8 @@ import com.learne.backend.teacher.content.entity.Course;
 import com.learne.backend.teacher.content.entity.CourseRevision;
 import com.learne.backend.teacher.content.entity.Topic;
 import com.learne.backend.teacher.content.enums.ContentStatus;
+import com.learne.backend.teacher.content.enums.CoursePriceStatus;
+import com.learne.backend.teacher.content.enums.CoursePricingType;
 import com.learne.backend.teacher.content.enums.CourseRevisionStatus;
 import com.learne.backend.teacher.content.enums.CourseType;
 import java.util.Comparator;
@@ -17,6 +19,10 @@ public record CourseResponse(
         String level,
         int orderIndex,
         ContentStatus status,
+        CoursePricingType pricingType,
+        Long priceAmountVnd,
+        Long proposedPriceAmountVnd,
+        CoursePriceStatus priceStatus,
         String rejectionReason,
         Long latestRevisionId,
         CourseRevisionStatus latestRevisionStatus,
@@ -36,6 +42,10 @@ public record CourseResponse(
                 course.getLevel(),
                 course.getOrderIndex(),
                 course.getStatus(),
+                course.getPricingType(),
+                course.getPriceAmountVnd(),
+                course.getProposedPriceAmountVnd(),
+                course.getPriceStatus(),
                 course.getRejectionReason(),
                 latestRevision == null ? null : latestRevision.getId(),
                 latestRevision == null ? null : latestRevision.getStatus(),

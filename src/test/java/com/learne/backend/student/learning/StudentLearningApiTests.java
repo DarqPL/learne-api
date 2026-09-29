@@ -10,9 +10,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learne.backend.domain.auth.AccountOrigin;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.monetization.entity.CourseEntitlement;
+import com.learne.backend.monetization.enums.CourseEntitlementSource;
+import com.learne.backend.monetization.repository.CourseEntitlementRepository;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.testsupport.TestDatabaseCleaner;
 import com.learne.backend.student.learning.dto.SubmitQuestionAnswerRequest;
@@ -52,6 +56,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
@@ -72,6 +77,7 @@ class StudentLearningApiTests {
     @Autowired private QuestionAnswerRepository questionAnswerRepository;
     @Autowired private UserStatsRepository userStatsRepository;
     @Autowired private LearningActivityRepository learningActivityRepository;
+    @Autowired private CourseEntitlementRepository courseEntitlementRepository;
     @Autowired private LearningPathItemRepository learningPathItemRepository;
     @Autowired private LearningPathRepository learningPathRepository;
     @Autowired private PasswordEncoder passwordEncoder;
@@ -208,6 +214,141 @@ class StudentLearningApiTests {
     }
 
     @Test
+    void a2PaidCourseIsVisibleButLockedAndCannotBeEnrolledWithoutEntitlement() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 300000L);
+
+        mockMvc.perform(get("/api/student/courses")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").value(courseId))
+                .andExpect(jsonPath("$[0].pricingType").value("PAID"))
+                .andExpect(jsonPath("$[0].priceAmountVnd").value(300000))
+                .andExpect(jsonPath("$[0].accessStatus").value("LOCKED"))
+                .andExpect(jsonPath("$[0].accessReason").value("Purchase is required."));
+
+        mockMvc.perform(post("/api/student/courses/%d/enroll".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Course access is required."));
+    }
+
+    @Test
+    void ownerTeacherAccessRequiresTeacherCreatedAccount() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User selfRegisteredStudent = saveUser("self-student@example.com", UserRole.STUDENT);
+        User teacherCreatedStudent = saveUser("teacher-student@example.com", UserRole.STUDENT);
+        selfRegisteredStudent.setOwnerTeacher(teacher);
+        teacherCreatedStudent.setAccountOrigin(AccountOrigin.TEACHER_CREATED);
+        teacherCreatedStudent.setOwnerTeacher(teacher);
+        userRepository.save(selfRegisteredStudent);
+        userRepository.save(teacherCreatedStudent);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String selfRegisteredToken = loginAndGetAccessToken(selfRegisteredStudent.getEmail());
+        String teacherCreatedToken = loginAndGetAccessToken(teacherCreatedStudent.getEmail());
+        long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 300000L);
+
+        mockMvc.perform(get("/api/student/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + selfRegisteredToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessStatus").value("LOCKED"));
+
+        mockMvc.perform(get("/api/student/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherCreatedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessStatus").value("OWNED"))
+                .andExpect(jsonPath("$.topics", hasSize(1)));
+    }
+
+    @Test
+    void lockedPaidCourseDetailReturnsMetadataWithoutLearningContent() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 300000L);
+
+        mockMvc.perform(get("/api/student/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(courseId))
+                .andExpect(jsonPath("$.name").value("English A2 Premium"))
+                .andExpect(jsonPath("$.pricingType").value("PAID"))
+                .andExpect(jsonPath("$.priceAmountVnd").value(300000))
+                .andExpect(jsonPath("$.accessStatus").value("LOCKED"))
+                .andExpect(jsonPath("$.accessReason").value("Purchase is required."))
+                .andExpect(jsonPath("$.enrolled").value(false))
+                .andExpect(jsonPath("$.topics", hasSize(0)));
+    }
+
+    @Test
+    void entitledPaidCourseStudentCanViewContentAndEnroll() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 300000L);
+        seedCourseEntitlement(student, courseId);
+
+        mockMvc.perform(get("/api/student/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(courseId))
+                .andExpect(jsonPath("$.pricingType").value("PAID"))
+                .andExpect(jsonPath("$.accessStatus").value("OWNED"))
+                .andExpect(jsonPath("$.accessReason").value("Course is unlocked."))
+                .andExpect(jsonPath("$.topics", hasSize(1)))
+                .andExpect(jsonPath("$.topics[0].lessons", hasSize(1)))
+                .andExpect(jsonPath("$.topics[0].lessons[0].content").value("Use hello, hi, and goodbye in short conversations."));
+
+        MvcResult result = mockMvc.perform(post("/api/student/courses/%d/enroll".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courseId").value(courseId))
+                .andReturn();
+        long enrollmentId = objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(get("/api/student/enrollments/%d/progress".formatted(enrollmentId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.course.id").value(courseId))
+                .andExpect(jsonPath("$.topics", hasSize(1)));
+    }
+
+    @Test
+    void a1PaidDataStillBehavesAsFreeForEnrollment() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedCourseWithTwoLessons(teacherToken, adminToken);
+        jdbcTemplate.update("""
+                UPDATE courses
+                SET pricing_type = 'PAID', price_amount_vnd = 300000
+                WHERE id = ?
+                """, courseId);
+
+        mockMvc.perform(post("/api/student/courses/%d/enroll".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courseId").value(courseId));
+    }
+
+    @Test
     void catalogFiltersByLevelAndTeacherId() throws Exception {
         User admin = saveUser("admin@example.com", UserRole.ADMIN);
         User teacherA = saveUser("teacher-a@example.com", UserRole.TEACHER);
@@ -302,6 +443,78 @@ class StudentLearningApiTests {
                 .andExpect(jsonPath("$.topics[0].lessons[0].content").value("Use hello, hi, and goodbye in short conversations."))
                 .andExpect(jsonPath("$.topics[0].lessons[0].status").value("UNLOCKED"))
                 .andExpect(jsonPath("$.topics[0].lessons[1].status").value("LOCKED"));
+    }
+
+    @Test
+    void staleEnrollmentCannotAccessLearningContentAfterCourseBecomesPaid() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedCourse(teacherToken, adminToken, "English A2 Foundation", "A2");
+        long enrollmentId = enrollAndGetId(studentToken, courseId);
+        long firstLessonId = firstLessonId(enrollmentId);
+        long questionId = firstQuestionId(firstLessonId);
+        long wrongOptionId = wrongOptionId(questionId);
+        MvcResult attemptResult = mockMvc.perform(post("/api/student/enrollments/%d/lessons/%d/quiz/submit".formatted(enrollmentId, firstLessonId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "answers": [
+                                    { "questionId": %d, "selectedOptionId": %d }
+                                  ]
+                                }
+                                """.formatted(questionId, wrongOptionId)))
+                .andExpect(status().isOk())
+                .andReturn();
+        long attemptId = objectMapper.readTree(attemptResult.getResponse().getContentAsString()).get("attemptId").asLong();
+
+        jdbcTemplate.update("""
+                UPDATE courses
+                SET pricing_type = 'PAID', price_amount_vnd = 300000
+                WHERE id = ?
+                """, courseId);
+
+        mockMvc.perform(get("/api/student/enrollments/%d/progress".formatted(enrollmentId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Course access is required."));
+
+        mockMvc.perform(post("/api/student/enrollments/%d/lessons/%d/start".formatted(enrollmentId, firstLessonId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Course access is required."));
+
+        mockMvc.perform(post("/api/student/enrollments/%d/lessons/%d/complete".formatted(enrollmentId, firstLessonId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Course access is required."));
+
+        mockMvc.perform(get("/api/student/enrollments/%d/lessons/%d/quiz".formatted(enrollmentId, firstLessonId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Course access is required."));
+
+        mockMvc.perform(post("/api/student/enrollments/%d/lessons/%d/quiz/submit".formatted(enrollmentId, firstLessonId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "answers": [
+                                    { "questionId": %d, "selectedOptionId": %d }
+                                  ]
+                                }
+                                """.formatted(questionId, wrongOptionId)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Course access is required."));
+
+        mockMvc.perform(get("/api/student/quiz-attempts/%d".formatted(attemptId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Course access is required."));
     }
 
     @Test
@@ -1146,6 +1359,17 @@ class StudentLearningApiTests {
         return courseId;
     }
 
+    private long createApprovedPaidCourse(String teacherToken, String adminToken, String name, String level,
+                                          long proposedPriceAmountVnd) throws Exception {
+        long courseId = createCourse(teacherToken, name, level, "PAID", proposedPriceAmountVnd);
+        long topicId = createTopic(teacherToken, courseId);
+        long lessonId = createLesson(teacherToken, topicId, "Catalog Lesson", 1);
+        createMultipleChoiceQuestion(teacherToken, lessonId, 1);
+        approveCourse(teacherToken, adminToken, courseId);
+
+        return courseId;
+    }
+
     private void approveCourse(String teacherToken, String adminToken, long courseId) throws Exception {
         mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
@@ -1163,6 +1387,13 @@ class StudentLearningApiTests {
     }
 
     private long createCourse(String teacherToken, String name, String level) throws Exception {
+        return createCourse(teacherToken, name, level, null, null);
+    }
+
+    private long createCourse(String teacherToken, String name, String level, String pricingType,
+                              Long proposedPriceAmountVnd) throws Exception {
+        String pricingJson = pricingType == null ? "" : ",\n  \"pricingType\": \"%s\",\n  \"proposedPriceAmountVnd\": %d"
+                .formatted(pricingType, proposedPriceAmountVnd);
         MvcResult result = mockMvc.perform(post("/api/teacher/content/courses")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -1173,8 +1404,9 @@ class StudentLearningApiTests {
                                   "type": "COMPREHENSIVE",
                                   "level": "%s",
                                   "orderIndex": 1
+                                  %s
                                 }
-                                """.formatted(name, level)))
+                                """.formatted(name, level, pricingJson)))
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
@@ -1338,6 +1570,15 @@ class StudentLearningApiTests {
         activity.setActivityDate(LocalDate.now());
         activity.setXpEarned(25);
         learningActivityRepository.save(activity);
+    }
+
+    private void seedCourseEntitlement(User student, long courseId) {
+        CourseEntitlement entitlement = new CourseEntitlement();
+        entitlement.setUser(student);
+        entitlement.setCourse(courseRepository.findById(courseId).orElseThrow());
+        entitlement.setSource(CourseEntitlementSource.COURSE_PURCHASE);
+        entitlement.setStartsAt(Instant.now().minusSeconds(60));
+        courseEntitlementRepository.save(entitlement);
     }
 
     private long firstQuestionId(long lessonId) {

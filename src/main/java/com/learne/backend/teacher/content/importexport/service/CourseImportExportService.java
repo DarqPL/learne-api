@@ -12,6 +12,7 @@ import com.learne.backend.teacher.content.entity.QuestionOptionRevision;
 import com.learne.backend.teacher.content.entity.QuestionRevision;
 import com.learne.backend.teacher.content.entity.TopicRevision;
 import com.learne.backend.teacher.content.enums.ContentStatus;
+import com.learne.backend.teacher.content.enums.CoursePricingType;
 import com.learne.backend.teacher.content.enums.CourseRevisionStatus;
 import com.learne.backend.teacher.content.enums.CourseType;
 import com.learne.backend.teacher.content.enums.QuestionType;
@@ -105,6 +106,7 @@ public class CourseImportExportService {
             revision.setRevisionNumber(1);
             revision.setStatus(CourseRevisionStatus.DRAFT);
             applyRevisionMetadata(revision, model);
+            applyRevisionPricingMetadata(revision, savedCourse);
             populateRevision(importPackage, model, revision, teacher, uploadedAudioPublicIds,
                     Map.of(), Map.of(), Map.of(), Map.of());
 
@@ -146,6 +148,7 @@ public class CourseImportExportService {
         Map<Long, QuestionOptionRevision> existingOptions = optionsById(sourceRevision);
         try {
             applyRevisionMetadata(revision, model);
+            applyRevisionPricingMetadata(revision, sourceRevision);
             revision.getTopics().clear();
             populateRevision(importPackage, model, revision, teacher, uploadedAudioPublicIds,
                     existingTopics, existingLessons, existingQuestions, existingOptions);
@@ -423,6 +426,19 @@ public class CourseImportExportService {
         revision.setType(enumValue(CourseType.class, model.type(), "course_type"));
         revision.setLevel(model.level().trim());
         revision.setOrderIndex(valueOrZero(model.orderIndex()));
+    }
+
+    private void applyRevisionPricingMetadata(CourseRevision revision, Course course) {
+        revision.setPricingType(course.getPricingType());
+        revision.setProposedPriceAmountVnd(course.getProposedPriceAmountVnd());
+    }
+
+    private void applyRevisionPricingMetadata(CourseRevision revision, CourseRevision sourceRevision) {
+        CoursePricingType pricingType = sourceRevision.getPricingType() == null
+                ? sourceRevision.getCourse().getPricingType()
+                : sourceRevision.getPricingType();
+        revision.setPricingType(pricingType);
+        revision.setProposedPriceAmountVnd(sourceRevision.getProposedPriceAmountVnd());
     }
 
     private CourseRevision newDraftRevisionFrom(Course course, User teacher) {

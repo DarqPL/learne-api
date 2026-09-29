@@ -21,6 +21,9 @@ import com.learne.backend.ai.grammar.repository.GrammarCheckRepository;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.monetization.entity.AiUsageEvent;
+import com.learne.backend.monetization.enums.AiUsageFeature;
+import com.learne.backend.monetization.repository.AiUsageEventRepository;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.student.learning.entity.CourseEnrollment;
 import com.learne.backend.student.learning.enums.EnrollmentStatus;
@@ -62,6 +65,7 @@ import org.springframework.test.web.servlet.MvcResult;
 class GrammarCheckApiTests {
     @Autowired private EntityManager entityManager;
     @Autowired private GrammarCheckRepository grammarCheckRepository;
+    @Autowired private AiUsageEventRepository aiUsageEventRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private CourseRepository courseRepository;
     @Autowired private TopicRepository topicRepository;
@@ -139,6 +143,24 @@ class GrammarCheckApiTests {
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("SUCCEEDED"));
+    }
+
+    @Test
+    void submitReturnsTooManyRequestsAtFreeQuotaAndDoesNotCallAi() throws Exception {
+        User student = saveUser("quota-student@example.com", UserRole.STUDENT);
+        fillFreeQuota(student);
+
+        mockMvc.perform(post("/api/grammar-checks")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + loginAndGetAccessToken(student.getEmail()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "inputText": "She are happy"
+                                }
+                                """))
+                .andExpect(status().isTooManyRequests());
+
+        verify(aiGrammarCheckClient, never()).checkGrammar(any(AiGrammarCheckRequest.class));
     }
 
     @Test
@@ -922,6 +944,16 @@ class GrammarCheckApiTests {
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("accessToken").asText();
+    }
+
+    private void fillFreeQuota(User user) {
+        for (int i = 0; i < 5; i++) {
+            AiUsageEvent event = new AiUsageEvent();
+            event.setUser(user);
+            event.setFeature(AiUsageFeature.GRAMMAR_CHECK);
+            event.setUsedAt(Instant.now());
+            aiUsageEventRepository.save(event);
+        }
     }
 
     private record InputOnlyRequest(String inputText) {}

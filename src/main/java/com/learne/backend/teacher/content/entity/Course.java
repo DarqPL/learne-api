@@ -2,6 +2,8 @@ package com.learne.backend.teacher.content.entity;
 
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.teacher.content.enums.ContentStatus;
+import com.learne.backend.teacher.content.enums.CoursePriceStatus;
+import com.learne.backend.teacher.content.enums.CoursePricingType;
 import com.learne.backend.teacher.content.enums.CourseType;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -66,6 +68,20 @@ public class Course {
     @Column(name = "published_at")
     private Instant publishedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "pricing_type", nullable = false)
+    private CoursePricingType pricingType = CoursePricingType.FREE;
+
+    @Column(name = "price_amount_vnd")
+    private Long priceAmountVnd;
+
+    @Column(name = "proposed_price_amount_vnd")
+    private Long proposedPriceAmountVnd;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "price_status", nullable = false)
+    private CoursePriceStatus priceStatus = CoursePriceStatus.NONE;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -110,6 +126,14 @@ public class Course {
     public void setReviewedAt(Instant reviewedAt) { this.reviewedAt = reviewedAt; }
     public Instant getPublishedAt() { return publishedAt; }
     public void setPublishedAt(Instant publishedAt) { this.publishedAt = publishedAt; }
+    public CoursePricingType getPricingType() { return pricingType; }
+    public void setPricingType(CoursePricingType pricingType) { this.pricingType = pricingType; }
+    public Long getPriceAmountVnd() { return priceAmountVnd; }
+    public void setPriceAmountVnd(Long priceAmountVnd) { this.priceAmountVnd = priceAmountVnd; }
+    public Long getProposedPriceAmountVnd() { return proposedPriceAmountVnd; }
+    public void setProposedPriceAmountVnd(Long proposedPriceAmountVnd) { this.proposedPriceAmountVnd = proposedPriceAmountVnd; }
+    public CoursePriceStatus getPriceStatus() { return priceStatus; }
+    public void setPriceStatus(CoursePriceStatus priceStatus) { this.priceStatus = priceStatus; }
     public Instant getUpdatedAt() { return updatedAt; }
     public List<Topic> getTopics() { return topics; }
 }

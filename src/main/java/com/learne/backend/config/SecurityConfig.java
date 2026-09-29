@@ -3,6 +3,8 @@ package com.learne.backend.config;
 import com.learne.backend.auth.session.security.JwtAuthenticationFilter;
 import com.learne.backend.auth.session.security.TrustedOriginFilter;
 import com.learne.backend.auth.session.service.AuthProperties;
+import com.learne.backend.monetization.service.PlanCatalogProperties;
+import com.learne.backend.monetization.service.SepayPaymentProperties;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,7 +24,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
-@EnableConfigurationProperties({AuthProperties.class, CorsProperties.class})
+@EnableConfigurationProperties({AuthProperties.class, CorsProperties.class, PlanCatalogProperties.class, SepayPaymentProperties.class})
 public class SecurityConfig {
 
     @Bean
@@ -44,6 +46,7 @@ public class SecurityConfig {
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.GET, "/health").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/webhooks/sepay").permitAll()
                         .requestMatchers(
                                 "/api/auth/login",
                                 "/api/auth/refresh",
@@ -71,7 +74,8 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(corsProperties.allowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With",
+                "X-SePay-Signature", "X-SePay-Timestamp"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 

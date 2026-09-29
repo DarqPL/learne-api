@@ -3,6 +3,7 @@ package com.learne.backend.student.learning;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -15,6 +16,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.monetization.entity.AiUsageEvent;
+import com.learne.backend.monetization.enums.AiUsageFeature;
+import com.learne.backend.monetization.repository.AiUsageEventRepository;
 import com.learne.backend.student.learning.ai.AiLearningPathClient;
 import com.learne.backend.student.learning.ai.AiLearningPathRequest;
 import com.learne.backend.student.learning.ai.AiLearningPathResponse;
@@ -34,6 +38,7 @@ import com.learne.backend.teacher.content.repository.QuestionOptionRepository;
 import com.learne.backend.teacher.content.repository.QuestionRepository;
 import com.learne.backend.teacher.content.repository.TopicRepository;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,6 +73,7 @@ class StudentLearningPathApiTests {
     @Autowired private UserStatsRepository userStatsRepository;
     @Autowired private LearningPathRepository learningPathRepository;
     @Autowired private LearningPathItemRepository learningPathItemRepository;
+    @Autowired private AiUsageEventRepository aiUsageEventRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private MockMvc mockMvc;
@@ -143,6 +149,20 @@ class StudentLearningPathApiTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"maxItems\":8}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void generateReturnsTooManyRequestsAtFreeQuotaAndDoesNotCallAi() throws Exception {
+        LearningPathScenario scenario = createLearningPathScenario();
+        fillFreeQuota(scenario.student(), AiUsageFeature.LEARNING_PATH);
+
+        mockMvc.perform(post("/api/student/learning-path/generate")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + scenario.studentToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"maxItems\":8}"))
+                .andExpect(status().isTooManyRequests());
+
+        verify(aiLearningPathClient, never()).generateLearningPath(any(AiLearningPathRequest.class));
     }
 
     @Test
@@ -421,6 +441,16 @@ class StudentLearningPathApiTests {
                 .andReturn();
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
         return body.get("accessToken").asText();
+    }
+
+    private void fillFreeQuota(User user, AiUsageFeature feature) {
+        for (int i = 0; i < 5; i++) {
+            AiUsageEvent event = new AiUsageEvent();
+            event.setUser(user);
+            event.setFeature(feature);
+            event.setUsedAt(Instant.now());
+            aiUsageEventRepository.save(event);
+        }
     }
 
     private record LearningPathScenario(User student, String studentToken, long enrollmentId, long secondLessonId) {}

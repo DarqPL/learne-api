@@ -6,6 +6,8 @@ import com.learne.backend.teacher.content.entity.CourseRevision;
 import com.learne.backend.teacher.content.entity.Topic;
 import com.learne.backend.teacher.content.entity.TopicRevision;
 import com.learne.backend.teacher.content.enums.ContentStatus;
+import com.learne.backend.teacher.content.enums.CoursePriceStatus;
+import com.learne.backend.teacher.content.enums.CoursePricingType;
 import com.learne.backend.teacher.content.enums.CourseType;
 import java.time.Instant;
 import java.util.Comparator;
@@ -19,6 +21,10 @@ public record AdminReviewCourseDetailResponse(
         String description,
         CourseType type,
         String level,
+        CoursePricingType pricingType,
+        Long priceAmountVnd,
+        Long proposedPriceAmountVnd,
+        CoursePriceStatus priceStatus,
         int orderIndex,
         ContentStatus status,
         String rejectionReason,
@@ -43,6 +49,10 @@ public record AdminReviewCourseDetailResponse(
                 course.getDescription(),
                 course.getType(),
                 course.getLevel(),
+                course.getPricingType(),
+                course.getPriceAmountVnd(),
+                course.getProposedPriceAmountVnd(),
+                course.getPriceStatus(),
                 course.getOrderIndex(),
                 course.getStatus(),
                 course.getRejectionReason(),
@@ -72,6 +82,10 @@ public record AdminReviewCourseDetailResponse(
                 course.getDescription(),
                 course.getType(),
                 course.getLevel(),
+                course.getPricingType(),
+                course.getPriceAmountVnd(),
+                course.getProposedPriceAmountVnd(),
+                course.getPriceStatus(),
                 course.getOrderIndex(),
                 course.getStatus(),
                 course.getRejectionReason(),
@@ -101,6 +115,10 @@ public record AdminReviewCourseDetailResponse(
                 revision.getDescription(),
                 revision.getType(),
                 revision.getLevel(),
+                revision.getPricingType(),
+                revision.getCourse().getPriceAmountVnd(),
+                revision.getProposedPriceAmountVnd(),
+                revision.getCourse().getPriceStatus(),
                 revision.getOrderIndex(),
                 ContentStatus.valueOf(revision.getStatus().name()),
                 revision.getRejectionReason(),

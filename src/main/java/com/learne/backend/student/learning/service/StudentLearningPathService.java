@@ -1,6 +1,8 @@
 package com.learne.backend.student.learning.service;
 
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.monetization.enums.AiUsageFeature;
+import com.learne.backend.monetization.service.AiUsageGuard;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.student.learning.ai.AiLearningPathClient;
 import com.learne.backend.student.learning.ai.AiLearningPathRequest;
@@ -63,6 +65,7 @@ public class StudentLearningPathService {
     private final LearningPathRepository learningPathRepository;
     private final LearningPathItemRepository learningPathItemRepository;
     private final AiLearningPathClient aiLearningPathClient;
+    private final AiUsageGuard aiUsageGuard;
     private final ObjectMapper objectMapper;
     private final PlatformTransactionManager transactionManager;
 
@@ -73,6 +76,7 @@ public class StudentLearningPathService {
             LearningPathRepository learningPathRepository,
             LearningPathItemRepository learningPathItemRepository,
             AiLearningPathClient aiLearningPathClient,
+            AiUsageGuard aiUsageGuard,
             ObjectMapper objectMapper,
             PlatformTransactionManager transactionManager) {
         this.courseEnrollmentRepository = courseEnrollmentRepository;
@@ -81,6 +85,7 @@ public class StudentLearningPathService {
         this.learningPathRepository = learningPathRepository;
         this.learningPathItemRepository = learningPathItemRepository;
         this.aiLearningPathClient = aiLearningPathClient;
+        this.aiUsageGuard = aiUsageGuard;
         this.objectMapper = objectMapper;
         this.transactionManager = transactionManager;
     }
@@ -90,6 +95,7 @@ public class StudentLearningPathService {
         Long teacherId = request == null ? null : request.teacherId();
         GenerateContext context = readOnlyTransaction(() -> generateContext(student, teacherId, maxItems));
 
+        aiUsageGuard.recordAcceptedUsage(student, AiUsageFeature.LEARNING_PATH);
         AiLearningPathResponse aiResponse = aiLearningPathClient.generateLearningPath(context.aiRequest());
 
         return writeTransaction(() -> saveGeneratedPath(student, context.candidates(), context.activeEnrollmentsByCourseId(), maxItems, aiResponse));

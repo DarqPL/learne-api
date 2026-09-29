@@ -225,6 +225,106 @@ class AdminContentReviewApiTests {
     }
 
     @Test
+    void adminReviewShowsProposedPaidPriceAndApprovesIt() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        long courseId = createSubmittedCourse(teacherToken, "B1", "PAID", 300000L);
+
+        mockMvc.perform(get("/api/admin/content/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pricingType").value("PAID"))
+                .andExpect(jsonPath("$.proposedPriceAmountVnd").value(300000));
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pricingType").value("PAID"))
+                .andExpect(jsonPath("$.priceStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.priceAmountVnd").value(300000));
+    }
+
+    @Test
+    void adminCannotApproveA1PaidCourse() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        long courseId = createSubmittedCourse(teacherToken, "A1", "PAID", 300000L);
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void adminCannotApprovePaidCourseWithoutPositiveProposedPrice() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        long nullPriceCourseId = createSubmittedCourse(teacherToken, "B1", "PAID", 300000L);
+        jdbcTemplate.update("update course_revisions set proposed_price_amount_vnd = null where course_id = ?",
+                nullPriceCourseId);
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(nullPriceCourseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Paid courses require a positive proposed price."));
+
+        long zeroPriceCourseId = createSubmittedCourse(teacherToken, "B1", "PAID", 300000L);
+        jdbcTemplate.update("update course_revisions set proposed_price_amount_vnd = 0 where course_id = ?",
+                zeroPriceCourseId);
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(zeroPriceCourseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Paid courses require a positive proposed price."));
+    }
+
+    @Test
+    void adminApprovingFreeCourseClearsPricingState() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        long courseId = createSubmittedCourse(teacherToken);
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pricingType").value("FREE"))
+                .andExpect(jsonPath("$.priceStatus").value("NONE"))
+                .andExpect(jsonPath("$.priceAmountVnd").doesNotExist())
+                .andExpect(jsonPath("$.proposedPriceAmountVnd").doesNotExist());
+    }
+
+    @Test
+    void adminRejectingUnpublishedPaidCourseMarksPriceRejected() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        long courseId = createSubmittedCourse(teacherToken, "B1", "PAID", 300000L);
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/reject".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "Giá khóa học chưa phù hợp."
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.priceStatus").value("REJECTED"));
+
+        org.junit.jupiter.api.Assertions.assertEquals("REJECTED", jdbcTemplate.queryForObject(
+                "select price_status from courses where id = ?", String.class, courseId));
+    }
+
+    @Test
     void adminCanRejectPendingCourseWithReasonAndCascadeStatus() throws Exception {
         User admin = saveUser("admin@example.com", UserRole.ADMIN);
         User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
@@ -651,6 +751,16 @@ class AdminContentReviewApiTests {
 
     private long createSubmittedCourse(String teacherToken) throws Exception {
         long courseId = createCourse(teacherToken);
+        return submitCourseWithReviewContent(teacherToken, courseId);
+    }
+
+    private long createSubmittedCourse(String teacherToken, String level, String pricingType,
+                                       Long proposedPriceAmountVnd) throws Exception {
+        long courseId = createCourse(teacherToken, level, pricingType, proposedPriceAmountVnd);
+        return submitCourseWithReviewContent(teacherToken, courseId);
+    }
+
+    private long submitCourseWithReviewContent(String teacherToken, long courseId) throws Exception {
         long topicId = createTopic(teacherToken, courseId);
         long lessonId = createLesson(teacherToken, topicId);
         createQuestion(teacherToken, lessonId);
@@ -662,6 +772,12 @@ class AdminContentReviewApiTests {
     }
 
     private long createCourse(String teacherToken) throws Exception {
+        return createCourse(teacherToken, "A1", null, null);
+    }
+
+    private long createCourse(String teacherToken, String level, String pricingType, Long proposedPriceAmountVnd) throws Exception {
+        String pricingJson = pricingType == null ? "" : ",\n  \"pricingType\": \"%s\",\n  \"proposedPriceAmountVnd\": %d"
+                .formatted(pricingType, proposedPriceAmountVnd);
         MvcResult result = mockMvc.perform(post("/api/teacher/content/courses")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -670,10 +786,10 @@ class AdminContentReviewApiTests {
                                   "name": "English A1 Foundation",
                                   "description": "Starter English course",
                                   "type": "COMPREHENSIVE",
-                                  "level": "A1",
-                                  "orderIndex": 1
+                                  "level": "%s",
+                                  "orderIndex": 1%s
                                 }
-                                """))
+                                """.formatted(level, pricingJson)))
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();

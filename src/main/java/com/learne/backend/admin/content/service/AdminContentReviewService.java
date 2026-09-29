@@ -15,6 +15,8 @@ import com.learne.backend.teacher.content.entity.Topic;
 import com.learne.backend.teacher.content.entity.TopicRevision;
 import com.learne.backend.teacher.content.entity.CourseRevision;
 import com.learne.backend.teacher.content.enums.ContentStatus;
+import com.learne.backend.teacher.content.enums.CoursePriceStatus;
+import com.learne.backend.teacher.content.enums.CoursePricingType;
 import com.learne.backend.teacher.content.enums.CourseRevisionStatus;
 import com.learne.backend.teacher.content.repository.CourseRepository;
 import com.learne.backend.teacher.content.repository.CourseRevisionRepository;
@@ -77,6 +79,13 @@ public class AdminContentReviewService {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "Course must have at least one topic, lesson, and question before approval.");
         }
+        if (revision.getPricingType() == CoursePricingType.PAID && "A1".equalsIgnoreCase(revision.getLevel())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "A1 courses must be free.");
+        }
+        if (revision.getPricingType() == CoursePricingType.PAID
+                && (revision.getProposedPriceAmountVnd() == null || revision.getProposedPriceAmountVnd() <= 0)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Paid courses require a positive proposed price.");
+        }
 
         Instant now = Instant.now();
         revision.setStatus(CourseRevisionStatus.APPROVED);
@@ -119,6 +128,9 @@ public class AdminContentReviewService {
         Course course = revision.getCourse();
         if (course.getPublishedAt() == null) {
             course.setStatus(ContentStatus.REJECTED);
+            if (revision.getPricingType() == CoursePricingType.PAID) {
+                course.setPriceStatus(CoursePriceStatus.REJECTED);
+            }
             course.setReviewedBy(admin);
             course.setReviewedAt(now);
             course.setPublishedAt(null);
@@ -150,6 +162,16 @@ public class AdminContentReviewService {
         course.setDescription(revision.getDescription());
         course.setType(revision.getType());
         course.setLevel(revision.getLevel());
+        course.setPricingType(revision.getPricingType());
+        if (revision.getPricingType() == CoursePricingType.PAID) {
+            course.setPriceAmountVnd(revision.getProposedPriceAmountVnd());
+            course.setProposedPriceAmountVnd(revision.getProposedPriceAmountVnd());
+            course.setPriceStatus(CoursePriceStatus.APPROVED);
+        } else {
+            course.setPriceAmountVnd(null);
+            course.setProposedPriceAmountVnd(null);
+            course.setPriceStatus(CoursePriceStatus.NONE);
+        }
         course.setOrderIndex(revision.getOrderIndex());
         course.setStatus(ContentStatus.APPROVED);
         course.setReviewedBy(admin);

@@ -3,6 +3,7 @@ package com.learne.backend.ai.tutor;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -28,6 +29,9 @@ import com.learne.backend.ai.tutor.repository.AiMessageRepository;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.monetization.entity.AiUsageEvent;
+import com.learne.backend.monetization.enums.AiUsageFeature;
+import com.learne.backend.monetization.repository.AiUsageEventRepository;
 import com.learne.backend.testsupport.TestDatabaseCleaner;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
@@ -56,6 +60,7 @@ class AiTutorApiTests {
     @Autowired private AiConversationRepository conversationRepository;
     @Autowired private AiMessageRepository messageRepository;
     @Autowired private AiFeedbackRepository feedbackRepository;
+    @Autowired private AiUsageEventRepository aiUsageEventRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private MockMvc mockMvc;
@@ -276,6 +281,21 @@ class AiTutorApiTests {
     }
 
     @Test
+    void sendMessageReturnsTooManyRequestsAtFreeQuotaAndDoesNotCallAi() throws Exception {
+        User student = saveUser("quota-student@example.com", UserRole.STUDENT);
+        AiConversation conversation = saveConversation(student, "Quota chat", AiTutorPracticeType.FREE_CHAT, AiConversationStatus.ACTIVE);
+        fillFreeQuota(student);
+
+        mockMvc.perform(post("/api/ai-tutor/conversations/{id}/messages", conversation.getId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + loginAndGetAccessToken(student.getEmail()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(messageJson("Hello AI")))
+                .andExpect(status().isTooManyRequests());
+
+        verify(aiTutorClient, never()).generateReply(any(AiTutorRequest.class));
+    }
+
+    @Test
     void archivedConversationIsHiddenFromStudentApis() throws Exception {
         User student = saveUser("student@example.com", UserRole.STUDENT);
         AiConversation conversation = saveConversation(student, "Archived chat", AiTutorPracticeType.FREE_CHAT, AiConversationStatus.ARCHIVED);
@@ -402,6 +422,16 @@ class AiTutorApiTests {
         feedback.setExplanation(explanation);
         message.setFeedback(feedback);
         return feedbackRepository.saveAndFlush(feedback);
+    }
+
+    private void fillFreeQuota(User user) {
+        for (int i = 0; i < 5; i++) {
+            AiUsageEvent event = new AiUsageEvent();
+            event.setUser(user);
+            event.setFeature(AiUsageFeature.AI_TUTOR);
+            event.setUsedAt(Instant.now());
+            aiUsageEventRepository.save(event);
+        }
     }
 
     private String loginAndGetAccessToken(String email) throws Exception {
