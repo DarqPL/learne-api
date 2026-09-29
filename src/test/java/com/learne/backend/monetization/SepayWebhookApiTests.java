@@ -149,7 +149,7 @@ class SepayWebhookApiTests {
                 .andExpect(jsonPath("$.success").value(true));
 
         assertThat(orderStatus(pending.orderId())).isEqualTo("PENDING_PAYMENT");
-        assertThat(eventStatus(9006L)).isEqualTo("IGNORED");
+        assertThat(eventStatus(9006L)).isEqualTo("UNMATCHED");
     }
 
     @Test

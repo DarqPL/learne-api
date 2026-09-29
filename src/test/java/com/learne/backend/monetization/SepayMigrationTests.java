@@ -82,13 +82,12 @@ class SepayMigrationTests {
                     """))
                     .isInstanceOf(Exception.class);
 
-            assertThatThrownBy(() -> connection.createStatement().executeUpdate("""
+            connection.createStatement().executeUpdate("""
                     insert into sepay_webhook_events (
                         sepay_transaction_id, transfer_type, transfer_amount_vnd,
                         status, raw_payload, received_at
                     ) values (1002, 'in', 100000, 'UNMATCHED', '{}', current_timestamp)
-                    """))
-                    .isInstanceOf(Exception.class);
+                    """);
         }
     }
 

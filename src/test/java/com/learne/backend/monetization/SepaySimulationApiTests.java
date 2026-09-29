@@ -1,7 +1,6 @@
 package com.learne.backend.monetization;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -11,11 +10,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
-import com.learne.backend.monetization.entity.Order;
-import com.learne.backend.monetization.enums.OrderStatus;
-import com.learne.backend.monetization.enums.OrderType;
-import com.learne.backend.monetization.enums.PaymentProvider;
-import com.learne.backend.monetization.repository.OrderRepository;
 import com.learne.backend.testsupport.TestDatabaseCleaner;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,7 +39,6 @@ import org.springframework.test.web.servlet.MvcResult;
 })
 class SepaySimulationApiTests {
     @Autowired private UserRepository userRepository;
-    @Autowired private OrderRepository orderRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private MockMvc mockMvc;
@@ -58,24 +51,21 @@ class SepaySimulationApiTests {
     }
 
     @Test
-    void adminCanSimulateSepayPaymentWhenEnabled() throws Exception {
+    void adminCanSimulateSepayPaymentByReferenceAndAmountWhenEnabled() throws Exception {
         User admin = saveUser("simulate-admin@example.com", UserRole.ADMIN);
         PendingCourseOrder pending = createPendingSepayCourseOrder("simulate-enabled");
         String adminToken = loginAndGetAccessToken(admin.getEmail());
 
-        mockMvc.perform(post("/api/admin/orders/%d/simulate-sepay-payment".formatted(pending.orderId()))
+        mockMvc.perform(post("/api/admin/payments/sepay/simulate")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                        .content(simulationRequest(pending.paymentReference(), pending.amountVnd(), 900001L)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(pending.orderId()))
-                .andExpect(jsonPath("$.status").value("PAID"))
-                .andExpect(jsonPath("$.paymentProvider").value("SEPAY"))
-                .andExpect(jsonPath("$.paymentReference").value(pending.paymentReference()))
-                .andExpect(jsonPath("$.paymentInstructions").value(nullValue()));
+                .andExpect(jsonPath("$.success").value(true));
 
         assertThat(orderStatus(pending.orderId())).isEqualTo("PAID");
         assertThat(activeEntitlementCount(pending.studentId(), pending.courseId())).isEqualTo(1);
+        assertThat(sepayEventStatus(900001L)).isEqualTo("PROCESSED");
     }
 
     @Test
@@ -83,10 +73,10 @@ class SepaySimulationApiTests {
         PendingCourseOrder pending = createPendingSepayCourseOrder("simulate-student");
         String studentToken = loginAndGetAccessToken("student-simulate-student@example.com");
 
-        mockMvc.perform(post("/api/admin/orders/%d/simulate-sepay-payment".formatted(pending.orderId()))
+        mockMvc.perform(post("/api/admin/payments/sepay/simulate")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                        .content(simulationRequest(pending.paymentReference(), pending.amountVnd(), 900002L)))
                 .andExpect(status().isForbidden());
 
         assertThat(orderStatus(pending.orderId())).isEqualTo("PENDING_PAYMENT");
@@ -99,27 +89,29 @@ class SepaySimulationApiTests {
         PendingCourseOrder pending = createPendingSepayCourseOrder("simulate-idempotent");
         String adminToken = loginAndGetAccessToken(admin.getEmail());
 
-        simulatePayment(adminToken, pending.orderId());
-        simulatePayment(adminToken, pending.orderId());
+        simulatePayment(adminToken, pending.paymentReference(), pending.amountVnd(), 900003L);
+        simulatePayment(adminToken, pending.paymentReference(), pending.amountVnd(), 900003L);
 
         assertThat(orderStatus(pending.orderId())).isEqualTo("PAID");
         assertThat(activeEntitlementCount(pending.studentId(), pending.courseId())).isEqualTo(1);
+        assertThat(sepayEventCount(900003L)).isEqualTo(1);
     }
 
     @Test
-    void internalPendingOrderCannotBeSimulatedAsSepayPayment() throws Exception {
+    void simulationWithWrongAmountCreatesFailedEventAndDoesNotSettleOrder() throws Exception {
         User admin = saveUser("simulate-internal-admin@example.com", UserRole.ADMIN);
-        long orderId = createInternalPendingOrder("simulate-internal");
+        PendingCourseOrder pending = createPendingSepayCourseOrder("simulate-wrong-amount");
         String adminToken = loginAndGetAccessToken(admin.getEmail());
 
-        mockMvc.perform(post("/api/admin/orders/%d/simulate-sepay-payment".formatted(orderId))
+        mockMvc.perform(post("/api/admin/payments/sepay/simulate")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                        .content(simulationRequest(pending.paymentReference(), pending.amountVnd() - 1L, 900004L)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Only SEPAY orders can be simulated."));
+                .andExpect(jsonPath("$.message").value("Insufficient amount or amount mismatch."));
 
-        assertThat(orderStatus(orderId)).isEqualTo("PENDING_PAYMENT");
+        assertThat(orderStatus(pending.orderId())).isEqualTo("PENDING_PAYMENT");
+        assertThat(sepayEventStatus(900004L)).isEqualTo("FAILED");
     }
 
     @Test
@@ -129,10 +121,10 @@ class SepaySimulationApiTests {
         jdbcTemplate.update("update orders set status = 'EXPIRED' where id = ?", pending.orderId());
         String adminToken = loginAndGetAccessToken(admin.getEmail());
 
-        mockMvc.perform(post("/api/admin/orders/%d/simulate-sepay-payment".formatted(pending.orderId()))
+        mockMvc.perform(post("/api/admin/payments/sepay/simulate")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                        .content(simulationRequest(pending.paymentReference(), pending.amountVnd(), 900005L)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Order is not pending payment."));
 
@@ -159,10 +151,10 @@ class SepaySimulationApiTests {
             PendingCourseOrder pending = createPendingSepayCourseOrder("simulate-disabled");
             String adminToken = loginAndGetAccessToken(admin.getEmail());
 
-            mockMvc.perform(post("/api/admin/orders/%d/simulate-sepay-payment".formatted(pending.orderId()))
+            mockMvc.perform(post("/api/admin/payments/sepay/simulate")
                             .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{}"))
+                            .content(simulationRequest(pending.paymentReference(), pending.amountVnd(), 900006L)))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.message").value("Payment simulation is disabled."));
 
@@ -171,13 +163,23 @@ class SepaySimulationApiTests {
         }
     }
 
-    private void simulatePayment(String adminToken, long orderId) throws Exception {
-        mockMvc.perform(post("/api/admin/orders/%d/simulate-sepay-payment".formatted(orderId))
+    private void simulatePayment(String adminToken, String paymentReference, long amountVnd, long sepayTransactionId) throws Exception {
+        mockMvc.perform(post("/api/admin/payments/sepay/simulate")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                        .content(simulationRequest(paymentReference, amountVnd, sepayTransactionId)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PAID"));
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    private String simulationRequest(String paymentReference, long amountVnd, long sepayTransactionId) {
+        return """
+                {
+                  "paymentReference": "%s",
+                  "transferAmountVnd": %d,
+                  "sepayTransactionId": %d
+                }
+                """.formatted(paymentReference, amountVnd, sepayTransactionId);
     }
 
     private PendingCourseOrder createPendingSepayCourseOrder(String suffix) throws Exception {
@@ -196,21 +198,12 @@ class SepaySimulationApiTests {
                 .andExpect(jsonPath("$.paymentReference").isNotEmpty())
                 .andReturn();
         JsonNode body = objectMapper.readTree(checkout.getResponse().getContentAsString());
-        return new PendingCourseOrder(body.get("id").asLong(), body.get("paymentReference").asText(), student.getId(), courseId);
-    }
-
-    private long createInternalPendingOrder(String suffix) {
-        User student = saveUser("internal-student-" + suffix + "@example.com", UserRole.STUDENT);
-        Order order = new Order();
-        order.setUser(student);
-        order.setOrderType(OrderType.COURSE_PURCHASE);
-        order.setStatus(OrderStatus.PENDING_PAYMENT);
-        order.setOriginalAmountVnd(250000L);
-        order.setDiscountAmountVnd(0L);
-        order.setFinalAmountVnd(250000L);
-        order.setPaymentProvider(PaymentProvider.INTERNAL);
-        order.setExpiresAt(Instant.now().plusSeconds(86400));
-        return orderRepository.saveAndFlush(order).getId();
+        return new PendingCourseOrder(
+                body.get("id").asLong(),
+                body.get("paymentReference").asText(),
+                body.get("finalAmountVnd").asLong(),
+                student.getId(),
+                courseId);
     }
 
     private long createApprovedPaidCourse(String teacherToken, String adminToken, String name, String level,
@@ -337,6 +330,20 @@ class SepaySimulationApiTests {
         return jdbcTemplate.queryForObject("select status from orders where id = ?", String.class, orderId);
     }
 
+    private String sepayEventStatus(long sepayTransactionId) {
+        return jdbcTemplate.queryForObject(
+                "select status from sepay_webhook_events where sepay_transaction_id = ?",
+                String.class,
+                sepayTransactionId);
+    }
+
+    private int sepayEventCount(long sepayTransactionId) {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from sepay_webhook_events where sepay_transaction_id = ?",
+                Integer.class,
+                sepayTransactionId);
+    }
+
     private int activeEntitlementCount(Long userId, long courseId) {
         return jdbcTemplate.queryForObject("""
                 select count(*)
@@ -349,5 +356,5 @@ class SepaySimulationApiTests {
                 """, Integer.class, userId, courseId, Instant.now(), Instant.now());
     }
 
-    private record PendingCourseOrder(long orderId, String paymentReference, Long studentId, long courseId) {}
+    private record PendingCourseOrder(long orderId, String paymentReference, long amountVnd, Long studentId, long courseId) {}
 }

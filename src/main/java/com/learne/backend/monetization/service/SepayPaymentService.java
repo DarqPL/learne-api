@@ -1,6 +1,7 @@
 package com.learne.backend.monetization.service;
 
 import com.learne.backend.monetization.dto.SepayWebhookPayload;
+import com.learne.backend.monetization.dto.SimulateSepayPaymentRequest;
 import com.learne.backend.monetization.entity.Order;
 import com.learne.backend.monetization.entity.SepayWebhookEvent;
 import com.learne.backend.monetization.enums.OrderStatus;
@@ -142,6 +143,38 @@ public class SepayPaymentService {
         processTrustedEvent(event, payload);
     }
 
+    @Transactional(noRollbackFor = ApiException.class)
+    public void simulatePayment(SimulateSepayPaymentRequest request) {
+        if (!properties.mockEnabled()) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Payment simulation is disabled.");
+        }
+        if (request == null || isBlank(request.paymentReference()) || request.transferAmountVnd() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid SEPAY simulation request.");
+        }
+        Long transactionId = request.sepayTransactionId() == null ? generateSimulatedTransactionId() : request.sepayTransactionId();
+        SepayWebhookPayload payload = new SepayWebhookPayload(
+                transactionId,
+                request.paymentReference().trim(),
+                request.paymentReference().trim(),
+                "in",
+                request.transferAmountVnd(),
+                request.paymentReference().trim(),
+                SEPAY_TRANSACTION_DATE.format(LocalDateTime.now(VIETNAM_ZONE)),
+                "SIMULATED_SEPAY",
+                properties.accountNumber(),
+                null,
+                "Simulated SEPAY payment",
+                null);
+        if (eventRepository.findBySepayTransactionId(payload.id()).isPresent()) {
+            return;
+        }
+        SepayWebhookEvent event = eventRepository.saveAndFlush(newEvent(payload, simulatedRawPayload(payload)));
+        processTrustedEvent(event, payload);
+        if (event.getStatus() != SepayWebhookEventStatus.PROCESSED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, event.getFailureReason());
+        }
+    }
+
     private void verifyWebhook(String rawBody, HttpHeaders headers) {
         if (properties.webhookAuthMode() == SepayPaymentProperties.WebhookAuthMode.NONE) {
             return;
@@ -225,7 +258,10 @@ public class SepayPaymentService {
                 finishEvent(event, SepayWebhookEventStatus.PROCESSED, null, Instant.now());
                 return;
             }
-            finishEvent(event, SepayWebhookEventStatus.IGNORED, result.ignoredReason(), Instant.now());
+            SepayWebhookEventStatus status = result.order() == null
+                    ? SepayWebhookEventStatus.UNMATCHED
+                    : SepayWebhookEventStatus.IGNORED;
+            finishEvent(event, status, result.ignoredReason(), Instant.now());
         } catch (ApiException exception) {
             finishEvent(event, SepayWebhookEventStatus.FAILED, exception.getMessage(), Instant.now());
         }
@@ -304,6 +340,23 @@ public class SepayPaymentService {
         Throwable cause = exception.getMostSpecificCause();
         String message = cause == null ? exception.getMessage() : cause.getMessage();
         return message != null && message.contains("sepay_webhook_events_transaction_unique");
+    }
+
+    private Long generateSimulatedTransactionId() {
+        return secureRandom.nextLong(1, Long.MAX_VALUE);
+    }
+
+    private String simulatedRawPayload(SepayWebhookPayload payload) {
+        return """
+                {"id":%d,"code":"%s","content":"%s","transferType":"in","transferAmount":%d,"referenceCode":"%s","transactionDate":"%s","gateway":"SIMULATED_SEPAY","accountNumber":"%s","description":"Simulated SEPAY payment"}
+                """.formatted(
+                payload.id(),
+                payload.code(),
+                payload.content(),
+                payload.transferAmount(),
+                payload.referenceCode(),
+                payload.transactionDate(),
+                properties.accountNumber());
     }
 
     private String encode(String value) {
