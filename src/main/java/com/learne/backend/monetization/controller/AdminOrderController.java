@@ -20,4 +20,9 @@ class AdminOrderController {
     OrderResponse markPaid(@PathVariable Long orderId) {
         return adminOrderService.markPaid(orderId);
     }
+
+    @PostMapping("/{orderId}/simulate-sepay-payment")
+    OrderResponse simulateSepayPayment(@PathVariable Long orderId) {
+        return adminOrderService.simulateSepayPayment(orderId);
+    }
 }
