@@ -5,11 +5,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 class CacheConfigTests {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+            .withUserConfiguration(TestCachePropertiesConfiguration.class);
+
+    private final ApplicationContextRunner cacheContextRunner = new ApplicationContextRunner()
             .withUserConfiguration(TestCacheConfiguration.class);
 
     @Test
@@ -29,6 +34,17 @@ class CacheConfigTests {
     }
 
     @Test
+    void providesFallbackCacheManagerWhenRedisDisabled() {
+        cacheContextRunner
+                .withPropertyValues("app.cache.redis.enabled=false")
+                .run(context -> {
+                    CacheManager cacheManager = context.getBean(CacheManager.class);
+
+                    assertThat(cacheManager.getCache(CacheNames.STUDENT_DASHBOARD)).isNotNull();
+                });
+    }
+
+    @Test
     void redisPartialBindingKeepsDefaultsForMissingValues() {
         contextRunner
                 .withPropertyValues("app.cache.redis.key-prefix=custom-prefix")
@@ -43,6 +59,11 @@ class CacheConfigTests {
 
     @Configuration(proxyBeanMethods = false)
     @EnableConfigurationProperties(CacheProperties.class)
+    static class TestCachePropertiesConfiguration {
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @Import(CacheConfig.class)
     static class TestCacheConfiguration {
     }
 }
