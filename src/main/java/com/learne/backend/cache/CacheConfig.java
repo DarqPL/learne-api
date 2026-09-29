@@ -58,6 +58,7 @@ public class CacheConfig {
     @ConditionalOnProperty(prefix = "app.cache.redis", name = "enabled", havingValue = "false")
     CacheManager fallbackCacheManager() {
         ConcurrentMapCacheManager cacheManager = new ConcurrentMapCacheManager();
+        cacheManager.setAllowNullValues(false);
         cacheManager.setCacheNames(List.of(
                 CacheNames.STUDENT_CATALOG,
                 CacheNames.STUDENT_COURSE_DETAIL,
@@ -86,11 +87,13 @@ public class CacheConfig {
             @Override
             public void handleCacheEvictError(RuntimeException exception, Cache cache, Object key) {
                 log.error("Cache evict failed cache={} keyHash={}", cache.getName(), CacheKeySupport.logKeyHash(key), exception);
+                throw exception;
             }
 
             @Override
             public void handleCacheClearError(RuntimeException exception, Cache cache) {
                 log.error("Cache clear failed cache={}", cache.getName(), exception);
+                throw exception;
             }
         };
     }

@@ -1,11 +1,17 @@
 package com.learne.backend.cache;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.cache.concurrent.ConcurrentMapCache;
+import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
+import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
@@ -41,6 +47,28 @@ class CacheConfigTests {
                     CacheManager cacheManager = context.getBean(CacheManager.class);
 
                     assertThat(cacheManager.getCache(CacheNames.STUDENT_DASHBOARD)).isNotNull();
+                    assertThat(cacheManager).isInstanceOf(ConcurrentMapCacheManager.class);
+                    assertThat(((ConcurrentMapCacheManager) cacheManager).isAllowNullValues()).isFalse();
+                });
+    }
+
+    @Test
+    void cacheErrorHandlerSwallowsReadErrorsAndRethrowsMutationErrors() {
+        cacheContextRunner
+                .withPropertyValues("app.cache.redis.enabled=false")
+                .run(context -> {
+                    CacheErrorHandler errorHandler = context.getBean(CacheErrorHandler.class);
+                    Cache cache = new ConcurrentMapCache(CacheNames.STUDENT_DASHBOARD, false);
+                    RuntimeException exception = new IllegalStateException("redis unavailable");
+
+                    assertThatCode(() -> errorHandler.handleCacheGetError(exception, cache, "key"))
+                            .doesNotThrowAnyException();
+                    assertThatCode(() -> errorHandler.handleCachePutError(exception, cache, "key", "value"))
+                            .doesNotThrowAnyException();
+                    assertThatThrownBy(() -> errorHandler.handleCacheEvictError(exception, cache, "key"))
+                            .isSameAs(exception);
+                    assertThatThrownBy(() -> errorHandler.handleCacheClearError(exception, cache))
+                            .isSameAs(exception);
                 });
     }
 
