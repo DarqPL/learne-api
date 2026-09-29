@@ -58,9 +58,9 @@ public class CacheInvalidationService {
 
     public void evictGlobalCourseCatalog() {
         afterCommit(() -> {
-            long nextVersion = catalogCacheVersionService.bumpVersion();
             clear(CacheNames.STUDENT_CATALOG);
             clear(CacheNames.STUDENT_COURSE_DETAIL);
+            long nextVersion = catalogCacheVersionService.bumpVersion();
             log.info("Bumped course catalog cache version to {}", nextVersion);
         });
     }
@@ -68,14 +68,14 @@ public class CacheInvalidationService {
     private void evict(String cacheName, Object key) {
         Cache cache = cacheManager.getCache(cacheName);
         if (cache != null) {
-            cache.evict(key);
+            cache.evictIfPresent(key);
         }
     }
 
     private void clear(String cacheName) {
         Cache cache = cacheManager.getCache(cacheName);
         if (cache != null) {
-            cache.clear();
+            cache.invalidate();
         }
     }
 
