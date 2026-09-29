@@ -47,10 +47,11 @@ public class CacheConfig {
         configurations.put(CacheNames.TEACHER_PUBLIC, defaults.entryTtl(properties.ttl().teacherPublic()));
         configurations.put(CacheNames.COURSE_ACCESS, defaults.entryTtl(properties.ttl().courseAccess()));
 
+        // CacheInvalidationService handles after-commit eviction explicitly; keep the manager non-transaction-aware
+        // to avoid deferring invalidations twice.
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaults.entryTtl(Duration.ofMinutes(5)))
                 .withInitialCacheConfigurations(configurations)
-                .transactionAware()
                 .build();
     }
 
