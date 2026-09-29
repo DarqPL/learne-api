@@ -154,22 +154,27 @@ public class CheckoutService {
         couponPricingService.priceWithoutLock(student, product, couponCode);
         String dedupeKey = planSubscriptionDedupeKey(student.getId(), planCode);
         List<Order> duplicateOrders = orderRepository.findByDedupeKeyForUpdate(dedupeKey);
-        boolean hasBlockingDuplicate = false;
+        Order pendingDuplicate = null;
         for (Order duplicateOrder : duplicateOrders) {
             if (duplicateOrder.getStatus() == OrderStatus.PENDING_PAYMENT && !duplicateOrder.getExpiresAt().isAfter(now)) {
                 duplicateOrder.setStatus(OrderStatus.EXPIRED);
                 duplicateOrder.setDedupeKey(null);
             } else if (duplicateOrder.getStatus() == OrderStatus.PAID) {
                 duplicateOrder.setDedupeKey(null);
+            } else if (duplicateOrder.getStatus() == OrderStatus.PENDING_PAYMENT) {
+                pendingDuplicate = duplicateOrder;
             } else {
-                hasBlockingDuplicate = true;
+                pendingDuplicate = duplicateOrder;
             }
         }
         if (!duplicateOrders.isEmpty()) {
             orderRepository.saveAllAndFlush(duplicateOrders);
         }
-        if (hasBlockingDuplicate) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Pending order already exists.");
+        if (pendingDuplicate != null) {
+            if (couponCode != null && !couponCode.isBlank()) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Pending order already exists.");
+            }
+            return OrderResponse.from(pendingDuplicate, sepayPaymentService.instructionFor(pendingDuplicate));
         }
         CouponPricingResult pricing = couponPricingService.price(student, product, couponCode);
 
