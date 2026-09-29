@@ -11,11 +11,13 @@ public record CacheProperties(Redis redis, Ttl ttl) {
         ttl = ttl == null ? new Ttl(null, null, null, null, null, null, null, null) : ttl;
     }
 
-    public record Redis(boolean enabled, String keyPrefix, int ttlJitterPercent) {
+    public record Redis(Boolean enabled, String keyPrefix, Integer ttlJitterPercent) {
         public Redis {
+            enabled = enabled == null ? true : enabled;
             if (keyPrefix == null || keyPrefix.isBlank()) {
                 keyPrefix = "learne";
             }
+            ttlJitterPercent = ttlJitterPercent == null ? 10 : ttlJitterPercent;
             ttlJitterPercent = Math.max(0, Math.min(ttlJitterPercent, 50));
         }
     }
