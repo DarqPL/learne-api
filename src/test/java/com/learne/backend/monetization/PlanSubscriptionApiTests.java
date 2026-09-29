@@ -189,20 +189,24 @@ class PlanSubscriptionApiTests {
     }
 
     @Test
-    void duplicatePlanCheckoutWhilePendingReturnsBadRequest() throws Exception {
+    void duplicatePlanCheckoutWhilePendingReturnsExistingOrder() throws Exception {
         User student = saveUser("student@example.com", UserRole.STUDENT);
         String studentToken = loginAndGetAccessToken(student.getEmail());
+
+        MvcResult firstCheckoutResult = mockMvc.perform(post("/api/student/checkout/plans/PRO")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
+                .andExpect(jsonPath("$.items[0].planCode").value("PRO"))
+                .andReturn();
+        long firstOrderId = objectMapper.readTree(firstCheckoutResult.getResponse().getContentAsString()).get("id").asLong();
 
         mockMvc.perform(post("/api/student/checkout/plans/PRO")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(firstOrderId))
                 .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
                 .andExpect(jsonPath("$.items[0].planCode").value("PRO"));
-
-        mockMvc.perform(post("/api/student/checkout/plans/PRO")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Pending order already exists."));
     }
 
     @Test
