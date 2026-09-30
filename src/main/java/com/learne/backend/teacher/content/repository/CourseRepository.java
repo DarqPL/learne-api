@@ -1,6 +1,7 @@
 package com.learne.backend.teacher.content.repository;
 
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.student.learning.repository.CourseCatalogRow;
 import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.entity.Course;
 import java.util.List;
@@ -56,6 +57,39 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     List<Course> findStudentCatalog(@Param("status") ContentStatus status,
                                      @Param("level") String level,
                                      @Param("teacherId") Long teacherId);
+
+    @Query("""
+            select course.id as id,
+                   course.name as name,
+                   course.description as description,
+                   course.type as type,
+                   course.level as level,
+                   teacher.id as teacherId,
+                   teacher.fullName as teacherFullName,
+                   teacher.email as teacherEmail,
+                   teacher.avatarUrl as teacherAvatarUrl,
+                   count(distinct case when lesson.status = com.learne.backend.teacher.content.enums.ContentStatus.APPROVED then topic.id end) as approvedTopicCount,
+                   count(distinct case when lesson.status = com.learne.backend.teacher.content.enums.ContentStatus.APPROVED then lesson.id end) as approvedLessonCount,
+                   count(distinct case when question.status = com.learne.backend.teacher.content.enums.ContentStatus.APPROVED then question.id end) as approvedQuestionCount,
+                   course.publishedAt as publishedAt,
+                   course.pricingType as pricingType,
+                   course.priceAmountVnd as priceAmountVnd
+            from Course course
+            join course.teacher teacher
+            left join course.topics topic
+            left join topic.lessons lesson
+            left join lesson.questions question
+            where course.status = :status
+              and (:level is null or course.level = :level)
+              and (:teacherId is null or teacher.id = :teacherId)
+            group by course.id, course.name, course.description, course.type, course.level,
+                     teacher.id, teacher.fullName, teacher.email, teacher.avatarUrl,
+                     course.publishedAt, course.pricingType, course.priceAmountVnd
+            order by course.publishedAt desc, course.id desc
+            """)
+    List<CourseCatalogRow> findStudentCatalogRows(@Param("status") ContentStatus status,
+                                                  @Param("level") String level,
+                                                  @Param("teacherId") Long teacherId);
 
     @Query("""
             select distinct c from Course c

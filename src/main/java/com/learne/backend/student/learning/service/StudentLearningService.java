@@ -30,6 +30,7 @@ import com.learne.backend.student.learning.enums.CourseAccessStatus;
 import com.learne.backend.student.learning.enums.LessonProgressStatus;
 import com.learne.backend.student.learning.enums.QuizAttemptStatus;
 import com.learne.backend.student.learning.repository.CourseEnrollmentRepository;
+import com.learne.backend.student.learning.repository.CourseCatalogRow;
 import com.learne.backend.student.learning.repository.LearningActivityRepository;
 import com.learne.backend.student.learning.repository.LessonProgressRepository;
 import com.learne.backend.student.learning.repository.QuestionAnswerRepository;
@@ -69,6 +70,7 @@ public class StudentLearningService {
     private final StudentStatsService studentStatsService;
     private final LeaderboardReadCacheService leaderboardReadCacheService;
     private final CourseAccessService courseAccessService;
+    private final CourseAccessContextService courseAccessContextService;
     private final CacheInvalidationService cacheInvalidationService;
     private final EntityManager entityManager;
     private final TransactionTemplate createEnrollmentTransactionTemplate;
@@ -81,11 +83,12 @@ public class StudentLearningService {
                                        QuestionAnswerRepository questionAnswerRepository,
                                        LearningActivityRepository learningActivityRepository,
                                        StudentQuizGradingService studentQuizGradingService,
-                                        StudentStatsService studentStatsService,
-                                        LeaderboardReadCacheService leaderboardReadCacheService,
-                                        CourseAccessService courseAccessService,
-                                        CacheInvalidationService cacheInvalidationService,
-                                        EntityManager entityManager,
+                                         StudentStatsService studentStatsService,
+                                         LeaderboardReadCacheService leaderboardReadCacheService,
+                                         CourseAccessService courseAccessService,
+                                         CourseAccessContextService courseAccessContextService,
+                                         CacheInvalidationService cacheInvalidationService,
+                                         EntityManager entityManager,
                                         PlatformTransactionManager transactionManager) {
         this.courseRepository = courseRepository;
         this.courseEnrollmentRepository = courseEnrollmentRepository;
@@ -98,6 +101,7 @@ public class StudentLearningService {
         this.studentStatsService = studentStatsService;
         this.leaderboardReadCacheService = leaderboardReadCacheService;
         this.courseAccessService = courseAccessService;
+        this.courseAccessContextService = courseAccessContextService;
         this.cacheInvalidationService = cacheInvalidationService;
         this.entityManager = entityManager;
         this.createEnrollmentTransactionTemplate = new TransactionTemplate(transactionManager);
@@ -106,8 +110,36 @@ public class StudentLearningService {
 
     @Transactional(readOnly = true)
     public List<StudentCourseSummaryResponse> listCourses(User student, String level, Long teacherId) {
-        return courseRepository.findStudentCatalog(ContentStatus.APPROVED, normalize(level), teacherId).stream()
-                .map(course -> toCourseSummary(student, course))
+        List<CourseCatalogRow> rows = courseRepository.findStudentCatalogRows(ContentStatus.APPROVED, normalize(level), teacherId);
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        List<Long> courseIds = rows.stream().map(CourseCatalogRow::getId).toList();
+        CourseAccessContext accessContext = courseAccessContextService.build(student, courseIds);
+        return rows.stream()
+                .map(row -> {
+                    CourseAccessStatus accessStatus = accessContext.accessStatus(
+                            student, row.getId(), row.getLevel(), row.getPricingType(), row.getTeacherId());
+                    return new StudentCourseSummaryResponse(
+                            row.getId(),
+                            row.getName(),
+                            row.getDescription(),
+                            row.getType(),
+                            row.getLevel(),
+                            row.getTeacherId(),
+                            row.getTeacherFullName(),
+                            row.getTeacherEmail(),
+                            row.getTeacherAvatarUrl(),
+                            row.getApprovedTopicCount(),
+                            row.getApprovedLessonCount(),
+                            row.getApprovedQuestionCount(),
+                            row.getPublishedAt(),
+                            row.getPricingType(),
+                            row.getPriceAmountVnd(),
+                            accessStatus,
+                            accessReason(accessStatus),
+                            accessContext.enrolledCourseIds().contains(row.getId()));
+                })
                 .toList();
     }
 

@@ -21,6 +21,12 @@ public interface CourseEnrollmentRepository extends JpaRepository<CourseEnrollme
     long countByUserAndStatusIn(User user, Collection<EnrollmentStatus> statuses);
 
     @Query("""
+            select enrollment.course.id from CourseEnrollment enrollment
+            where enrollment.user = :user and enrollment.course.id in :courseIds
+            """)
+    List<Long> findEnrolledCourseIds(@Param("user") User user, @Param("courseIds") Collection<Long> courseIds);
+
+    @Query("""
             select enrollment from CourseEnrollment enrollment
             join fetch enrollment.course
             where enrollment.id = :id and enrollment.user = :user

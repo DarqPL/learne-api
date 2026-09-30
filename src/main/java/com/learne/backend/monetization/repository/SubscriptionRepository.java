@@ -33,6 +33,15 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
                              @Param("planCode") PlanCode planCode,
                              @Param("now") Instant now);
 
+    @Query("""
+            select subscription from Subscription subscription
+            where subscription.user = :user
+              and subscription.status = com.learne.backend.monetization.enums.SubscriptionStatus.ACTIVE
+              and subscription.startsAt <= :now
+              and subscription.endsAt > :now
+            """)
+    List<Subscription> findActiveByUser(@Param("user") User user, @Param("now") Instant now);
+
     default Optional<Subscription> findFirstByUserAndStatusAndEndsAtAfterOrderByEndsAtDesc(
             User user, SubscriptionStatus status, Instant now) {
         return findActiveByUserAndStatusOrderByEndsAtDesc(user, status, now, PageRequest.of(0, 1))
