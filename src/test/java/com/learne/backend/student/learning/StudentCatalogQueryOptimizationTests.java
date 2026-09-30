@@ -71,6 +71,30 @@ class StudentCatalogQueryOptimizationTests {
                 .andExpect(jsonPath("$[?(@.name == 'Locked Paid')].accessStatus").value(hasItem("LOCKED")));
     }
 
+    @Test
+    void catalogCountsQuestionsOnlyFromApprovedLessons() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createCourse(teacherToken, "Mixed Approval Course", "A1", null, null);
+        long topicId = createTopic(teacherToken, courseId);
+        createMultipleChoiceQuestion(teacherToken, createLesson(teacherToken, topicId, "Approved Lesson", 1));
+        long nonApprovedLessonId = createLesson(teacherToken, topicId, "Draft Lesson", 2);
+        createMultipleChoiceQuestion(teacherToken, nonApprovedLessonId);
+        approveCourse(teacherToken, adminToken, courseId);
+        jdbcTemplate.update("update lessons set status = 'DRAFT' where id = ?", nonApprovedLessonId);
+
+        mockMvc.perform(get("/api/student/courses")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.name == 'Mixed Approval Course')].topicCount").value(hasItem(1)))
+                .andExpect(jsonPath("$[?(@.name == 'Mixed Approval Course')].lessonCount").value(hasItem(1)))
+                .andExpect(jsonPath("$[?(@.name == 'Mixed Approval Course')].questionCount").value(hasItem(1)));
+    }
+
     private long createApprovedCourse(String teacherToken, String adminToken, String name, String level,
                                       String pricingType, Long proposedPriceAmountVnd) throws Exception {
         long courseId = createCourse(teacherToken, name, level, pricingType, proposedPriceAmountVnd);
@@ -120,20 +144,24 @@ class StudentCatalogQueryOptimizationTests {
     }
 
     private long createLesson(String teacherToken, long topicId) throws Exception {
+        return createLesson(teacherToken, topicId, "Catalog Lesson", 1);
+    }
+
+    private long createLesson(String teacherToken, long topicId, String title, int orderIndex) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/teacher/content/topics/%d/lessons".formatted(topicId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "title": "Catalog Lesson",
+                                  "title": "%s",
                                   "description": "Catalog lesson",
                                   "content": "Practice catalog vocabulary.",
                                   "skillType": "READING",
-                                  "orderIndex": 1,
+                                  "orderIndex": %d,
                                   "xpReward": 20,
                                   "placementTest": false
                                 }
-                                """))
+                                """.formatted(title, orderIndex)))
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();

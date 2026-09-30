@@ -70,7 +70,8 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
                    teacher.avatarUrl as teacherAvatarUrl,
                    count(distinct case when lesson.status = com.learne.backend.teacher.content.enums.ContentStatus.APPROVED then topic.id end) as approvedTopicCount,
                    count(distinct case when lesson.status = com.learne.backend.teacher.content.enums.ContentStatus.APPROVED then lesson.id end) as approvedLessonCount,
-                   count(distinct case when question.status = com.learne.backend.teacher.content.enums.ContentStatus.APPROVED then question.id end) as approvedQuestionCount,
+                   count(distinct case when lesson.status = com.learne.backend.teacher.content.enums.ContentStatus.APPROVED
+                       and question.status = com.learne.backend.teacher.content.enums.ContentStatus.APPROVED then question.id end) as approvedQuestionCount,
                    course.publishedAt as publishedAt,
                    course.pricingType as pricingType,
                    course.priceAmountVnd as priceAmountVnd
