@@ -13,11 +13,5 @@ CREATE INDEX IF NOT EXISTS idx_course_entitlements_user_course_active
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_status_plan_active
     ON subscriptions(user_id, status, plan_code, starts_at, ends_at);
 
-CREATE INDEX IF NOT EXISTS idx_vip_course_selections_subscription_course_active
-    ON vip_course_selections(subscription_id, course_id, replaced_at);
-
-CREATE INDEX IF NOT EXISTS idx_lesson_progress_enrollment_lesson
-    ON lesson_progress(course_enrollment_id, lesson_id);
-
 CREATE INDEX IF NOT EXISTS idx_questions_lesson_status_order
     ON questions(lesson_id, status, order_index, id);
