@@ -1,5 +1,8 @@
 package com.learne.backend.testsupport;
 
+import java.util.Objects;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 public final class TestDatabaseCleaner {
@@ -55,5 +58,13 @@ public final class TestDatabaseCleaner {
         for (String statement : DELETE_STATEMENTS) {
             jdbcTemplate.update(statement);
         }
+    }
+
+    public static void clean(JdbcTemplate jdbcTemplate, CacheManager cacheManager) {
+        clean(jdbcTemplate);
+        cacheManager.getCacheNames().stream()
+                .map(cacheManager::getCache)
+                .filter(Objects::nonNull)
+                .forEach(Cache::clear);
     }
 }

@@ -2,7 +2,7 @@ package com.learne.backend.student.learning.service;
 
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.monetization.service.CourseAccessService;
-import com.learne.backend.shared.dashboard.service.LeaderboardService;
+import com.learne.backend.shared.dashboard.service.LeaderboardReadCacheService;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.student.learning.dto.SubmitQuizRequest;
 import com.learne.backend.student.learning.dto.SubmitQuizResponse;
@@ -66,7 +66,7 @@ public class StudentLearningService {
     private final LearningActivityRepository learningActivityRepository;
     private final StudentQuizGradingService studentQuizGradingService;
     private final StudentStatsService studentStatsService;
-    private final LeaderboardService leaderboardService;
+    private final LeaderboardReadCacheService leaderboardReadCacheService;
     private final CourseAccessService courseAccessService;
     private final EntityManager entityManager;
     private final TransactionTemplate createEnrollmentTransactionTemplate;
@@ -80,7 +80,7 @@ public class StudentLearningService {
                                        LearningActivityRepository learningActivityRepository,
                                        StudentQuizGradingService studentQuizGradingService,
                                        StudentStatsService studentStatsService,
-                                       LeaderboardService leaderboardService,
+                                       LeaderboardReadCacheService leaderboardReadCacheService,
                                        CourseAccessService courseAccessService,
                                        EntityManager entityManager,
                                        PlatformTransactionManager transactionManager) {
@@ -93,7 +93,7 @@ public class StudentLearningService {
         this.learningActivityRepository = learningActivityRepository;
         this.studentQuizGradingService = studentQuizGradingService;
         this.studentStatsService = studentStatsService;
-        this.leaderboardService = leaderboardService;
+        this.leaderboardReadCacheService = leaderboardReadCacheService;
         this.courseAccessService = courseAccessService;
         this.entityManager = entityManager;
         this.createEnrollmentTransactionTemplate = new TransactionTemplate(transactionManager);
@@ -146,7 +146,7 @@ public class StudentLearningService {
                                 activity.getSourceType().name(),
                                 activity.getCreatedAt()))
                         .toList(),
-                leaderboardService.topStudents(5)
+                leaderboardReadCacheService.topStudents(5)
         );
     }
 

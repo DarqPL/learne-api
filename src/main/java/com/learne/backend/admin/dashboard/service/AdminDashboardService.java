@@ -5,7 +5,7 @@ import com.learne.backend.admin.dashboard.dto.AdminDashboardResponse;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
 import com.learne.backend.shared.dashboard.dto.StatusCountResponse;
-import com.learne.backend.shared.dashboard.service.LeaderboardService;
+import com.learne.backend.shared.dashboard.service.LeaderboardReadCacheService;
 import com.learne.backend.student.learning.repository.CourseEnrollmentRepository;
 import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.repository.CourseRepository;
@@ -19,17 +19,17 @@ public class AdminDashboardService {
     private final UserRepository userRepository;
     private final CourseRepository courseRepository;
     private final CourseEnrollmentRepository courseEnrollmentRepository;
-    private final LeaderboardService leaderboardService;
+    private final LeaderboardReadCacheService leaderboardReadCacheService;
 
     public AdminDashboardService(
             UserRepository userRepository,
             CourseRepository courseRepository,
             CourseEnrollmentRepository courseEnrollmentRepository,
-            LeaderboardService leaderboardService) {
+            LeaderboardReadCacheService leaderboardReadCacheService) {
         this.userRepository = userRepository;
         this.courseRepository = courseRepository;
         this.courseEnrollmentRepository = courseEnrollmentRepository;
-        this.leaderboardService = leaderboardService;
+        this.leaderboardReadCacheService = leaderboardReadCacheService;
     }
 
     @Transactional(readOnly = true)
@@ -47,6 +47,6 @@ public class AdminDashboardService {
                 Arrays.stream(ContentStatus.values())
                         .map(status -> new StatusCountResponse(status.name(), courseRepository.countByStatus(status)))
                         .toList(),
-                leaderboardService.topStudents(5));
+                leaderboardReadCacheService.topStudents(5));
     }
 }
