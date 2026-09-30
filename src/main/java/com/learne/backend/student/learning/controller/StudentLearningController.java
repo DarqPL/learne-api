@@ -21,6 +21,7 @@ import com.learne.backend.student.learning.dto.StudentQuizAttemptResponse;
 import com.learne.backend.student.learning.dto.StudentQuizResponse;
 import com.learne.backend.student.learning.dto.StudentStatsResponse;
 import com.learne.backend.student.learning.service.StudentCourseRecommendationService;
+import com.learne.backend.student.learning.service.StudentLearningReadCacheService;
 import com.learne.backend.student.learning.service.StudentLearningPathService;
 import com.learne.backend.student.learning.service.StudentLearningService;
 import com.learne.backend.student.learning.service.StudentPlacementService;
@@ -39,15 +40,18 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/student")
 class StudentLearningController {
     private final StudentLearningService studentLearningService;
+    private final StudentLearningReadCacheService studentLearningReadCacheService;
     private final StudentLearningPathService studentLearningPathService;
     private final StudentPlacementService studentPlacementService;
     private final StudentCourseRecommendationService studentCourseRecommendationService;
 
     StudentLearningController(StudentLearningService studentLearningService,
+                               StudentLearningReadCacheService studentLearningReadCacheService,
                                StudentLearningPathService studentLearningPathService,
                                StudentPlacementService studentPlacementService,
                                StudentCourseRecommendationService studentCourseRecommendationService) {
         this.studentLearningService = studentLearningService;
+        this.studentLearningReadCacheService = studentLearningReadCacheService;
         this.studentLearningPathService = studentLearningPathService;
         this.studentPlacementService = studentPlacementService;
         this.studentCourseRecommendationService = studentCourseRecommendationService;
@@ -55,14 +59,14 @@ class StudentLearningController {
 
     @GetMapping("/courses")
     List<StudentCourseSummaryResponse> listCourses(Authentication authentication,
-                                                   @RequestParam(required = false) String level,
-                                                   @RequestParam(required = false) Long teacherId) {
-        return studentLearningService.listCourses(currentUser(authentication), level, teacherId);
+                                                    @RequestParam(required = false) String level,
+                                                    @RequestParam(required = false) Long teacherId) {
+        return studentLearningReadCacheService.listCourses(currentUser(authentication), level, teacherId);
     }
 
     @GetMapping("/courses/{courseId}")
     StudentCourseDetailResponse getCourse(@PathVariable Long courseId, Authentication authentication) {
-        return studentLearningService.getCourse(currentUser(authentication), courseId);
+        return studentLearningReadCacheService.getCourse(currentUser(authentication), courseId);
     }
 
     @PostMapping("/courses/{courseId}/enroll")
@@ -82,7 +86,7 @@ class StudentLearningController {
 
     @GetMapping("/dashboard")
     StudentDashboardResponse getDashboard(Authentication authentication) {
-        return studentLearningService.getDashboard(currentUser(authentication));
+        return studentLearningReadCacheService.getDashboard(currentUser(authentication));
     }
 
     @GetMapping("/enrollments/{enrollmentId}/lessons/{lessonId}/quiz")

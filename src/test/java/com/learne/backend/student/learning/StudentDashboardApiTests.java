@@ -90,6 +90,25 @@ class StudentDashboardApiTests {
                 .andExpect(jsonPath("$.leaderboard").isArray());
     }
 
+    @Test
+    void cachedDashboardIsScopedToAuthenticatedStudent() throws Exception {
+        User first = saveUser("cache-first@example.com", "Password123", UserRole.STUDENT);
+        User second = saveUser("cache-second@example.com", "Password123", UserRole.STUDENT);
+        saveStats(first, 700, 2, 2);
+        saveStats(second, 40, 1, 1);
+
+        String firstToken = loginAndGetAccessToken("cache-first@example.com", "Password123");
+        String secondToken = loginAndGetAccessToken("cache-second@example.com", "Password123");
+
+        mockMvc.perform(get("/api/student/dashboard").header(HttpHeaders.AUTHORIZATION, "Bearer " + firstToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stats.totalXp").value(700));
+
+        mockMvc.perform(get("/api/student/dashboard").header(HttpHeaders.AUTHORIZATION, "Bearer " + secondToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stats.totalXp").value(40));
+    }
+
     private User saveUser(String email, String password, UserRole role) {
         return saveUser(email, email, password, role);
     }

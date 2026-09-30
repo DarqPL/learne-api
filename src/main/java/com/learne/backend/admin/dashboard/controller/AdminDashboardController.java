@@ -1,7 +1,7 @@
 package com.learne.backend.admin.dashboard.controller;
 
 import com.learne.backend.admin.dashboard.dto.AdminDashboardResponse;
-import com.learne.backend.admin.dashboard.service.AdminDashboardService;
+import com.learne.backend.admin.dashboard.service.AdminDashboardReadCacheService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -10,14 +10,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin/dashboard")
 class AdminDashboardController {
 
-    private final AdminDashboardService adminDashboardService;
+    private final AdminDashboardReadCacheService adminDashboardReadCacheService;
 
-    AdminDashboardController(AdminDashboardService adminDashboardService) {
-        this.adminDashboardService = adminDashboardService;
+    AdminDashboardController(AdminDashboardReadCacheService adminDashboardReadCacheService) {
+        this.adminDashboardReadCacheService = adminDashboardReadCacheService;
     }
 
     @GetMapping
     AdminDashboardResponse getDashboard() {
-        return adminDashboardService.getDashboard();
+        return adminDashboardReadCacheService.getDashboard();
     }
 }
