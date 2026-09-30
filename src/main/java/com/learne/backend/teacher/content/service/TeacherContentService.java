@@ -1,5 +1,6 @@
 package com.learne.backend.teacher.content.service;
 
+import com.learne.backend.cache.CacheInvalidationService;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.teacher.content.dto.CourseRequest;
@@ -48,17 +49,20 @@ public class TeacherContentService {
     private final TopicRepository topicRepository;
     private final LessonRepository lessonRepository;
     private final QuestionRepository questionRepository;
+    private final CacheInvalidationService cacheInvalidationService;
 
     public TeacherContentService(CourseRepository courseRepository,
-                          CourseRevisionRepository courseRevisionRepository,
-                           TopicRepository topicRepository,
-                           LessonRepository lessonRepository,
-                           QuestionRepository questionRepository) {
+                           CourseRevisionRepository courseRevisionRepository,
+                            TopicRepository topicRepository,
+                            LessonRepository lessonRepository,
+                            QuestionRepository questionRepository,
+                            CacheInvalidationService cacheInvalidationService) {
         this.courseRepository = courseRepository;
         this.courseRevisionRepository = courseRevisionRepository;
         this.topicRepository = topicRepository;
         this.lessonRepository = lessonRepository;
         this.questionRepository = questionRepository;
+        this.cacheInvalidationService = cacheInvalidationService;
     }
 
     @Transactional(readOnly = true)
@@ -95,7 +99,9 @@ public class TeacherContentService {
         revision.setStatus(CourseRevisionStatus.DRAFT);
         applyRevisionMetadata(revision, savedCourse);
         CourseRevision savedRevision = courseRevisionRepository.save(revision);
-        return CourseResponse.from(savedCourse, savedRevision);
+        CourseResponse response = CourseResponse.from(savedCourse, savedRevision);
+        evictContentCaches(teacher);
+        return response;
     }
 
     @Transactional
@@ -105,7 +111,9 @@ public class TeacherContentService {
         applyCourseRequest(course, request, false);
         Course savedCourse = courseRepository.save(course);
         CourseRevision revision = syncEditableRevision(savedCourse);
-        return CourseResponse.from(savedCourse, revision);
+        CourseResponse response = CourseResponse.from(savedCourse, revision);
+        evictContentCaches(teacher);
+        return response;
     }
 
     @Transactional
@@ -113,6 +121,7 @@ public class TeacherContentService {
         Course course = findCourse(teacher, courseId);
         ensureEditable(course);
         courseRepository.delete(course);
+        evictContentCaches(teacher);
     }
 
     @Transactional
@@ -125,7 +134,9 @@ public class TeacherContentService {
         course.getTopics().add(topic);
         Topic savedTopic = topicRepository.save(topic);
         syncEditableRevision(course);
-        return TopicResponse.from(savedTopic);
+        TopicResponse response = TopicResponse.from(savedTopic);
+        evictContentCaches(teacher);
+        return response;
     }
 
     @Transactional
@@ -135,7 +146,9 @@ public class TeacherContentService {
         applyTopicRequest(topic, request);
         Topic savedTopic = topicRepository.save(topic);
         syncEditableRevision(savedTopic.getCourse());
-        return TopicResponse.from(savedTopic);
+        TopicResponse response = TopicResponse.from(savedTopic);
+        evictContentCaches(teacher);
+        return response;
     }
 
     @Transactional
@@ -146,6 +159,7 @@ public class TeacherContentService {
         topicRepository.delete(topic);
         course.getTopics().remove(topic);
         syncEditableRevision(course);
+        evictContentCaches(teacher);
     }
 
     @Transactional
@@ -160,7 +174,9 @@ public class TeacherContentService {
         topic.getLessons().add(lesson);
         Lesson savedLesson = lessonRepository.save(lesson);
         syncEditableRevision(topic.getCourse());
-        return LessonResponse.from(savedLesson);
+        LessonResponse response = LessonResponse.from(savedLesson);
+        evictContentCaches(teacher);
+        return response;
     }
 
     @Transactional
@@ -170,7 +186,9 @@ public class TeacherContentService {
         applyLessonRequest(lesson, request);
         Lesson savedLesson = lessonRepository.save(lesson);
         syncEditableRevision(savedLesson.getTopic().getCourse());
-        return LessonResponse.from(savedLesson);
+        LessonResponse response = LessonResponse.from(savedLesson);
+        evictContentCaches(teacher);
+        return response;
     }
 
     @Transactional
@@ -181,6 +199,7 @@ public class TeacherContentService {
         lesson.getTopic().getLessons().remove(lesson);
         lessonRepository.delete(lesson);
         syncEditableRevision(course);
+        evictContentCaches(teacher);
     }
 
     @Transactional
@@ -196,7 +215,9 @@ public class TeacherContentService {
         lesson.getQuestions().add(question);
         Question savedQuestion = questionRepository.save(question);
         syncEditableRevision(lesson.getTopic().getCourse());
-        return QuestionResponse.from(savedQuestion);
+        QuestionResponse response = QuestionResponse.from(savedQuestion);
+        evictContentCaches(teacher);
+        return response;
     }
 
     @Transactional
@@ -208,7 +229,9 @@ public class TeacherContentService {
         applyQuestionRequest(question, request);
         Question savedQuestion = questionRepository.save(question);
         syncEditableRevision(savedQuestion.getLesson().getTopic().getCourse());
-        return QuestionResponse.from(savedQuestion);
+        QuestionResponse response = QuestionResponse.from(savedQuestion);
+        evictContentCaches(teacher);
+        return response;
     }
 
     @Transactional
@@ -219,6 +242,7 @@ public class TeacherContentService {
         question.getLesson().getQuestions().remove(question);
         questionRepository.delete(question);
         syncEditableRevision(course);
+        evictContentCaches(teacher);
     }
 
     @Transactional
@@ -246,7 +270,15 @@ public class TeacherContentService {
             course.setStatus(ContentStatus.PENDING_REVIEW);
             applyCourseMetadata(course, latestRevision);
         }
-        return CourseResponse.from(courseRepository.save(course), latestRevision);
+        CourseResponse response = CourseResponse.from(courseRepository.save(course), latestRevision);
+        evictContentCaches(teacher);
+        return response;
+    }
+
+    private void evictContentCaches(User teacher) {
+        cacheInvalidationService.evictTeacherDashboard(teacher.getId());
+        cacheInvalidationService.evictGlobalCourseCatalog();
+        cacheInvalidationService.evictAdminDashboard();
     }
 
     private CourseRevision findLatestRevision(Course course) {

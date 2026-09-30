@@ -1,5 +1,6 @@
 package com.learne.backend.monetization.service;
 
+import com.learne.backend.cache.CacheInvalidationService;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.monetization.dto.VipCourseSelectionResponse;
 import com.learne.backend.monetization.entity.Subscription;
@@ -25,13 +26,16 @@ public class VipSelectionService {
     private final SubscriptionRepository subscriptionRepository;
     private final VipCourseSelectionRepository vipCourseSelectionRepository;
     private final CourseRepository courseRepository;
+    private final CacheInvalidationService cacheInvalidationService;
 
     public VipSelectionService(SubscriptionRepository subscriptionRepository,
-                               VipCourseSelectionRepository vipCourseSelectionRepository,
-                               CourseRepository courseRepository) {
+                                VipCourseSelectionRepository vipCourseSelectionRepository,
+                                CourseRepository courseRepository,
+                                CacheInvalidationService cacheInvalidationService) {
         this.subscriptionRepository = subscriptionRepository;
         this.vipCourseSelectionRepository = vipCourseSelectionRepository;
         this.courseRepository = courseRepository;
+        this.cacheInvalidationService = cacheInvalidationService;
     }
 
     @Transactional(readOnly = true)
@@ -84,7 +88,11 @@ public class VipSelectionService {
         selection.setUser(student);
         selection.setCourse(course);
         selection.setLevel(level);
-        return VipCourseSelectionResponse.from(vipCourseSelectionRepository.save(selection));
+        VipCourseSelectionResponse response = VipCourseSelectionResponse.from(vipCourseSelectionRepository.save(selection));
+        cacheInvalidationService.evictAccessForStudent(student.getId());
+        cacheInvalidationService.evictStudentLearning(student.getId());
+        cacheInvalidationService.evictAdminDashboard();
+        return response;
     }
 
     private Subscription activeVipSubscription(User student) {
