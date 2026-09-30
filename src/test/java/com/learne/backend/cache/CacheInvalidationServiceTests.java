@@ -7,6 +7,9 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,6 +27,7 @@ class CacheInvalidationServiceTests {
     @Autowired CacheManager cacheManager;
     @Autowired CacheInvalidationService invalidationService;
     @Autowired CatalogCacheVersionService catalogCacheVersionService;
+    @Autowired MeterRegistry meterRegistry;
 
     @Test
     void evictsStudentLearningCaches() {
@@ -47,6 +51,20 @@ class CacheInvalidationServiceTests {
         invalidationService.evictGlobalCourseCatalog();
 
         assertThat(catalogCacheVersionService.currentVersion()).isGreaterThan(before);
+    }
+
+    @Test
+    void recordsEvictionMetricsWithBoundedTags() {
+        String cacheName = CacheNames.TEACHER_DASHBOARD;
+        double before = evictionCount(cacheName, "keyed");
+
+        invalidationService.evictTeacherDashboard(10L);
+
+        assertThat(evictionCount(cacheName, "keyed")).isEqualTo(before + 1.0d);
+        assertThat(meterRegistry.find("learne.cache.evictions")
+                .tag("cache", cacheName)
+                .tag("reason", "10")
+                .counter()).isNull();
     }
 
     @Test
@@ -93,7 +111,8 @@ class CacheInvalidationServiceTests {
     void keyedEvictionFailurePropagatesImmediately() {
         CacheInvalidationService service = new CacheInvalidationService(
                 new SingleCacheManager(CacheNames.TEACHER_DASHBOARD, new ThrowingEvictIfPresentCache(CacheNames.TEACHER_DASHBOARD)),
-                new CatalogCacheVersionService());
+                new CatalogCacheVersionService(),
+                observedMetrics());
 
         assertThatThrownBy(() -> service.evictTeacherDashboard(10L))
                 .isInstanceOf(IllegalStateException.class)
@@ -105,13 +124,26 @@ class CacheInvalidationServiceTests {
         CatalogCacheVersionService versionService = new CatalogCacheVersionService();
         CacheInvalidationService service = new CacheInvalidationService(
                 new SingleCacheManager(CacheNames.STUDENT_CATALOG, new ThrowingInvalidateCache(CacheNames.STUDENT_CATALOG)),
-                versionService);
+                versionService,
+                observedMetrics());
         long before = versionService.currentVersion();
 
         assertThatThrownBy(service::evictGlobalCourseCatalog)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("invalidate failed");
         assertThat(versionService.currentVersion()).isEqualTo(before);
+    }
+
+    private double evictionCount(String cacheName, String reason) {
+        Counter counter = meterRegistry.find("learne.cache.evictions")
+                .tag("cache", cacheName)
+                .tag("reason", reason)
+                .counter();
+        return counter == null ? 0.0d : counter.count();
+    }
+
+    private static ObservedCacheMetrics observedMetrics() {
+        return new ObservedCacheMetrics(new SimpleMeterRegistry());
     }
 
     private static void clearSynchronization() {

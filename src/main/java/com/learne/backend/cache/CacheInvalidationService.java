@@ -14,10 +14,14 @@ public class CacheInvalidationService {
 
     private final CacheManager cacheManager;
     private final CatalogCacheVersionService catalogCacheVersionService;
+    private final ObservedCacheMetrics observedCacheMetrics;
 
-    public CacheInvalidationService(CacheManager cacheManager, CatalogCacheVersionService catalogCacheVersionService) {
+    public CacheInvalidationService(CacheManager cacheManager,
+                                    CatalogCacheVersionService catalogCacheVersionService,
+                                    ObservedCacheMetrics observedCacheMetrics) {
         this.cacheManager = cacheManager;
         this.catalogCacheVersionService = catalogCacheVersionService;
+        this.observedCacheMetrics = observedCacheMetrics;
     }
 
     public void evictStudentLearning(Long studentId) {
@@ -69,6 +73,7 @@ public class CacheInvalidationService {
         Cache cache = cacheManager.getCache(cacheName);
         if (cache != null) {
             cache.evictIfPresent(key);
+            observedCacheMetrics.recordEviction(cacheName, "keyed");
         }
     }
 
@@ -76,6 +81,7 @@ public class CacheInvalidationService {
         Cache cache = cacheManager.getCache(cacheName);
         if (cache != null) {
             cache.invalidate();
+            observedCacheMetrics.recordEviction(cacheName, "full");
         }
     }
 
