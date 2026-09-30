@@ -4,6 +4,7 @@ import com.learne.backend.domain.auth.User;
 import com.learne.backend.student.learning.repository.CourseCatalogRow;
 import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.entity.Course;
+import com.learne.backend.teacher.dashboard.repository.TeacherDashboardOverviewRow;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,6 +12,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface CourseRepository extends JpaRepository<Course, Long> {
+    interface CourseStatusCountRow {
+        ContentStatus getStatus();
+        long getTotal();
+    }
+
     List<Course> findByTeacherOrderByOrderIndexAscIdAsc(User teacher);
 
     long countByTeacher(User teacher);
@@ -18,6 +24,37 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     long countByTeacherAndStatus(User teacher, ContentStatus status);
 
     long countByStatus(ContentStatus status);
+
+    @Query("""
+            select course.status as status,
+                   count(course) as total
+            from Course course
+            group by course.status
+            """)
+    List<CourseStatusCountRow> countByStatusGrouped();
+
+    @Query("""
+            select course.status as status,
+                   count(course) as total
+            from Course course
+            where course.teacher = :teacher
+            group by course.status
+            """)
+    List<CourseStatusCountRow> countByTeacherAndStatusGrouped(@Param("teacher") User teacher);
+
+    @Query("""
+            select count(distinct course.id) as totalCourses,
+                   count(distinct enrollment.user.id) as totalStudents,
+                   count(distinct lesson.id) as totalLessons,
+                   count(distinct question.id) as totalQuestions
+            from Course course
+            left join course.topics topic
+            left join topic.lessons lesson
+            left join lesson.questions question
+            left join CourseEnrollment enrollment on enrollment.course = course
+            where course.teacher = :teacher
+            """)
+    TeacherDashboardOverviewRow teacherDashboardOverview(@Param("teacher") User teacher);
 
     List<Course> findTop5ByTeacherOrderByUpdatedAtDescIdDesc(User teacher);
 
