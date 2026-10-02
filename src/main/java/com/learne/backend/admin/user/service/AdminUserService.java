@@ -189,6 +189,7 @@ public class AdminUserService {
 
         User savedTeacher = userRepository.save(teacher);
         teacherInvitationMailService.sendTeacherInvitation(savedTeacher.getEmail(), savedTeacher.getFullName(), temporaryPassword);
+        cacheInvalidationService.evictAdminDashboard();
         return savedTeacher;
     }
 

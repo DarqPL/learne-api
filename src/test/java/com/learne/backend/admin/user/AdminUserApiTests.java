@@ -8,6 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learne.backend.cache.CacheKeySupport;
+import com.learne.backend.cache.CacheNames;
 import com.learne.backend.admin.user.service.TeacherInvitationMailService;
 import com.learne.backend.admin.user.service.TemporaryPasswordGenerator;
 import com.learne.backend.domain.auth.RefreshTokenRepository;
@@ -41,6 +43,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
@@ -116,11 +119,14 @@ class AdminUserApiTests {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private CacheManager cacheManager;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        TestDatabaseCleaner.clean(jdbcTemplate);
+        TestDatabaseCleaner.clean(jdbcTemplate, cacheManager);
         teacherInvitationMailService.clear();
     }
 
@@ -286,6 +292,7 @@ class AdminUserApiTests {
     void adminCanCreateTeacherWithTemporaryPasswordAndMustChangePassword() throws Exception {
         saveUser("admin@example.com", "Password123", UserRole.ADMIN);
         String adminToken = loginAndGetAccessToken("admin@example.com", "Password123");
+        cacheManager.getCache(CacheNames.ADMIN_DASHBOARD).put(CacheKeySupport.adminDashboard(), "stale-admin-dashboard");
 
         mockMvc.perform(post("/api/admin/teachers")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
@@ -325,6 +332,7 @@ class AdminUserApiTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.user.role").value("TEACHER"))
                 .andExpect(jsonPath("$.user.mustChangePassword").value(true));
+        assertThat(cacheManager.getCache(CacheNames.ADMIN_DASHBOARD).get(CacheKeySupport.adminDashboard())).isNull();
     }
 
     @Test

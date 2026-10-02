@@ -54,6 +54,21 @@ class CacheInvalidationServiceTests {
     }
 
     @Test
+    void leaderboardInvalidationAlsoClearsStudentDashboardsThatEmbedLeaderboard() {
+        Cache dashboard = cacheManager.getCache(CacheNames.STUDENT_DASHBOARD);
+        Cache leaderboard = cacheManager.getCache(CacheNames.LEADERBOARD);
+        String dashboardKey = CacheKeySupport.studentDashboard(10L);
+        String leaderboardKey = CacheKeySupport.leaderboard(5);
+        dashboard.put(dashboardKey, "dashboard-with-leaderboard");
+        leaderboard.put(leaderboardKey, "leaderboard");
+
+        invalidationService.evictLeaderboard();
+
+        assertThat(leaderboard.get(leaderboardKey)).isNull();
+        assertThat(dashboard.get(dashboardKey)).isNull();
+    }
+
+    @Test
     void recordsEvictionMetricsWithBoundedTags() {
         String cacheName = CacheNames.TEACHER_DASHBOARD;
         String key = CacheKeySupport.teacherDashboard(10L);

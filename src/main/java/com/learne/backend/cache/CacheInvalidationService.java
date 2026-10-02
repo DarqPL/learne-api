@@ -57,7 +57,10 @@ public class CacheInvalidationService {
     }
 
     public void evictLeaderboard() {
-        afterCommit(() -> clear(CacheNames.LEADERBOARD));
+        afterCommit(() -> {
+            clear(CacheNames.LEADERBOARD);
+            clear(CacheNames.STUDENT_DASHBOARD);
+        });
     }
 
     public void evictGlobalCourseCatalog() {

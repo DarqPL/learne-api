@@ -3,6 +3,7 @@ package com.learne.backend.auth.registration.service;
 import com.learne.backend.auth.registration.dto.RequestRegistrationOtpRequest;
 import com.learne.backend.auth.registration.dto.ResendRegistrationOtpRequest;
 import com.learne.backend.auth.registration.dto.VerifyRegistrationOtpRequest;
+import com.learne.backend.cache.CacheInvalidationService;
 import com.learne.backend.domain.auth.AccountOrigin;
 import com.learne.backend.domain.auth.RegistrationOtp;
 import com.learne.backend.domain.auth.RegistrationOtpRepository;
@@ -28,6 +29,7 @@ public class StudentRegistrationService {
     private final PasswordPolicy passwordPolicy;
     private final OtpGenerator otpGenerator;
     private final RegistrationMailService registrationMailService;
+    private final CacheInvalidationService cacheInvalidationService;
 
     public StudentRegistrationService(
             RegistrationOtpRepository registrationOtpRepository,
@@ -35,7 +37,8 @@ public class StudentRegistrationService {
             PasswordEncoder passwordEncoder,
             PasswordPolicy passwordPolicy,
             OtpGenerator otpGenerator,
-            RegistrationMailService registrationMailService
+            RegistrationMailService registrationMailService,
+            CacheInvalidationService cacheInvalidationService
     ) {
         this.registrationOtpRepository = registrationOtpRepository;
         this.userRepository = userRepository;
@@ -43,6 +46,7 @@ public class StudentRegistrationService {
         this.passwordPolicy = passwordPolicy;
         this.otpGenerator = otpGenerator;
         this.registrationMailService = registrationMailService;
+        this.cacheInvalidationService = cacheInvalidationService;
     }
 
     @Transactional
@@ -108,6 +112,7 @@ public class StudentRegistrationService {
         student.setAccountOrigin(AccountOrigin.SELF_REGISTERED);
         userRepository.save(student);
         registrationOtpRepository.delete(pending);
+        cacheInvalidationService.evictAdminDashboard();
     }
 
     @Transactional

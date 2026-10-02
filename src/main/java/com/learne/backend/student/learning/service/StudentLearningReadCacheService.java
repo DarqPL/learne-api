@@ -27,8 +27,6 @@ public class StudentLearningReadCacheService {
         return studentLearningService.listCourses(student, level, teacherId);
     }
 
-    @Cacheable(cacheNames = CacheNames.STUDENT_COURSE_DETAIL,
-            key = "T(com.learne.backend.cache.CacheKeySupport).studentCourseDetail(#student.id, #courseId, #root.target.catalogVersion())")
     public StudentCourseDetailResponse getCourse(User student, Long courseId) {
         return studentLearningService.getCourse(student, courseId);
     }
