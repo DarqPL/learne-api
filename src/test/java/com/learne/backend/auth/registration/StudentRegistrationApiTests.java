@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.learne.backend.auth.registration.service.OtpGenerator;
 import com.learne.backend.auth.registration.service.RegistrationMailService;
+import com.learne.backend.cache.CacheKeySupport;
+import com.learne.backend.cache.CacheNames;
 import com.learne.backend.domain.auth.RegistrationOtp;
 import com.learne.backend.domain.auth.RegistrationOtpRepository;
 import com.learne.backend.domain.auth.User;
@@ -22,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
@@ -53,9 +56,12 @@ class StudentRegistrationApiTests {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private CacheManager cacheManager;
+
     @BeforeEach
     void setUp() {
-        TestDatabaseCleaner.clean(jdbcTemplate);
+        TestDatabaseCleaner.clean(jdbcTemplate, cacheManager);
         mailService.clear();
     }
 
@@ -165,6 +171,24 @@ class StudentRegistrationApiTests {
         assertThat(student.isMustChangePassword()).isFalse();
         assertThat(passwordEncoder.matches("Password123", student.getPasswordHash())).isTrue();
         assertThat(registrationOtpRepository.findByEmail("student@example.com")).isEmpty();
+    }
+
+    @Test
+    void verifyOtpEvictsCachedAdminDashboardTotals() throws Exception {
+        cacheManager.getCache(CacheNames.ADMIN_DASHBOARD).put(CacheKeySupport.adminDashboard(), "stale-admin-dashboard");
+        savePendingRegistration("student@example.com", "Nguyen Van A", "Password123", "123456", OffsetDateTime.now().plusMinutes(5));
+
+        mockMvc.perform(post("/api/auth/register/verify-otp")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "student@example.com",
+                                  "otp": "123456"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        assertThat(cacheManager.getCache(CacheNames.ADMIN_DASHBOARD).get(CacheKeySupport.adminDashboard())).isNull();
     }
 
     @Test

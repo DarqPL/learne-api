@@ -1,9 +1,11 @@
 package com.learne.backend.student.learning.service;
 
+import com.learne.backend.cache.CacheInvalidationService;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.monetization.service.CourseAccessService;
-import com.learne.backend.shared.dashboard.service.LeaderboardService;
+import com.learne.backend.shared.dashboard.service.LeaderboardReadCacheService;
 import com.learne.backend.shared.api.ApiException;
+import com.learne.backend.student.learning.dto.SharedStudentCourseDetailResponse;
 import com.learne.backend.student.learning.dto.SubmitQuizRequest;
 import com.learne.backend.student.learning.dto.SubmitQuizResponse;
 import com.learne.backend.student.learning.dto.StudentActiveCourseResponse;
@@ -29,6 +31,7 @@ import com.learne.backend.student.learning.enums.CourseAccessStatus;
 import com.learne.backend.student.learning.enums.LessonProgressStatus;
 import com.learne.backend.student.learning.enums.QuizAttemptStatus;
 import com.learne.backend.student.learning.repository.CourseEnrollmentRepository;
+import com.learne.backend.student.learning.repository.CourseCatalogRow;
 import com.learne.backend.student.learning.repository.LearningActivityRepository;
 import com.learne.backend.student.learning.repository.LessonProgressRepository;
 import com.learne.backend.student.learning.repository.QuestionAnswerRepository;
@@ -66,8 +69,10 @@ public class StudentLearningService {
     private final LearningActivityRepository learningActivityRepository;
     private final StudentQuizGradingService studentQuizGradingService;
     private final StudentStatsService studentStatsService;
-    private final LeaderboardService leaderboardService;
+    private final LeaderboardReadCacheService leaderboardReadCacheService;
     private final CourseAccessService courseAccessService;
+    private final CourseAccessContextService courseAccessContextService;
+    private final CacheInvalidationService cacheInvalidationService;
     private final EntityManager entityManager;
     private final TransactionTemplate createEnrollmentTransactionTemplate;
 
@@ -79,11 +84,13 @@ public class StudentLearningService {
                                        QuestionAnswerRepository questionAnswerRepository,
                                        LearningActivityRepository learningActivityRepository,
                                        StudentQuizGradingService studentQuizGradingService,
-                                       StudentStatsService studentStatsService,
-                                       LeaderboardService leaderboardService,
-                                       CourseAccessService courseAccessService,
-                                       EntityManager entityManager,
-                                       PlatformTransactionManager transactionManager) {
+                                         StudentStatsService studentStatsService,
+                                         LeaderboardReadCacheService leaderboardReadCacheService,
+                                         CourseAccessService courseAccessService,
+                                         CourseAccessContextService courseAccessContextService,
+                                         CacheInvalidationService cacheInvalidationService,
+                                         EntityManager entityManager,
+                                        PlatformTransactionManager transactionManager) {
         this.courseRepository = courseRepository;
         this.courseEnrollmentRepository = courseEnrollmentRepository;
         this.lessonProgressRepository = lessonProgressRepository;
@@ -93,8 +100,10 @@ public class StudentLearningService {
         this.learningActivityRepository = learningActivityRepository;
         this.studentQuizGradingService = studentQuizGradingService;
         this.studentStatsService = studentStatsService;
-        this.leaderboardService = leaderboardService;
+        this.leaderboardReadCacheService = leaderboardReadCacheService;
         this.courseAccessService = courseAccessService;
+        this.courseAccessContextService = courseAccessContextService;
+        this.cacheInvalidationService = cacheInvalidationService;
         this.entityManager = entityManager;
         this.createEnrollmentTransactionTemplate = new TransactionTemplate(transactionManager);
         this.createEnrollmentTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -102,8 +111,36 @@ public class StudentLearningService {
 
     @Transactional(readOnly = true)
     public List<StudentCourseSummaryResponse> listCourses(User student, String level, Long teacherId) {
-        return courseRepository.findStudentCatalog(ContentStatus.APPROVED, normalize(level), teacherId).stream()
-                .map(course -> toCourseSummary(student, course))
+        List<CourseCatalogRow> rows = courseRepository.findStudentCatalogRows(ContentStatus.APPROVED, normalize(level), teacherId);
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        List<Long> courseIds = rows.stream().map(CourseCatalogRow::getId).toList();
+        CourseAccessContext accessContext = courseAccessContextService.build(student, courseIds);
+        return rows.stream()
+                .map(row -> {
+                    CourseAccessStatus accessStatus = accessContext.accessStatus(
+                            student, row.getId(), row.getLevel(), row.getPricingType(), row.getTeacherId());
+                    return new StudentCourseSummaryResponse(
+                            row.getId(),
+                            row.getName(),
+                            row.getDescription(),
+                            row.getType(),
+                            row.getLevel(),
+                            row.getTeacherId(),
+                            row.getTeacherFullName(),
+                            row.getTeacherEmail(),
+                            row.getTeacherAvatarUrl(),
+                            row.getApprovedTopicCount(),
+                            row.getApprovedLessonCount(),
+                            row.getApprovedQuestionCount(),
+                            row.getPublishedAt(),
+                            row.getPricingType(),
+                            row.getPriceAmountVnd(),
+                            accessStatus,
+                            accessReason(accessStatus),
+                            accessContext.enrolledCourseIds().contains(row.getId()));
+                })
                 .toList();
     }
 
@@ -118,7 +155,10 @@ public class StudentLearningService {
 
         CourseEnrollment enrollment = courseEnrollmentRepository.findByUserAndCourse(student, course)
                 .orElseGet(() -> findOrCreateEnrollment(student, course));
-        return StudentEnrollmentResponse.from(enrollment);
+        StudentEnrollmentResponse response = StudentEnrollmentResponse.from(enrollment);
+        cacheInvalidationService.evictStudentLearning(student.getId());
+        cacheInvalidationService.evictAdminDashboard();
+        return response;
     }
 
     @Transactional
@@ -146,7 +186,7 @@ public class StudentLearningService {
                                 activity.getSourceType().name(),
                                 activity.getCreatedAt()))
                         .toList(),
-                leaderboardService.topStudents(5)
+                leaderboardReadCacheService.topStudents(5)
         );
     }
 
@@ -264,7 +304,7 @@ public class StudentLearningService {
             stats = studentStatsService.getStats(student);
         }
 
-        return new SubmitQuizResponse(
+        SubmitQuizResponse response = new SubmitQuizResponse(
                 savedAttempt.getId(),
                 enrollment.getId(),
                 lesson.getId(),
@@ -278,6 +318,12 @@ public class StudentLearningService {
                         .map(this::toAnswerResponse)
                         .toList()
         );
+        cacheInvalidationService.evictStudentLearning(student.getId());
+        if (xpAwarded) {
+            cacheInvalidationService.evictLeaderboard();
+            cacheInvalidationService.evictAdminDashboard();
+        }
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -312,12 +358,22 @@ public class StudentLearningService {
     }
 
     @Transactional(readOnly = true)
-    public StudentCourseDetailResponse getCourse(User student, Long courseId) {
+    public SharedStudentCourseDetailResponse getSharedCourseDetail(Long courseId) {
         Course course = courseRepository.findStudentDetailByIdAndStatus(courseId, ContentStatus.APPROVED)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
+        return SharedStudentCourseDetailResponse.from(course);
+    }
+
+    @Transactional(readOnly = true)
+    public StudentCourseDetailResponse getCourse(User student, Long courseId, SharedStudentCourseDetailResponse shared) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
+        if (course.getStatus() != ContentStatus.APPROVED) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Course not found.");
+        }
         CourseEnrollment enrollment = courseEnrollmentRepository.findByUserAndCourse(student, course).orElse(null);
         CourseAccessStatus accessStatus = courseAccessService.accessStatus(student, course);
-        return StudentCourseDetailResponse.from(course, enrollment, accessStatus, accessReason(accessStatus), accessStatus != CourseAccessStatus.LOCKED);
+        return StudentCourseDetailResponse.from(shared, accessStatus, accessReason(accessStatus), enrollment);
     }
 
     @Transactional(readOnly = true)
@@ -340,6 +396,7 @@ public class StudentLearningService {
             progress.setStatus(LessonProgressStatus.IN_PROGRESS);
             progress.setStartedAt(Instant.now());
             lessonProgressRepository.save(progress);
+            cacheInvalidationService.evictStudentLearning(student.getId());
         }
         return StudentEnrollmentProgressResponse.from(enrollment);
     }
@@ -367,6 +424,7 @@ public class StudentLearningService {
             lessonProgressRepository.save(progress);
             recomputeEnrollmentProgress(enrollment);
             unlockNextLessonAndReturnId(enrollment);
+            cacheInvalidationService.evictStudentLearning(student.getId());
         }
         return StudentEnrollmentProgressResponse.from(enrollment);
     }

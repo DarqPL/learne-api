@@ -2,6 +2,7 @@ package com.learne.backend.admin.content.service;
 
 import com.learne.backend.admin.content.dto.AdminReviewCourseDetailResponse;
 import com.learne.backend.admin.content.dto.AdminReviewCourseSummaryResponse;
+import com.learne.backend.cache.CacheInvalidationService;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.teacher.content.entity.Course;
@@ -39,13 +40,16 @@ public class AdminContentReviewService {
     private final CourseRepository courseRepository;
     private final CourseRevisionRepository courseRevisionRepository;
     private final EntityManager entityManager;
+    private final CacheInvalidationService cacheInvalidationService;
 
     public AdminContentReviewService(CourseRepository courseRepository,
-                                     CourseRevisionRepository courseRevisionRepository,
-                                     EntityManager entityManager) {
+                                      CourseRevisionRepository courseRevisionRepository,
+                                      EntityManager entityManager,
+                                      CacheInvalidationService cacheInvalidationService) {
         this.courseRepository = courseRepository;
         this.courseRevisionRepository = courseRevisionRepository;
         this.entityManager = entityManager;
+        this.cacheInvalidationService = cacheInvalidationService;
     }
 
     @Transactional(readOnly = true)
@@ -99,7 +103,9 @@ public class AdminContentReviewService {
         Course savedCourse = courseRepository.saveAndFlush(course);
         linkMaterializedSources(materializedSources);
 
-        return AdminReviewCourseDetailResponse.from(savedCourse, revision);
+        AdminReviewCourseDetailResponse response = AdminReviewCourseDetailResponse.from(savedCourse, revision);
+        evictReviewCaches(savedCourse);
+        return response;
     }
 
     @Transactional
@@ -152,7 +158,18 @@ public class AdminContentReviewService {
         }
 
         courseRevisionRepository.save(revision);
-        return AdminReviewCourseDetailResponse.from(courseRepository.save(course), revision);
+        Course savedCourse = courseRepository.save(course);
+        AdminReviewCourseDetailResponse response = AdminReviewCourseDetailResponse.from(savedCourse, revision);
+        evictReviewCaches(savedCourse);
+        return response;
+    }
+
+    private void evictReviewCaches(Course course) {
+        cacheInvalidationService.evictGlobalCourseCatalog();
+        cacheInvalidationService.evictAdminDashboard();
+        if (course.getTeacher() != null) {
+            cacheInvalidationService.evictTeacherDashboard(course.getTeacher().getId());
+        }
     }
 
     private MaterializedSources publishRevisionToLive(Course course, CourseRevision revision, User admin, Instant now) {

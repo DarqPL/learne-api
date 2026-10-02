@@ -405,6 +405,52 @@ class StudentLearningApiTests {
     }
 
     @Test
+    void courseDetailSharesPublicContentButKeepsEnrollmentPerStudent() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User firstStudent = saveUser("first-student@example.com", UserRole.STUDENT);
+        User secondStudent = saveUser("second-student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String firstToken = loginAndGetAccessToken(firstStudent.getEmail());
+        String secondToken = loginAndGetAccessToken(secondStudent.getEmail());
+        long courseId = createApprovedCourseWithTwoLessons(teacherToken, adminToken);
+
+        mockMvc.perform(get("/api/student/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + firstToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(courseId))
+                .andExpect(jsonPath("$.name").value("English A1 Foundation"))
+                .andExpect(jsonPath("$.enrolled").value(false))
+                .andExpect(jsonPath("$.activeEnrollmentId").doesNotExist())
+                .andExpect(jsonPath("$.topics", hasSize(1)));
+
+        MvcResult enrollmentResult = mockMvc.perform(post("/api/student/courses/%d/enroll".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + secondToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        long enrollmentId = objectMapper.readTree(enrollmentResult.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(get("/api/student/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + secondToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(courseId))
+                .andExpect(jsonPath("$.name").value("English A1 Foundation"))
+                .andExpect(jsonPath("$.enrolled").value(true))
+                .andExpect(jsonPath("$.activeEnrollmentId").value(enrollmentId))
+                .andExpect(jsonPath("$.topics", hasSize(1)));
+
+        mockMvc.perform(get("/api/student/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + firstToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(courseId))
+                .andExpect(jsonPath("$.name").value("English A1 Foundation"))
+                .andExpect(jsonPath("$.enrolled").value(false))
+                .andExpect(jsonPath("$.activeEnrollmentId").doesNotExist())
+                .andExpect(jsonPath("$.topics", hasSize(1)));
+    }
+
+    @Test
     void courseDetailHidesUnapprovedCourseAsNotFound() throws Exception {
         User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
         User student = saveUser("student@example.com", UserRole.STUDENT);

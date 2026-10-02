@@ -1,5 +1,6 @@
 package com.learne.backend.domain.auth;
 
+import com.learne.backend.admin.dashboard.repository.AdminDashboardOverviewRow;
 import com.learne.backend.admin.user.dto.AdminStudentSummaryResponse;
 import com.learne.backend.student.learning.enums.LessonProgressStatus;
 import java.util.List;
@@ -22,6 +23,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
     long countByRole(UserRole role);
 
     long countByRoleAndLocked(UserRole role, boolean locked);
+
+    @Query("""
+            select (select count(student) from User student where student.role = com.learne.backend.domain.auth.UserRole.STUDENT) as totalStudents,
+                   (select count(student) from User student where student.role = com.learne.backend.domain.auth.UserRole.STUDENT and student.locked = true) as lockedStudents,
+                   (select count(teacher) from User teacher where teacher.role = com.learne.backend.domain.auth.UserRole.TEACHER) as totalTeachers,
+                   (select count(teacher) from User teacher where teacher.role = com.learne.backend.domain.auth.UserRole.TEACHER and teacher.locked = true) as lockedTeachers,
+                   (select count(course) from Course course) as totalCourses,
+                   (select count(enrollment) from CourseEnrollment enrollment) as totalEnrollments
+            """)
+    AdminDashboardOverviewRow adminDashboardOverview();
 
     List<User> findByRoleOrderByCreatedAtAsc(UserRole role);
 

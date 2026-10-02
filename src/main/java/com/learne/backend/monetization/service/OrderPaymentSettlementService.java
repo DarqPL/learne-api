@@ -1,5 +1,6 @@
 package com.learne.backend.monetization.service;
 
+import com.learne.backend.cache.CacheInvalidationService;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.monetization.entity.Coupon;
 import com.learne.backend.monetization.entity.CouponRedemption;
@@ -30,19 +31,22 @@ public class OrderPaymentSettlementService {
     private final SubscriptionRepository subscriptionRepository;
     private final CouponRepository couponRepository;
     private final CouponRedemptionRepository couponRedemptionRepository;
+    private final CacheInvalidationService cacheInvalidationService;
 
     public OrderPaymentSettlementService(OrderRepository orderRepository,
-                                         CourseEntitlementRepository courseEntitlementRepository,
-                                         UserRepository userRepository,
-                                         SubscriptionRepository subscriptionRepository,
-                                         CouponRepository couponRepository,
-                                         CouponRedemptionRepository couponRedemptionRepository) {
+                                          CourseEntitlementRepository courseEntitlementRepository,
+                                          UserRepository userRepository,
+                                          SubscriptionRepository subscriptionRepository,
+                                          CouponRepository couponRepository,
+                                          CouponRedemptionRepository couponRedemptionRepository,
+                                          CacheInvalidationService cacheInvalidationService) {
         this.orderRepository = orderRepository;
         this.courseEntitlementRepository = courseEntitlementRepository;
         this.userRepository = userRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.couponRepository = couponRepository;
         this.couponRedemptionRepository = couponRedemptionRepository;
+        this.cacheInvalidationService = cacheInvalidationService;
     }
 
     @Transactional(noRollbackFor = ApiException.class)
@@ -92,7 +96,9 @@ public class OrderPaymentSettlementService {
         if (order.getOrderType() == OrderType.PLAN_SUBSCRIPTION) {
             createSubscription(order, paidAt);
             createCouponRedemptionIfNeeded(order, coupon, paidAt);
-            return orderRepository.save(order);
+            Order savedOrder = orderRepository.save(order);
+            evictAccessCaches(savedOrder);
+            return savedOrder;
         }
         for (OrderItem item : order.getItems()) {
             if (item.getCourse() == null) {
@@ -111,7 +117,15 @@ public class OrderPaymentSettlementService {
         }
         createCouponRedemptionIfNeeded(order, coupon, paidAt);
 
-        return orderRepository.save(order);
+        Order savedOrder = orderRepository.save(order);
+        evictAccessCaches(savedOrder);
+        return savedOrder;
+    }
+
+    private void evictAccessCaches(Order order) {
+        cacheInvalidationService.evictAccessForStudent(order.getUser().getId());
+        cacheInvalidationService.evictStudentLearning(order.getUser().getId());
+        cacheInvalidationService.evictAdminDashboard();
     }
 
     public record SepaySettlementResult(Order order, boolean processed, String ignoredReason) {

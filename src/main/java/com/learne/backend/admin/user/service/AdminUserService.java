@@ -11,6 +11,7 @@ import com.learne.backend.admin.user.dto.CreateTeacherRequest;
 import com.learne.backend.ai.grammar.repository.GrammarCheckRepository;
 import com.learne.backend.ai.tutor.repository.AiConversationRepository;
 import com.learne.backend.auth.session.service.RefreshTokenService;
+import com.learne.backend.cache.CacheInvalidationService;
 import com.learne.backend.domain.auth.AccountOrigin;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
@@ -44,6 +45,7 @@ public class AdminUserService {
     private final QuizAttemptRepository quizAttemptRepository;
     private final GrammarCheckRepository grammarCheckRepository;
     private final AiConversationRepository aiConversationRepository;
+    private final CacheInvalidationService cacheInvalidationService;
 
     public AdminUserService(
             UserRepository userRepository,
@@ -56,7 +58,8 @@ public class AdminUserService {
             CourseEnrollmentRepository courseEnrollmentRepository,
             QuizAttemptRepository quizAttemptRepository,
             GrammarCheckRepository grammarCheckRepository,
-            AiConversationRepository aiConversationRepository) {
+            AiConversationRepository aiConversationRepository,
+            CacheInvalidationService cacheInvalidationService) {
         this.userRepository = userRepository;
         this.teacherProfileRepository = teacherProfileRepository;
         this.refreshTokenService = refreshTokenService;
@@ -68,6 +71,7 @@ public class AdminUserService {
         this.quizAttemptRepository = quizAttemptRepository;
         this.grammarCheckRepository = grammarCheckRepository;
         this.aiConversationRepository = aiConversationRepository;
+        this.cacheInvalidationService = cacheInvalidationService;
     }
 
     @Transactional(readOnly = true)
@@ -144,6 +148,7 @@ public class AdminUserService {
         user.setLockedAt(OffsetDateTime.now());
         userRepository.save(user);
         refreshTokenService.revokeAllActiveTokens(user);
+        evictLockCaches(user);
     }
 
     @Transactional
@@ -153,6 +158,15 @@ public class AdminUserService {
         user.setLocked(false);
         user.setLockedAt(null);
         userRepository.save(user);
+        evictLockCaches(user);
+    }
+
+    private void evictLockCaches(User user) {
+        cacheInvalidationService.evictAdminDashboard();
+        if (user.getRole() == UserRole.STUDENT) {
+            cacheInvalidationService.evictAccessForStudent(user.getId());
+            cacheInvalidationService.evictStudentLearning(user.getId());
+        }
     }
 
     @Transactional
@@ -175,6 +189,7 @@ public class AdminUserService {
 
         User savedTeacher = userRepository.save(teacher);
         teacherInvitationMailService.sendTeacherInvitation(savedTeacher.getEmail(), savedTeacher.getFullName(), temporaryPassword);
+        cacheInvalidationService.evictAdminDashboard();
         return savedTeacher;
     }
 
