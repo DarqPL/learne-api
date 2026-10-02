@@ -4,6 +4,10 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -30,8 +34,7 @@ public class CacheConfig {
     @Bean
     @ConditionalOnProperty(prefix = "app.cache.redis", name = "enabled", havingValue = "true", matchIfMissing = true)
     CacheManager redisCacheManager(RedisConnectionFactory connectionFactory, CacheProperties properties) {
-        RedisSerializationContext.SerializationPair<Object> jsonSerializer = RedisSerializationContext.SerializationPair
-                .fromSerializer(new GenericJackson2JsonRedisSerializer());
+        RedisSerializationContext.SerializationPair<Object> jsonSerializer = redisValueSerializer();
         RedisCacheConfiguration defaults = RedisCacheConfiguration.defaultCacheConfig()
                 .serializeValuesWith(jsonSerializer)
                 .prefixCacheNameWith(properties.redis().keyPrefix() + ":")
@@ -53,6 +56,27 @@ public class CacheConfig {
                 .cacheDefaults(defaults.entryTtl(Duration.ofMinutes(5)))
                 .withInitialCacheConfigurations(configurations)
                 .build();
+    }
+
+    static RedisSerializationContext.SerializationPair<Object> redisValueSerializer() {
+        ObjectMapper objectMapper = JsonMapper.builder()
+                .addModule(new JavaTimeModule())
+                .build();
+        objectMapper.activateDefaultTypingAsProperty(
+                BasicPolymorphicTypeValidator.builder()
+                        .allowIfSubType("com.learne.backend.")
+                        .allowIfSubType("java.time.")
+                        .allowIfSubType("java.util.")
+                        .allowIfSubType(String.class)
+                        .allowIfSubType(Number.class)
+                        .allowIfSubType(Boolean.class)
+                        .allowIfSubType(Character.class)
+                        .build(),
+                ObjectMapper.DefaultTyping.EVERYTHING,
+                "@class");
+        GenericJackson2JsonRedisSerializer.registerNullValueSerializer(objectMapper, "@class");
+        GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(objectMapper);
+        return RedisSerializationContext.SerializationPair.fromSerializer(serializer);
     }
 
     @Bean

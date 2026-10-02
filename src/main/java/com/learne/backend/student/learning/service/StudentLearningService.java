@@ -5,6 +5,7 @@ import com.learne.backend.domain.auth.User;
 import com.learne.backend.monetization.service.CourseAccessService;
 import com.learne.backend.shared.dashboard.service.LeaderboardReadCacheService;
 import com.learne.backend.shared.api.ApiException;
+import com.learne.backend.student.learning.dto.SharedStudentCourseDetailResponse;
 import com.learne.backend.student.learning.dto.SubmitQuizRequest;
 import com.learne.backend.student.learning.dto.SubmitQuizResponse;
 import com.learne.backend.student.learning.dto.StudentActiveCourseResponse;
@@ -357,12 +358,22 @@ public class StudentLearningService {
     }
 
     @Transactional(readOnly = true)
-    public StudentCourseDetailResponse getCourse(User student, Long courseId) {
+    public SharedStudentCourseDetailResponse getSharedCourseDetail(Long courseId) {
         Course course = courseRepository.findStudentDetailByIdAndStatus(courseId, ContentStatus.APPROVED)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
+        return SharedStudentCourseDetailResponse.from(course);
+    }
+
+    @Transactional(readOnly = true)
+    public StudentCourseDetailResponse getCourse(User student, Long courseId, SharedStudentCourseDetailResponse shared) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
+        if (course.getStatus() != ContentStatus.APPROVED) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Course not found.");
+        }
         CourseEnrollment enrollment = courseEnrollmentRepository.findByUserAndCourse(student, course).orElse(null);
         CourseAccessStatus accessStatus = courseAccessService.accessStatus(student, course);
-        return StudentCourseDetailResponse.from(course, enrollment, accessStatus, accessReason(accessStatus), accessStatus != CourseAccessStatus.LOCKED);
+        return StudentCourseDetailResponse.from(shared, accessStatus, accessReason(accessStatus), enrollment);
     }
 
     @Transactional(readOnly = true)

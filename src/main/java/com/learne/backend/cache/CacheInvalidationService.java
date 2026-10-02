@@ -31,7 +31,6 @@ public class CacheInvalidationService {
         afterCommit(() -> {
             evict(CacheNames.STUDENT_DASHBOARD, dashboardKey);
             clear(CacheNames.STUDENT_CATALOG);
-            clear(CacheNames.STUDENT_COURSE_DETAIL);
             evict(CacheNames.COURSE_ACCESS, accessKey);
         });
     }
@@ -42,7 +41,6 @@ public class CacheInvalidationService {
         afterCommit(() -> {
             evict(CacheNames.COURSE_ACCESS, accessKey);
             clear(CacheNames.STUDENT_CATALOG);
-            clear(CacheNames.STUDENT_COURSE_DETAIL);
         });
     }
 

@@ -3,12 +3,9 @@ package com.learne.backend.student.learning.dto;
 import com.learne.backend.student.learning.entity.CourseEnrollment;
 import com.learne.backend.student.learning.enums.CourseAccessStatus;
 import com.learne.backend.teacher.content.entity.Course;
-import com.learne.backend.teacher.content.entity.Topic;
-import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.enums.CoursePricingType;
 import com.learne.backend.teacher.content.enums.CourseType;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 
 public record StudentCourseDetailResponse(
@@ -31,32 +28,32 @@ public record StudentCourseDetailResponse(
         List<StudentTopicResponse> topics
 ) {
     public static StudentCourseDetailResponse from(Course course, CourseEnrollment enrollment,
+                                                    CourseAccessStatus accessStatus, String accessReason,
+                                                    boolean includeContent) {
+        return from(SharedStudentCourseDetailResponse.from(course), accessStatus, accessReason, enrollment);
+    }
+
+    public static StudentCourseDetailResponse from(SharedStudentCourseDetailResponse shared,
                                                    CourseAccessStatus accessStatus, String accessReason,
-                                                   boolean includeContent) {
+                                                   CourseEnrollment enrollment) {
         return new StudentCourseDetailResponse(
-                course.getId(),
-                course.getName(),
-                course.getDescription(),
-                course.getType(),
-                course.getLevel(),
-                course.getTeacher().getId(),
-                course.getTeacher().getFullName(),
-                course.getTeacher().getEmail(),
-                course.getTeacher().getAvatarUrl(),
-                course.getPublishedAt(),
-                course.getPricingType(),
-                course.getPriceAmountVnd(),
+                shared.id(),
+                shared.name(),
+                shared.description(),
+                shared.type(),
+                shared.level(),
+                shared.teacherId(),
+                shared.teacherName(),
+                shared.teacherEmail(),
+                shared.teacherAvatarUrl(),
+                shared.publishedAt(),
+                shared.pricingType(),
+                shared.priceAmountVnd(),
                 accessStatus,
                 accessReason,
                 enrollment != null,
                 enrollment == null ? null : enrollment.getId(),
-                includeContent
-                        ? course.getTopics().stream()
-                                .filter(topic -> topic.getLessons().stream().anyMatch(lesson -> lesson.getStatus() == ContentStatus.APPROVED))
-                                .sorted(Comparator.comparingInt(Topic::getOrderIndex).thenComparing(Topic::getId))
-                                .map(StudentTopicResponse::from)
-                                .toList()
-                        : List.of()
+                accessStatus == CourseAccessStatus.LOCKED ? List.of() : List.copyOf(shared.topics())
         );
     }
 }

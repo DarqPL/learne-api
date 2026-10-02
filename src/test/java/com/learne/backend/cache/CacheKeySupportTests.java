@@ -39,12 +39,6 @@ class CacheKeySupportTests {
                 .isThrownBy(() -> CacheKeySupport.studentCatalog(null, "A1", 9L, 7L))
                 .withMessage("studentId is required");
         assertThatNullPointerException()
-                .isThrownBy(() -> CacheKeySupport.studentCourseDetail(null, 12L, 7L))
-                .withMessage("studentId is required");
-        assertThatNullPointerException()
-                .isThrownBy(() -> CacheKeySupport.studentCourseDetail(42L, null, 7L))
-                .withMessage("courseId is required");
-        assertThatNullPointerException()
                 .isThrownBy(() -> CacheKeySupport.studentDashboard(null))
                 .withMessage("studentId is required");
         assertThatNullPointerException()
@@ -56,11 +50,25 @@ class CacheKeySupportTests {
     }
 
     @Test
+    void requiredCourseDetailIdsFailFastWhenNull() {
+        assertThatNullPointerException()
+                .isThrownBy(() -> CacheKeySupport.studentCourseDetail(null, 7L))
+                .withMessage("courseId is required");
+    }
+
+    @Test
     void optionalCatalogFiltersNormalizeSafely() {
         assertThat(CacheKeySupport.studentCatalog(42L, null, null, null))
                 .isEqualTo("student:42:level:all:teacher:all:catalogVersion:0");
-        assertThat(CacheKeySupport.studentCourseDetail(42L, 12L, null))
-                .isEqualTo("student:42:course:12:catalogVersion:0");
+        assertThat(CacheKeySupport.studentCourseDetail(12L, null))
+                .isEqualTo("course:12:catalogVersion:0");
+    }
+
+    @Test
+    void studentCourseDetailKeyIsSharedByCourseAndCatalogVersion() {
+        String key = CacheKeySupport.studentCourseDetail(12L, 7L);
+
+        assertThat(key).isEqualTo("course:12:catalogVersion:7");
     }
 
     @Test

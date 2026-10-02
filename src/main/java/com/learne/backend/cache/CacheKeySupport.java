@@ -18,9 +18,8 @@ public final class CacheKeySupport {
                 catalogVersion == null ? 0L : catalogVersion);
     }
 
-    public static String studentCourseDetail(Long studentId, Long courseId, Long catalogVersion) {
-        return "student:%d:course:%d:catalogVersion:%d".formatted(
-                Objects.requireNonNull(studentId, "studentId is required"),
+    public static String studentCourseDetail(Long courseId, Long catalogVersion) {
+        return "course:%d:catalogVersion:%d".formatted(
                 Objects.requireNonNull(courseId, "courseId is required"),
                 catalogVersion == null ? 0L : catalogVersion);
     }

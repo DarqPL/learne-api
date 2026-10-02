@@ -45,6 +45,28 @@ class CacheInvalidationServiceTests {
     }
 
     @Test
+    void evictStudentLearningKeepsSharedStudentCourseDetailCache() {
+        Cache courseDetail = cacheManager.getCache(CacheNames.STUDENT_COURSE_DETAIL);
+        String courseDetailKey = CacheKeySupport.studentCourseDetail(99L, catalogCacheVersionService.currentVersion());
+        courseDetail.put(courseDetailKey, "course-detail");
+
+        invalidationService.evictStudentLearning(10L);
+
+        assertThat(courseDetail.get(courseDetailKey)).isNotNull();
+    }
+
+    @Test
+    void evictAccessForStudentKeepsSharedStudentCourseDetailCache() {
+        Cache courseDetail = cacheManager.getCache(CacheNames.STUDENT_COURSE_DETAIL);
+        String courseDetailKey = CacheKeySupport.studentCourseDetail(99L, catalogCacheVersionService.currentVersion());
+        courseDetail.put(courseDetailKey, "course-detail");
+
+        invalidationService.evictAccessForStudent(10L);
+
+        assertThat(courseDetail.get(courseDetailKey)).isNotNull();
+    }
+
+    @Test
     void courseCatalogInvalidationBumpsVersion() {
         long before = catalogCacheVersionService.currentVersion();
 
