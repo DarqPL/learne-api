@@ -56,6 +56,8 @@ class CacheInvalidationServiceTests {
     @Test
     void recordsEvictionMetricsWithBoundedTags() {
         String cacheName = CacheNames.TEACHER_DASHBOARD;
+        String key = CacheKeySupport.teacherDashboard(10L);
+        cacheManager.getCache(cacheName).put(key, "dashboard");
         double before = evictionCount(cacheName, "keyed");
 
         invalidationService.evictTeacherDashboard(10L);
@@ -109,41 +111,71 @@ class CacheInvalidationServiceTests {
 
     @Test
     void keyedEvictionFailurePropagatesImmediately() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
         CacheInvalidationService service = new CacheInvalidationService(
                 new SingleCacheManager(CacheNames.TEACHER_DASHBOARD, new ThrowingEvictIfPresentCache(CacheNames.TEACHER_DASHBOARD)),
                 new CatalogCacheVersionService(),
-                observedMetrics());
+                new ObservedCacheMetrics(registry));
 
         assertThatThrownBy(() -> service.evictTeacherDashboard(10L))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("evict failed");
+        assertThat(evictionCount(registry, CacheNames.TEACHER_DASHBOARD, "keyed")).isZero();
+    }
+
+    @Test
+    void doesNotRecordMetricWhenKeyedEvictionDoesNotMutateCache() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        CacheInvalidationService service = new CacheInvalidationService(
+                new SingleCacheManager(CacheNames.TEACHER_DASHBOARD, new MissingKeyCache(CacheNames.TEACHER_DASHBOARD)),
+                new CatalogCacheVersionService(),
+                new ObservedCacheMetrics(registry));
+
+        service.evictTeacherDashboard(10L);
+
+        assertThat(evictionCount(registry, CacheNames.TEACHER_DASHBOARD, "keyed")).isZero();
+    }
+
+    @Test
+    void doesNotRecordMetricWhenFullInvalidationDoesNotMutateCache() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        CacheInvalidationService service = new CacheInvalidationService(
+                new SingleCacheManager(CacheNames.LEADERBOARD, new EmptyCache(CacheNames.LEADERBOARD)),
+                new CatalogCacheVersionService(),
+                new ObservedCacheMetrics(registry));
+
+        service.evictLeaderboard();
+
+        assertThat(evictionCount(registry, CacheNames.LEADERBOARD, "full")).isZero();
     }
 
     @Test
     void catalogVersionDoesNotAdvanceWhenCatalogClearFails() {
         CatalogCacheVersionService versionService = new CatalogCacheVersionService();
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
         CacheInvalidationService service = new CacheInvalidationService(
                 new SingleCacheManager(CacheNames.STUDENT_CATALOG, new ThrowingInvalidateCache(CacheNames.STUDENT_CATALOG)),
                 versionService,
-                observedMetrics());
+                new ObservedCacheMetrics(registry));
         long before = versionService.currentVersion();
 
         assertThatThrownBy(service::evictGlobalCourseCatalog)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("invalidate failed");
         assertThat(versionService.currentVersion()).isEqualTo(before);
+        assertThat(evictionCount(registry, CacheNames.STUDENT_CATALOG, "full")).isZero();
     }
 
     private double evictionCount(String cacheName, String reason) {
-        Counter counter = meterRegistry.find("learne.cache.evictions")
+        return evictionCount(meterRegistry, cacheName, reason);
+    }
+
+    private static double evictionCount(MeterRegistry registry, String cacheName, String reason) {
+        Counter counter = registry.find("learne.cache.evictions")
                 .tag("cache", cacheName)
                 .tag("reason", reason)
                 .counter();
         return counter == null ? 0.0d : counter.count();
-    }
-
-    private static ObservedCacheMetrics observedMetrics() {
-        return new ObservedCacheMetrics(new SimpleMeterRegistry());
     }
 
     private static void clearSynchronization() {
@@ -178,6 +210,28 @@ class CacheInvalidationServiceTests {
         @Override
         public boolean evictIfPresent(Object key) {
             throw new IllegalStateException("evict failed");
+        }
+    }
+
+    private static final class MissingKeyCache extends ConcurrentMapCache {
+        private MissingKeyCache(String name) {
+            super(name);
+        }
+
+        @Override
+        public boolean evictIfPresent(Object key) {
+            return false;
+        }
+    }
+
+    private static final class EmptyCache extends ConcurrentMapCache {
+        private EmptyCache(String name) {
+            super(name);
+        }
+
+        @Override
+        public boolean invalidate() {
+            return false;
         }
     }
 

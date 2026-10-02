@@ -72,16 +72,18 @@ public class CacheInvalidationService {
     private void evict(String cacheName, Object key) {
         Cache cache = cacheManager.getCache(cacheName);
         if (cache != null) {
-            cache.evictIfPresent(key);
-            observedCacheMetrics.recordEviction(cacheName, "keyed");
+            if (cache.evictIfPresent(key)) {
+                observedCacheMetrics.recordEviction(cacheName, "keyed");
+            }
         }
     }
 
     private void clear(String cacheName) {
         Cache cache = cacheManager.getCache(cacheName);
         if (cache != null) {
-            cache.invalidate();
-            observedCacheMetrics.recordEviction(cacheName, "full");
+            if (cache.invalidate()) {
+                observedCacheMetrics.recordEviction(cacheName, "full");
+            }
         }
     }
 
