@@ -592,9 +592,29 @@ class TeacherContentApiTests {
                 "select revision_number from course_revisions where id = ? and status = 'DRAFT'",
                 Integer.class,
                 draftRevisionId);
+        String draftTopicName = jdbcTemplate.queryForObject(
+                "select name from topic_revisions where revision_id = ?",
+                String.class,
+                draftRevisionId);
+        String draftLessonTitle = jdbcTemplate.queryForObject(
+                "select lr.title from lesson_revisions lr "
+                        + "join topic_revisions tr on lr.topic_revision_id = tr.id "
+                        + "where tr.revision_id = ?",
+                String.class,
+                draftRevisionId);
+        String draftQuestionText = jdbcTemplate.queryForObject(
+                "select qr.question_text from question_revisions qr "
+                        + "join lesson_revisions lr on qr.lesson_revision_id = lr.id "
+                        + "join topic_revisions tr on lr.topic_revision_id = tr.id "
+                        + "where tr.revision_id = ?",
+                String.class,
+                draftRevisionId);
         String liveNameAfter = jdbcTemplate.queryForObject("select name from courses where id = ?", String.class, courseId);
 
         assertThat(draftRevisionNumber).isEqualTo(2);
+        assertThat(draftTopicName).isEqualTo("Topic");
+        assertThat(draftLessonTitle).isEqualTo("Lesson");
+        assertThat(draftQuestionText).isEqualTo("Write the greeting.");
         assertThat(liveNameAfter).isEqualTo(liveNameBefore);
     }
 
@@ -628,9 +648,12 @@ class TeacherContentApiTests {
     void teacherCannotCreateEditRevisionForAnotherTeachersCourse() throws Exception {
         User owner = saveUser("edit-owner@example.com", UserRole.TEACHER);
         User other = saveUser("edit-other@example.com", UserRole.TEACHER);
+        User admin = saveUser("edit-owner-admin@example.com", UserRole.ADMIN);
         String ownerToken = loginAndGetAccessToken(owner.getEmail());
         String otherToken = loginAndGetAccessToken(other.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
         long courseId = createCourse(ownerToken);
+        approveCourseThroughAdmin(ownerToken, adminToken, courseId);
 
         mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherToken))
@@ -1136,7 +1159,7 @@ class TeacherContentApiTests {
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
     }
 
-    private long approveCourseThroughAdmin(String teacherToken, String adminToken, long courseId) throws Exception {
+    private void approveCourseThroughAdmin(String teacherToken, String adminToken, long courseId) throws Exception {
         long lessonId = createLesson(teacherToken, courseId);
         createShortAnswerQuestion(teacherToken, lessonId);
         mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
@@ -1145,14 +1168,6 @@ class TeacherContentApiTests {
         mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk());
-        return lessonId;
-    }
-
-    private long latestRevisionId(long courseId) {
-        return jdbcTemplate.queryForObject(
-                "select id from course_revisions where course_id = ? order by revision_number desc limit 1",
-                Long.class,
-                courseId);
     }
 
     private int revisionCount(long courseId) {
