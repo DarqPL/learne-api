@@ -714,6 +714,129 @@ class TeacherContentApiTests {
     }
 
     @Test
+    void teacherUpdatesApprovedPaidCourseMetadataWithoutClearingDraftRevisionPricing() throws Exception {
+        User teacher = saveUser("paid-draft-preserve-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("paid-draft-preserve-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long courseId = createPaidCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, courseId);
+        mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/teacher/content/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Paid Draft Metadata Update",
+                                  "description": "Keep draft pricing.",
+                                  "type": "COMPREHENSIVE",
+                                  "level": "B1",
+                                  "orderIndex": 2
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pricingType").value("PAID"))
+                .andExpect(jsonPath("$.proposedPriceAmountVnd").value(300000));
+
+        Map<String, Object> draftPricing = jdbcTemplate.queryForMap(
+                "select pricing_type, proposed_price_amount_vnd from course_revisions where course_id = ? order by revision_number desc limit 1",
+                courseId);
+        assertThat(draftPricing.get("PRICING_TYPE")).isEqualTo("PAID");
+        assertThat(((Number) draftPricing.get("PROPOSED_PRICE_AMOUNT_VND")).longValue()).isEqualTo(300000L);
+    }
+
+    @Test
+    void teacherCanSwitchApprovedPaidCourseDraftRevisionToFree() throws Exception {
+        User teacher = saveUser("paid-draft-free-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("paid-draft-free-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long courseId = createPaidCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, courseId);
+        mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/teacher/content/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Free Draft Course",
+                                  "description": "Switch draft pricing to free.",
+                                  "type": "COMPREHENSIVE",
+                                  "level": "B1",
+                                  "orderIndex": 2,
+                                  "pricingType": "FREE"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pricingType").value("FREE"))
+                .andExpect(jsonPath("$.proposedPriceAmountVnd").doesNotExist());
+
+        Map<String, Object> draftPricing = jdbcTemplate.queryForMap(
+                "select pricing_type, proposed_price_amount_vnd from course_revisions where course_id = ? order by revision_number desc limit 1",
+                courseId);
+        assertThat(draftPricing.get("PRICING_TYPE")).isEqualTo("FREE");
+        assertThat(draftPricing.get("PROPOSED_PRICE_AMOUNT_VND")).isNull();
+    }
+
+    @Test
+    void teacherCannotSwitchApprovedCourseDraftRevisionToPaidWithoutPositivePrice() throws Exception {
+        User teacher = saveUser("paid-draft-invalid-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("paid-draft-invalid-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long missingPriceCourseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, missingPriceCourseId);
+        mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(missingPriceCourseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/teacher/content/courses/%d".formatted(missingPriceCourseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Invalid Paid Draft Course",
+                                  "description": "Missing price.",
+                                  "type": "COMPREHENSIVE",
+                                  "level": "B1",
+                                  "orderIndex": 2,
+                                  "pricingType": "PAID"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Paid course requires a positive proposed price."));
+
+        long zeroPriceCourseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, zeroPriceCourseId);
+        mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(zeroPriceCourseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/teacher/content/courses/%d".formatted(zeroPriceCourseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Invalid Paid Draft Course",
+                                  "description": "Zero price.",
+                                  "type": "COMPREHENSIVE",
+                                  "level": "B1",
+                                  "orderIndex": 2,
+                                  "pricingType": "PAID",
+                                  "proposedPriceAmountVnd": 0
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Paid course requires a positive proposed price."));
+    }
+
+    @Test
     void editRevisionFromPendingReviewSupersedesPendingSourceAndWithdrawsUnpublishedCourse() throws Exception {
         User teacher = saveUser("edit-pending-teacher@example.com", UserRole.TEACHER);
         String teacherToken = loginAndGetAccessToken(teacher.getEmail());
@@ -1188,6 +1311,26 @@ class TeacherContentApiTests {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validCourseJson()))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
+    }
+
+    private long createPaidCourse(String token) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/teacher/content/courses")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Paid English B1",
+                                  "description": "Paid course proposal.",
+                                  "type": "COMPREHENSIVE",
+                                  "level": "B1",
+                                  "orderIndex": 1,
+                                  "pricingType": "PAID",
+                                  "proposedPriceAmountVnd": 300000
+                                }
+                                """))
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();

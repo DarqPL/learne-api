@@ -138,7 +138,7 @@ public class TeacherContentService {
         Course course = findCourse(teacher, courseId);
         CourseRevision latestRevision = findLatestRevision(course);
         if (course.getPublishedAt() != null || course.getStatus() == ContentStatus.APPROVED) {
-            CourseRevision editableRevision = latestEditableRevision(course)
+            CourseRevision editableRevision = latestLockedEditableRevision(courseId)
                     .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Create an edit revision before editing this course."));
             applyCourseRequestToRevision(editableRevision, request, false);
             CourseRevision savedRevision = courseRevisionRepository.save(editableRevision);
@@ -468,6 +468,12 @@ public class TeacherContentService {
         return courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(course, CourseRevisionStatus.DRAFT)
                 .or(() -> courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(
                         course, CourseRevisionStatus.REJECTED));
+    }
+
+    private Optional<CourseRevision> latestLockedEditableRevision(Long courseId) {
+        return courseRevisionRepository.findLockedTopByCourseIdAndStatusOrderByRevisionNumberDesc(courseId, CourseRevisionStatus.DRAFT)
+                .or(() -> courseRevisionRepository.findLockedTopByCourseIdAndStatusOrderByRevisionNumberDesc(
+                        courseId, CourseRevisionStatus.REJECTED));
     }
 
     private boolean isEditableRevision(CourseRevision revision) {
