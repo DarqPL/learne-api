@@ -192,6 +192,16 @@ public class TeacherContentService {
 
     @Transactional
     public TopicResponse updateTopic(User teacher, Long topicId, TopicRequest request) {
+        Optional<Topic> liveTopic = findTopicOptional(teacher, topicId);
+        if (liveTopic.isPresent() && isEditableCourse(liveTopic.get().getCourse())) {
+            Topic topic = liveTopic.get();
+            applyTopicRequest(topic, request);
+            Topic savedTopic = topicRepository.save(topic);
+            syncEditableRevision(savedTopic.getCourse());
+            TopicResponse response = TopicResponse.from(savedTopic);
+            evictContentCaches(teacher);
+            return response;
+        }
         Optional<TopicRevision> editableTopicRevision = findEditableTopicRevision(teacher, topicId);
         if (editableTopicRevision.isPresent()) {
             TopicRevision topic = editableTopicRevision.get();
@@ -200,7 +210,7 @@ public class TeacherContentService {
             evictContentCaches(teacher);
             return response;
         }
-        Topic topic = findTopic(teacher, topicId);
+        Topic topic = liveTopic.orElseGet(() -> findTopic(teacher, topicId));
         ensureEditable(topic.getCourse());
         applyTopicRequest(topic, request);
         Topic savedTopic = topicRepository.save(topic);
@@ -240,6 +250,16 @@ public class TeacherContentService {
 
     @Transactional
     public LessonResponse updateLesson(User teacher, Long lessonId, LessonRequest request) {
+        Optional<Lesson> liveLesson = findLessonOptional(teacher, lessonId);
+        if (liveLesson.isPresent() && isEditableCourse(liveLesson.get().getTopic().getCourse())) {
+            Lesson lesson = liveLesson.get();
+            applyLessonRequest(lesson, request);
+            Lesson savedLesson = lessonRepository.save(lesson);
+            syncEditableRevision(savedLesson.getTopic().getCourse());
+            LessonResponse response = LessonResponse.from(savedLesson);
+            evictContentCaches(teacher);
+            return response;
+        }
         Optional<LessonRevision> editableLessonRevision = findEditableLessonRevision(teacher, lessonId);
         if (editableLessonRevision.isPresent()) {
             LessonRevision lesson = editableLessonRevision.get();
@@ -248,7 +268,7 @@ public class TeacherContentService {
             evictContentCaches(teacher);
             return response;
         }
-        Lesson lesson = findLesson(teacher, lessonId);
+        Lesson lesson = liveLesson.orElseGet(() -> findLesson(teacher, lessonId));
         ensureEditable(lesson.getTopic().getCourse());
         applyLessonRequest(lesson, request);
         Lesson savedLesson = lessonRepository.save(lesson);
@@ -289,6 +309,18 @@ public class TeacherContentService {
 
     @Transactional
     public QuestionResponse updateQuestion(User teacher, Long questionId, QuestionRequest request) {
+        Optional<Question> liveQuestion = findQuestionOptional(teacher, questionId);
+        if (liveQuestion.isPresent() && isEditableCourse(liveQuestion.get().getLesson().getTopic().getCourse())) {
+            Question question = liveQuestion.get();
+            validateQuestion(request);
+            question.getOptions().clear();
+            applyQuestionRequest(question, request);
+            Question savedQuestion = questionRepository.save(question);
+            syncEditableRevision(savedQuestion.getLesson().getTopic().getCourse());
+            QuestionResponse response = QuestionResponse.from(savedQuestion);
+            evictContentCaches(teacher);
+            return response;
+        }
         Optional<QuestionRevision> editableQuestionRevision = findEditableQuestionRevision(teacher, questionId);
         if (editableQuestionRevision.isPresent()) {
             QuestionRevision question = editableQuestionRevision.get();
@@ -299,7 +331,7 @@ public class TeacherContentService {
             evictContentCaches(teacher);
             return response;
         }
-        Question question = findQuestion(teacher, questionId);
+        Question question = liveQuestion.orElseGet(() -> findQuestion(teacher, questionId));
         ensureEditable(question.getLesson().getTopic().getCourse());
         validateQuestion(request);
         question.getOptions().clear();
@@ -377,30 +409,33 @@ public class TeacherContentService {
     }
 
     private Topic findTopic(User teacher, Long topicId) {
-        Topic topic = topicRepository.findById(topicId)
+        return findTopicOptional(teacher, topicId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Topic not found."));
-        if (!topic.getCourse().getTeacher().getId().equals(teacher.getId())) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "Topic not found.");
-        }
-        return topic;
     }
 
     private Lesson findLesson(User teacher, Long lessonId) {
-        Lesson lesson = lessonRepository.findById(lessonId)
+        return findLessonOptional(teacher, lessonId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Lesson not found."));
-        if (!lesson.getTeacher().getId().equals(teacher.getId())) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "Lesson not found.");
-        }
-        return lesson;
     }
 
     private Question findQuestion(User teacher, Long questionId) {
-        Question question = questionRepository.findById(questionId)
+        return findQuestionOptional(teacher, questionId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Question not found."));
-        if (!question.getTeacher().getId().equals(teacher.getId())) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "Question not found.");
-        }
-        return question;
+    }
+
+    private Optional<Topic> findTopicOptional(User teacher, Long topicId) {
+        return topicRepository.findById(topicId)
+                .filter(topic -> topic.getCourse().getTeacher().getId().equals(teacher.getId()));
+    }
+
+    private Optional<Lesson> findLessonOptional(User teacher, Long lessonId) {
+        return lessonRepository.findById(lessonId)
+                .filter(lesson -> lesson.getTeacher().getId().equals(teacher.getId()));
+    }
+
+    private Optional<Question> findQuestionOptional(User teacher, Long questionId) {
+        return questionRepository.findById(questionId)
+                .filter(question -> question.getTeacher().getId().equals(teacher.getId()));
     }
 
     private Optional<TopicRevision> findEditableTopicRevision(User teacher, Long topicId) {
@@ -416,9 +451,13 @@ public class TeacherContentService {
     }
 
     private void ensureEditable(Course course) {
-        if (course.getStatus() != ContentStatus.DRAFT && course.getStatus() != ContentStatus.REJECTED) {
+        if (!isEditableCourse(course)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Only draft or rejected content can be edited.");
         }
+    }
+
+    private boolean isEditableCourse(Course course) {
+        return course.getStatus() == ContentStatus.DRAFT || course.getStatus() == ContentStatus.REJECTED;
     }
 
     private boolean hasMinimumReviewContent(Course course) {

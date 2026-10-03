@@ -801,6 +801,107 @@ class TeacherContentApiTests {
     }
 
     @Test
+    void teacherUpdatesLiveDraftNestedContentBeforeCollidingRevisionIds() throws Exception {
+        User teacher = saveUser("nested-collision-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("nested-collision-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long approvedCourseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, approvedCourseId);
+        MvcResult editResult = mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(approvedCourseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode editBody = objectMapper.readTree(editResult.getResponse().getContentAsString());
+        long topicRevisionId = editBody.get("topics").get(0).get("id").asLong();
+        long lessonRevisionId = editBody.get("topics").get(0).get("lessons").get(0).get("id").asLong();
+        long questionRevisionId = editBody.get("topics").get(0).get("lessons").get(0).get("questions").get(0).get("id").asLong();
+
+        long draftCourseId = createCourse(teacherToken);
+        long draftLessonId = createLesson(teacherToken, draftCourseId);
+        long draftQuestionId = createShortAnswerQuestion(teacherToken, draftLessonId);
+        long draftTopicId = jdbcTemplate.queryForObject(
+                "select t.id from topics t join lessons l on l.topic_id = t.id where l.id = ?",
+                Long.class,
+                draftLessonId);
+        jdbcTemplate.execute("set referential_integrity false");
+        try {
+            jdbcTemplate.update("update topics set id = ? where id = ?", topicRevisionId, draftTopicId);
+            jdbcTemplate.update("update lessons set topic_id = ?, id = ? where id = ?", topicRevisionId, lessonRevisionId, draftLessonId);
+            jdbcTemplate.update("update questions set lesson_id = ?, id = ? where id = ?", lessonRevisionId, questionRevisionId, draftQuestionId);
+        } finally {
+            jdbcTemplate.execute("set referential_integrity true");
+        }
+
+        mockMvc.perform(put("/api/teacher/content/topics/%d".formatted(topicRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Updated live draft topic",
+                                  "description": "Updated live draft topic description",
+                                  "orderIndex": 3
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Updated live draft topic"));
+
+        mockMvc.perform(put("/api/teacher/content/lessons/%d".formatted(lessonRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Updated live draft lesson",
+                                  "description": "Updated live draft lesson description",
+                                  "content": "Updated live draft lesson content",
+                                  "skillType": "PRONUNCIATION",
+                                  "orderIndex": 2,
+                                  "xpReward": 12,
+                                  "placementTest": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Updated live draft lesson"));
+
+        mockMvc.perform(put("/api/teacher/content/questions/%d".formatted(questionRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "type": "SHORT_ANSWER",
+                                  "questionText": "Write the updated live draft greeting.",
+                                  "correctAnswer": "Hi",
+                                  "knowledgePoint": "live_draft_greetings",
+                                  "orderIndex": 4,
+                                  "difficulty": "medium",
+                                  "xpReward": 9
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.questionText").value("Write the updated live draft greeting."));
+
+        String liveTopicName = jdbcTemplate.queryForObject(
+                "select name from topics where id = ? and course_id = ?",
+                String.class,
+                topicRevisionId,
+                draftCourseId);
+        String liveLessonTitle = jdbcTemplate.queryForObject(
+                "select title from lessons where id = ? and topic_id = ?",
+                String.class,
+                lessonRevisionId,
+                topicRevisionId);
+        String liveQuestionText = jdbcTemplate.queryForObject(
+                "select question_text from questions where id = ? and lesson_id = ?",
+                String.class,
+                questionRevisionId,
+                lessonRevisionId);
+
+        assertThat(liveTopicName).isEqualTo("Updated live draft topic");
+        assertThat(liveLessonTitle).isEqualTo("Updated live draft lesson");
+        assertThat(liveQuestionText).isEqualTo("Write the updated live draft greeting.");
+    }
+
+    @Test
     void teacherUpdatesApprovedPaidCourseMetadataWithoutClearingDraftRevisionPricing() throws Exception {
         User teacher = saveUser("paid-draft-preserve-teacher@example.com", UserRole.TEACHER);
         User admin = saveUser("paid-draft-preserve-admin@example.com", UserRole.ADMIN);
