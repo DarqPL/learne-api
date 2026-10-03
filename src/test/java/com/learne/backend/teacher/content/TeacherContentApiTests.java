@@ -1020,10 +1020,12 @@ class TeacherContentApiTests {
         long lessonId = createLesson(teacherToken, courseId);
         long questionId = createShortAnswerQuestion(teacherToken, lessonId);
 
-        long topicId = jdbcTemplate.queryForObject(
-                "select topic_id from lessons where id = ?",
-                Long.class,
-                lessonId);
+        MvcResult detailResult = mockMvc.perform(get("/api/teacher/content/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode detail = objectMapper.readTree(detailResult.getResponse().getContentAsString());
+        long topicId = detail.get("topics").get(0).get("id").asLong();
 
         mockMvc.perform(put("/api/teacher/content/topics/%d".formatted(topicId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
