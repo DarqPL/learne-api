@@ -414,10 +414,11 @@ public class CourseImportExportService {
     }
 
     private java.util.Optional<CourseRevision> latestUpdatableSourceRevision(Course course) {
-        return latestEditableRevision(course)
-                .or(() -> courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(
-                        course, CourseRevisionStatus.PENDING_REVIEW))
-                .or(() -> latestApprovedRevision(course));
+        return courseRevisionRepository.findTopByCourseOrderByRevisionNumberDesc(course)
+                .filter(revision -> revision.getStatus() == CourseRevisionStatus.DRAFT
+                        || revision.getStatus() == CourseRevisionStatus.REJECTED
+                        || revision.getStatus() == CourseRevisionStatus.PENDING_REVIEW
+                        || revision.getStatus() == CourseRevisionStatus.APPROVED);
     }
 
     private void applyRevisionMetadata(CourseRevision revision, CourseImportModel model) {

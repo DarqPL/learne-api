@@ -560,9 +560,8 @@ public class TeacherContentService {
     }
 
     private Optional<CourseRevision> latestLockedEditableRevision(Long courseId) {
-        return courseRevisionRepository.findLockedTopByCourseIdAndStatusOrderByRevisionNumberDesc(courseId, CourseRevisionStatus.DRAFT)
-                .or(() -> courseRevisionRepository.findLockedTopByCourseIdAndStatusOrderByRevisionNumberDesc(
-                        courseId, CourseRevisionStatus.REJECTED));
+        return courseRevisionRepository.findTopByCourseIdOrderByRevisionNumberDesc(courseId)
+                .filter(this::isEditableRevision);
     }
 
     private boolean isEditableRevision(CourseRevision revision) {

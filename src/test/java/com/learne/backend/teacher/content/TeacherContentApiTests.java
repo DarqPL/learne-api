@@ -303,6 +303,48 @@ class TeacherContentApiTests {
     }
 
     @Test
+    void teacherExportsLatestPendingRevisionInsteadOfOlderEditableRevision() throws Exception {
+        User teacher = saveUser("latest-pending-export-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("latest-pending-export-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long courseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, courseId);
+
+        MvcResult firstEditResult = mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        long staleRevisionId = objectMapper.readTree(firstEditResult.getResponse().getContentAsString())
+                .get("latestRevisionId").asLong();
+        updateCourseMetadata(teacherToken, courseId, "Older Editable Export Name");
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+        updateCourseMetadata(teacherToken, courseId, "Latest Pending Export Name");
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+        jdbcTemplate.update("update course_revisions set status = 'DRAFT' where id = ?", staleRevisionId);
+
+        MvcResult exportResult = mockMvc.perform(get("/api/teacher/content/courses/%d/export".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        try (Workbook workbook = new XSSFWorkbook(
+                new java.io.ByteArrayInputStream(exportResult.getResponse().getContentAsByteArray()))) {
+            Row row = workbook.getSheet("Content").getRow(1);
+
+            assertThat(row.getCell(0).getStringCellValue()).isEqualTo("Latest Pending Export Name");
+        }
+    }
+
+    @Test
     void teacherCanReimportApprovedOnlyCourseIntoNewDraftRevision() throws Exception {
         User teacher = saveUser("approved-reimport-teacher@example.com", UserRole.TEACHER);
         String teacherToken = loginAndGetAccessToken(teacher.getEmail());
@@ -711,6 +753,63 @@ class TeacherContentApiTests {
                 courseId);
         assertThat(liveName).isEqualTo("English A1 Foundation");
         assertThat(draftName).isEqualTo("Edited Draft Course");
+    }
+
+    @Test
+    void teacherCannotUpdateStaleEditableRevisionBehindLatestPendingRevision() throws Exception {
+        User teacher = saveUser("stale-editable-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("stale-editable-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long courseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, courseId);
+
+        MvcResult firstEditResult = mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        long staleRevisionId = objectMapper.readTree(firstEditResult.getResponse().getContentAsString())
+                .get("latestRevisionId").asLong();
+        updateCourseMetadata(teacherToken, courseId, "Older Editable Metadata");
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+        updateCourseMetadata(teacherToken, courseId, "Latest Pending Metadata");
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+        jdbcTemplate.update("update course_revisions set status = 'DRAFT' where id = ?", staleRevisionId);
+
+        mockMvc.perform(put("/api/teacher/content/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Should Not Mutate Stale Revision",
+                                  "description": "Rejected stale mutation.",
+                                  "type": "GRAMMAR",
+                                  "level": "A2",
+                                  "orderIndex": 9
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Create an edit revision before editing this course."));
+
+        String staleRevisionName = jdbcTemplate.queryForObject(
+                "select name from course_revisions where id = ?",
+                String.class,
+                staleRevisionId);
+        String latestRevisionName = jdbcTemplate.queryForObject(
+                "select name from course_revisions where course_id = ? order by revision_number desc limit 1",
+                String.class,
+                courseId);
+
+        assertThat(staleRevisionName).isEqualTo("Older Editable Metadata");
+        assertThat(latestRevisionName).isEqualTo("Latest Pending Metadata");
     }
 
     @Test
@@ -1522,6 +1621,22 @@ class TeacherContentApiTests {
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
+    }
+
+    private void updateCourseMetadata(String token, long courseId, String name) throws Exception {
+        mockMvc.perform(put("/api/teacher/content/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "%s",
+                                  "description": "Revision metadata update.",
+                                  "type": "COMPREHENSIVE",
+                                  "level": "A1",
+                                  "orderIndex": 1
+                                }
+                                """.formatted(name)))
+                .andExpect(status().isOk());
     }
 
     private long importCourseAndReturnId(String token) throws Exception {
