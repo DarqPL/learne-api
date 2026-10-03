@@ -3,6 +3,7 @@ package com.learne.backend.teacher.content.dto;
 import com.learne.backend.teacher.content.entity.Course;
 import com.learne.backend.teacher.content.entity.CourseRevision;
 import com.learne.backend.teacher.content.entity.Topic;
+import com.learne.backend.teacher.content.entity.TopicRevision;
 import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.enums.CoursePriceStatus;
 import com.learne.backend.teacher.content.enums.CoursePricingType;
@@ -55,6 +56,31 @@ public record CourseResponse(
                         .map(TopicResponse::from)
                         .toList()
                 );
+    }
+
+    public static CourseResponse fromRevisionBackedCourse(Course course, CourseRevision revision) {
+        return new CourseResponse(
+                course.getId(),
+                revision.getName(),
+                revision.getDescription(),
+                revision.getType(),
+                revision.getLevel(),
+                revision.getOrderIndex(),
+                course.getStatus(),
+                revision.getPricingType(),
+                course.getPriceAmountVnd(),
+                revision.getProposedPriceAmountVnd(),
+                course.getPriceStatus(),
+                revision.getRejectionReason(),
+                revision.getId(),
+                revision.getStatus(),
+                isEditable(revision.getStatus()),
+                revision.getTopics().stream()
+                        .sorted(Comparator.comparingInt(TopicRevision::getOrderIndex)
+                                .thenComparing(TopicRevision::getId))
+                        .map(TopicResponse::from)
+                        .toList()
+        );
     }
 
     private static boolean isEditable(CourseRevisionStatus status) {

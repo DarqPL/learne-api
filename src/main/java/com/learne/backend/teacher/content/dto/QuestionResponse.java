@@ -2,6 +2,8 @@ package com.learne.backend.teacher.content.dto;
 
 import com.learne.backend.teacher.content.entity.Question;
 import com.learne.backend.teacher.content.entity.QuestionOption;
+import com.learne.backend.teacher.content.entity.QuestionOptionRevision;
+import com.learne.backend.teacher.content.entity.QuestionRevision;
 import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.enums.QuestionType;
 import java.util.Comparator;
@@ -34,6 +36,26 @@ public record QuestionResponse(
                 question.getStatus(),
                 question.getOptions().stream()
                         .sorted(Comparator.comparingInt(QuestionOption::getOrderIndex).thenComparing(QuestionOption::getId))
+                        .map(QuestionOptionResponse::from)
+                        .toList()
+                );
+    }
+
+    public static QuestionResponse from(QuestionRevision question) {
+        return new QuestionResponse(
+                question.getId(),
+                question.getType(),
+                question.getQuestionText(),
+                question.getExplanation(),
+                question.getCorrectAnswer(),
+                question.getKnowledgePoint(),
+                question.getOrderIndex(),
+                question.getDifficulty(),
+                question.getXpReward(),
+                ContentStatus.DRAFT,
+                question.getOptions().stream()
+                        .sorted(Comparator.comparingInt(QuestionOptionRevision::getOrderIndex)
+                                .thenComparing(QuestionOptionRevision::getId))
                         .map(QuestionOptionResponse::from)
                         .toList()
         );
