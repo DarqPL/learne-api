@@ -900,6 +900,102 @@ class TeacherContentApiTests {
     }
 
     @Test
+    void teacherCanCreateAndDeleteNestedContentInsideApprovedCourseDraftRevision() throws Exception {
+        User teacher = saveUser("nested-create-delete-draft-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("nested-create-delete-draft-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long courseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, courseId);
+
+        MvcResult editResult = mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode editBody = objectMapper.readTree(editResult.getResponse().getContentAsString());
+        long draftRevisionId = editBody.get("latestRevisionId").asLong();
+        long existingTopicRevisionId = editBody.get("topics").get(0).get("id").asLong();
+        long existingLessonRevisionId = editBody.get("topics").get(0).get("lessons").get(0).get("id").asLong();
+        long existingQuestionRevisionId = editBody.get("topics").get(0).get("lessons").get(0).get("questions").get(0).get("id").asLong();
+
+        MvcResult topicResult = mockMvc.perform(post("/api/teacher/content/courses/%d/topics".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Draft-only topic",
+                                  "description": "Created in revision only",
+                                  "orderIndex": 2
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Draft-only topic"))
+                .andReturn();
+        long newTopicRevisionId = objectMapper.readTree(topicResult.getResponse().getContentAsString()).get("id").asLong();
+
+        MvcResult lessonResult = mockMvc.perform(post("/api/teacher/content/topics/%d/lessons".formatted(newTopicRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Draft-only lesson",
+                                  "description": "Created in revision only",
+                                  "content": "Draft lesson content",
+                                  "skillType": "READING",
+                                  "orderIndex": 2,
+                                  "xpReward": 12,
+                                  "placementTest": false
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Draft-only lesson"))
+                .andReturn();
+        long newLessonRevisionId = objectMapper.readTree(lessonResult.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(post("/api/teacher/content/lessons/%d/questions".formatted(newLessonRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "type": "SHORT_ANSWER",
+                                  "questionText": "Write the draft-only answer.",
+                                  "correctAnswer": "Draft",
+                                  "knowledgePoint": "draft_only",
+                                  "orderIndex": 2,
+                                  "difficulty": "easy",
+                                  "xpReward": 6
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.questionText").value("Write the draft-only answer."));
+
+        mockMvc.perform(delete("/api/teacher/content/questions/%d".formatted(existingQuestionRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Question deleted."));
+        mockMvc.perform(delete("/api/teacher/content/lessons/%d".formatted(existingLessonRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Lesson deleted."));
+        mockMvc.perform(delete("/api/teacher/content/topics/%d".formatted(existingTopicRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Topic deleted."));
+
+        Integer revisionTopicCount = jdbcTemplate.queryForObject(
+                "select count(*) from topic_revisions where revision_id = ?",
+                Integer.class,
+                draftRevisionId);
+        Integer liveTopicCount = jdbcTemplate.queryForObject(
+                "select count(*) from topics where course_id = ?",
+                Integer.class,
+                courseId);
+
+        assertThat(revisionTopicCount).isEqualTo(1);
+        assertThat(liveTopicCount).isEqualTo(1);
+    }
+
+    @Test
     void teacherUpdatesLiveDraftNestedContentBeforeCollidingRevisionIds() throws Exception {
         User teacher = saveUser("nested-collision-teacher@example.com", UserRole.TEACHER);
         User admin = saveUser("nested-collision-admin@example.com", UserRole.ADMIN);

@@ -178,6 +178,17 @@ public class TeacherContentService {
     @Transactional
     public TopicResponse createTopic(User teacher, Long courseId, TopicRequest request) {
         Course course = findCourse(teacher, courseId);
+        if (isPublishedOrApproved(course)) {
+            CourseRevision revision = latestLockedEditableRevision(courseId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Create an edit revision before editing this course."));
+            TopicRevision topic = new TopicRevision();
+            topic.setCourseRevision(revision);
+            applyTopicRequest(topic, request);
+            revision.getTopics().add(topic);
+            TopicRevision savedTopic = topicRevisionRepository.saveAndFlush(topic);
+            evictContentCaches(teacher);
+            return TopicResponse.from(savedTopic);
+        }
         ensureEditable(course);
         Topic topic = new Topic();
         topic.setCourse(course);
@@ -223,18 +234,42 @@ public class TeacherContentService {
 
     @Transactional
     public void deleteTopic(User teacher, Long topicId) {
-        Topic topic = findTopic(teacher, topicId);
-        ensureEditable(topic.getCourse());
-        Course course = topic.getCourse();
-        topicRepository.delete(topic);
-        course.getTopics().remove(topic);
-        syncEditableRevision(course);
+        Optional<Topic> liveTopic = findTopicOptional(teacher, topicId);
+        if (liveTopic.isPresent()) {
+            Topic topic = liveTopic.get();
+            ensureEditable(topic.getCourse());
+            Course course = topic.getCourse();
+            topicRepository.delete(topic);
+            course.getTopics().remove(topic);
+            syncEditableRevision(course);
+            evictContentCaches(teacher);
+            return;
+        }
+        TopicRevision topic = findEditableTopicRevision(teacher, topicId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Topic not found."));
+        CourseRevision revision = topic.getCourseRevision();
+        revision.getTopics().remove(topic);
+        courseRevisionRepository.save(revision);
         evictContentCaches(teacher);
     }
 
     @Transactional
     public LessonResponse createLesson(User teacher, Long topicId, LessonRequest request) {
-        Topic topic = findTopic(teacher, topicId);
+        Optional<Topic> liveTopic = findTopicOptional(teacher, topicId);
+        if (liveTopic.isEmpty()) {
+            TopicRevision topic = findEditableTopicRevision(teacher, topicId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Topic not found."));
+            LessonRevision lesson = new LessonRevision();
+            lesson.setTopicRevision(topic);
+            lesson.setTeacher(teacher);
+            applyLessonRequest(lesson, request);
+            topic.getLessons().add(lesson);
+            LessonRevision savedLesson = lessonRevisionRepository.saveAndFlush(lesson);
+            LessonResponse response = LessonResponse.from(savedLesson);
+            evictContentCaches(teacher);
+            return response;
+        }
+        Topic topic = liveTopic.get();
         ensureEditable(topic.getCourse());
         Lesson lesson = new Lesson();
         lesson.setTopic(topic);
@@ -282,20 +317,44 @@ public class TeacherContentService {
 
     @Transactional
     public void deleteLesson(User teacher, Long lessonId) {
-        Lesson lesson = findLesson(teacher, lessonId);
-        ensureEditable(lesson.getTopic().getCourse());
-        Course course = lesson.getTopic().getCourse();
-        lesson.getTopic().getLessons().remove(lesson);
-        lessonRepository.delete(lesson);
-        syncEditableRevision(course);
+        Optional<Lesson> liveLesson = findLessonOptional(teacher, lessonId);
+        if (liveLesson.isPresent()) {
+            Lesson lesson = liveLesson.get();
+            ensureEditable(lesson.getTopic().getCourse());
+            Course course = lesson.getTopic().getCourse();
+            lesson.getTopic().getLessons().remove(lesson);
+            lessonRepository.delete(lesson);
+            syncEditableRevision(course);
+            evictContentCaches(teacher);
+            return;
+        }
+        LessonRevision lesson = findEditableLessonRevision(teacher, lessonId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Lesson not found."));
+        TopicRevision topic = lesson.getTopicRevision();
+        topic.getLessons().remove(lesson);
+        courseRevisionRepository.save(topic.getCourseRevision());
         evictContentCaches(teacher);
     }
 
     @Transactional
     public QuestionResponse createQuestion(User teacher, Long lessonId, QuestionRequest request) {
-        Lesson lesson = findLesson(teacher, lessonId);
-        ensureEditable(lesson.getTopic().getCourse());
         validateQuestion(request);
+        Optional<Lesson> liveLesson = findLessonOptional(teacher, lessonId);
+        if (liveLesson.isEmpty()) {
+            LessonRevision lesson = findEditableLessonRevision(teacher, lessonId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Lesson not found."));
+            QuestionRevision question = new QuestionRevision();
+            question.setLessonRevision(lesson);
+            question.setTeacher(teacher);
+            applyQuestionRequest(question, request);
+            lesson.getQuestions().add(question);
+            QuestionRevision savedQuestion = questionRevisionRepository.saveAndFlush(question);
+            QuestionResponse response = QuestionResponse.from(savedQuestion);
+            evictContentCaches(teacher);
+            return response;
+        }
+        Lesson lesson = liveLesson.get();
+        ensureEditable(lesson.getTopic().getCourse());
         Question question = new Question();
         question.setLesson(lesson);
         question.setTeacher(teacher);
@@ -348,12 +407,22 @@ public class TeacherContentService {
 
     @Transactional
     public void deleteQuestion(User teacher, Long questionId) {
-        Question question = findQuestion(teacher, questionId);
-        ensureEditable(question.getLesson().getTopic().getCourse());
-        Course course = question.getLesson().getTopic().getCourse();
-        question.getLesson().getQuestions().remove(question);
-        questionRepository.delete(question);
-        syncEditableRevision(course);
+        Optional<Question> liveQuestion = findQuestionOptional(teacher, questionId);
+        if (liveQuestion.isPresent()) {
+            Question question = liveQuestion.get();
+            ensureEditable(question.getLesson().getTopic().getCourse());
+            Course course = question.getLesson().getTopic().getCourse();
+            question.getLesson().getQuestions().remove(question);
+            questionRepository.delete(question);
+            syncEditableRevision(course);
+            evictContentCaches(teacher);
+            return;
+        }
+        QuestionRevision question = findEditableQuestionRevision(teacher, questionId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Question not found."));
+        LessonRevision lesson = question.getLessonRevision();
+        lesson.getQuestions().remove(question);
+        courseRevisionRepository.save(lesson.getTopicRevision().getCourseRevision());
         evictContentCaches(teacher);
     }
 
@@ -461,6 +530,10 @@ public class TeacherContentService {
 
     private boolean isEditableCourse(Course course) {
         return course.getStatus() == ContentStatus.DRAFT || course.getStatus() == ContentStatus.REJECTED;
+    }
+
+    private boolean isPublishedOrApproved(Course course) {
+        return course.getPublishedAt() != null || course.getStatus() == ContentStatus.APPROVED;
     }
 
     private boolean hasMinimumReviewContent(Course course) {
