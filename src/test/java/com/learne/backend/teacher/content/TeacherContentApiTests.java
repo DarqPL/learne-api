@@ -645,6 +645,37 @@ class TeacherContentApiTests {
     }
 
     @Test
+    void teacherCourseGetAndListReturnEditableRevisionContentWhenDraftExists() throws Exception {
+        User teacher = saveUser("revision-backed-list-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("revision-backed-list-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long courseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, courseId);
+
+        MvcResult editResult = mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        long draftRevisionId = objectMapper.readTree(editResult.getResponse().getContentAsString()).get("latestRevisionId").asLong();
+        jdbcTemplate.update("update course_revisions set name = ? where id = ?", "Draft-only course name", draftRevisionId);
+
+        mockMvc.perform(get("/api/teacher/content/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Draft-only course name"))
+                .andExpect(jsonPath("$.status").value("APPROVED"))
+                .andExpect(jsonPath("$.latestRevisionStatus").value("DRAFT"));
+
+        mockMvc.perform(get("/api/teacher/content/courses")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("Draft-only course name"))
+                .andExpect(jsonPath("$[0].status").value("APPROVED"))
+                .andExpect(jsonPath("$[0].latestRevisionStatus").value("DRAFT"));
+    }
+
+    @Test
     void editRevisionFromPendingReviewSupersedesPendingSourceAndWithdrawsUnpublishedCourse() throws Exception {
         User teacher = saveUser("edit-pending-teacher@example.com", UserRole.TEACHER);
         String teacherToken = loginAndGetAccessToken(teacher.getEmail());
@@ -989,12 +1020,10 @@ class TeacherContentApiTests {
         long lessonId = createLesson(teacherToken, courseId);
         long questionId = createShortAnswerQuestion(teacherToken, lessonId);
 
-        MvcResult detailResult = mockMvc.perform(get("/api/teacher/content/courses/%d".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk())
-                .andReturn();
-        JsonNode detail = objectMapper.readTree(detailResult.getResponse().getContentAsString());
-        long topicId = detail.get("topics").get(0).get("id").asLong();
+        long topicId = jdbcTemplate.queryForObject(
+                "select topic_id from lessons where id = ?",
+                Long.class,
+                lessonId);
 
         mockMvc.perform(put("/api/teacher/content/topics/%d".formatted(topicId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)

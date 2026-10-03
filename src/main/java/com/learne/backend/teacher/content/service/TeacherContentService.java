@@ -76,14 +76,14 @@ public class TeacherContentService {
                         courses.stream().map(Course::getId).toList()).stream()
                 .collect(Collectors.toMap(revision -> revision.getCourse().getId(), Function.identity()));
         return courses.stream()
-                .map(course -> CourseResponse.from(course, latestRevisions.get(course.getId())))
+                .map(course -> teacherCourseResponse(course, latestRevisions.get(course.getId())))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public CourseResponse getCourse(User teacher, Long courseId) {
         Course course = findCourse(teacher, courseId);
-        return CourseResponse.from(course, findLatestRevision(course));
+        return teacherCourseResponse(course, findLatestRevision(course));
     }
 
     @Transactional
@@ -313,6 +313,13 @@ public class TeacherContentService {
     private CourseRevision findLatestRevision(Course course) {
         return courseRevisionRepository.findTopByCourseOrderByRevisionNumberDesc(course)
                 .orElse(null);
+    }
+
+    private CourseResponse teacherCourseResponse(Course course, CourseRevision latestRevision) {
+        if (latestRevision != null && isEditableRevision(latestRevision)) {
+            return CourseResponse.fromRevisionBackedCourse(course, latestRevision);
+        }
+        return CourseResponse.from(course, latestRevision);
     }
 
     private Course findCourse(User teacher, Long courseId) {
