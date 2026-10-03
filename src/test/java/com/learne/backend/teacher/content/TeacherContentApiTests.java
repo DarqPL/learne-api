@@ -714,6 +714,93 @@ class TeacherContentApiTests {
     }
 
     @Test
+    void teacherEditsApprovedCourseNestedContentOnDraftRevisionOnly() throws Exception {
+        User teacher = saveUser("nested-draft-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("nested-draft-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long courseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, courseId);
+
+        MvcResult editResult = mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode editBody = objectMapper.readTree(editResult.getResponse().getContentAsString());
+        long topicRevisionId = editBody.get("topics").get(0).get("id").asLong();
+        long lessonRevisionId = editBody.get("topics").get(0).get("lessons").get(0).get("id").asLong();
+        long questionRevisionId = editBody.get("topics").get(0).get("lessons").get(0).get("questions").get(0).get("id").asLong();
+
+        mockMvc.perform(put("/api/teacher/content/topics/%d".formatted(topicRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Edited draft topic",
+                                  "description": "Edited draft topic description",
+                                  "orderIndex": 4
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Edited draft topic"))
+                .andExpect(jsonPath("$.orderIndex").value(4));
+
+        mockMvc.perform(put("/api/teacher/content/lessons/%d".formatted(lessonRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Edited draft lesson",
+                                  "description": "Edited draft lesson description",
+                                  "content": "Edited draft lesson content",
+                                  "skillType": "READING",
+                                  "orderIndex": 5,
+                                  "xpReward": 15,
+                                  "placementTest": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Edited draft lesson"))
+                .andExpect(jsonPath("$.content").value("Edited draft lesson content"))
+                .andExpect(jsonPath("$.placementTest").value(true));
+
+        mockMvc.perform(put("/api/teacher/content/questions/%d".formatted(questionRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "type": "SHORT_ANSWER",
+                                  "questionText": "Write the edited draft greeting.",
+                                  "correctAnswer": "Hi",
+                                  "knowledgePoint": "draft_greetings",
+                                  "orderIndex": 6,
+                                  "difficulty": "medium",
+                                  "xpReward": 8
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.questionText").value("Write the edited draft greeting."))
+                .andExpect(jsonPath("$.correctAnswer").value("Hi"));
+
+        String liveTopicName = jdbcTemplate.queryForObject(
+                "select name from topics where course_id = ?",
+                String.class,
+                courseId);
+        String liveLessonTitle = jdbcTemplate.queryForObject(
+                "select l.title from lessons l join topics t on l.topic_id = t.id where t.course_id = ?",
+                String.class,
+                courseId);
+        String liveQuestionText = jdbcTemplate.queryForObject(
+                "select q.question_text from questions q join lessons l on q.lesson_id = l.id join topics t on l.topic_id = t.id where t.course_id = ?",
+                String.class,
+                courseId);
+
+        assertThat(liveTopicName).isEqualTo("Topic");
+        assertThat(liveLessonTitle).isEqualTo("Lesson");
+        assertThat(liveQuestionText).isEqualTo("Write the greeting.");
+    }
+
+    @Test
     void teacherUpdatesApprovedPaidCourseMetadataWithoutClearingDraftRevisionPricing() throws Exception {
         User teacher = saveUser("paid-draft-preserve-teacher@example.com", UserRole.TEACHER);
         User admin = saveUser("paid-draft-preserve-admin@example.com", UserRole.ADMIN);

@@ -30,8 +30,11 @@ import com.learne.backend.teacher.content.enums.QuestionType;
 import com.learne.backend.teacher.content.repository.CourseRepository;
 import com.learne.backend.teacher.content.repository.CourseRevisionRepository;
 import com.learne.backend.teacher.content.repository.LessonRepository;
+import com.learne.backend.teacher.content.repository.LessonRevisionRepository;
 import com.learne.backend.teacher.content.repository.QuestionRepository;
+import com.learne.backend.teacher.content.repository.QuestionRevisionRepository;
 import com.learne.backend.teacher.content.repository.TopicRepository;
+import com.learne.backend.teacher.content.repository.TopicRevisionRepository;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -50,19 +53,28 @@ public class TeacherContentService {
     private final TopicRepository topicRepository;
     private final LessonRepository lessonRepository;
     private final QuestionRepository questionRepository;
+    private final TopicRevisionRepository topicRevisionRepository;
+    private final LessonRevisionRepository lessonRevisionRepository;
+    private final QuestionRevisionRepository questionRevisionRepository;
     private final CacheInvalidationService cacheInvalidationService;
 
     public TeacherContentService(CourseRepository courseRepository,
                            CourseRevisionRepository courseRevisionRepository,
-                            TopicRepository topicRepository,
-                            LessonRepository lessonRepository,
-                            QuestionRepository questionRepository,
-                            CacheInvalidationService cacheInvalidationService) {
+                             TopicRepository topicRepository,
+                             LessonRepository lessonRepository,
+                             QuestionRepository questionRepository,
+                             TopicRevisionRepository topicRevisionRepository,
+                             LessonRevisionRepository lessonRevisionRepository,
+                             QuestionRevisionRepository questionRevisionRepository,
+                             CacheInvalidationService cacheInvalidationService) {
         this.courseRepository = courseRepository;
         this.courseRevisionRepository = courseRevisionRepository;
         this.topicRepository = topicRepository;
         this.lessonRepository = lessonRepository;
         this.questionRepository = questionRepository;
+        this.topicRevisionRepository = topicRevisionRepository;
+        this.lessonRevisionRepository = lessonRevisionRepository;
+        this.questionRevisionRepository = questionRevisionRepository;
         this.cacheInvalidationService = cacheInvalidationService;
     }
 
@@ -180,6 +192,14 @@ public class TeacherContentService {
 
     @Transactional
     public TopicResponse updateTopic(User teacher, Long topicId, TopicRequest request) {
+        Optional<TopicRevision> editableTopicRevision = findEditableTopicRevision(teacher, topicId);
+        if (editableTopicRevision.isPresent()) {
+            TopicRevision topic = editableTopicRevision.get();
+            applyTopicRequest(topic, request);
+            TopicResponse response = TopicResponse.from(topicRevisionRepository.save(topic));
+            evictContentCaches(teacher);
+            return response;
+        }
         Topic topic = findTopic(teacher, topicId);
         ensureEditable(topic.getCourse());
         applyTopicRequest(topic, request);
@@ -220,6 +240,14 @@ public class TeacherContentService {
 
     @Transactional
     public LessonResponse updateLesson(User teacher, Long lessonId, LessonRequest request) {
+        Optional<LessonRevision> editableLessonRevision = findEditableLessonRevision(teacher, lessonId);
+        if (editableLessonRevision.isPresent()) {
+            LessonRevision lesson = editableLessonRevision.get();
+            applyLessonRequest(lesson, request);
+            LessonResponse response = LessonResponse.from(lessonRevisionRepository.save(lesson));
+            evictContentCaches(teacher);
+            return response;
+        }
         Lesson lesson = findLesson(teacher, lessonId);
         ensureEditable(lesson.getTopic().getCourse());
         applyLessonRequest(lesson, request);
@@ -261,6 +289,16 @@ public class TeacherContentService {
 
     @Transactional
     public QuestionResponse updateQuestion(User teacher, Long questionId, QuestionRequest request) {
+        Optional<QuestionRevision> editableQuestionRevision = findEditableQuestionRevision(teacher, questionId);
+        if (editableQuestionRevision.isPresent()) {
+            QuestionRevision question = editableQuestionRevision.get();
+            validateQuestion(request);
+            question.getOptions().clear();
+            applyQuestionRequest(question, request);
+            QuestionResponse response = QuestionResponse.from(questionRevisionRepository.save(question));
+            evictContentCaches(teacher);
+            return response;
+        }
         Question question = findQuestion(teacher, questionId);
         ensureEditable(question.getLesson().getTopic().getCourse());
         validateQuestion(request);
@@ -363,6 +401,18 @@ public class TeacherContentService {
             throw new ApiException(HttpStatus.NOT_FOUND, "Question not found.");
         }
         return question;
+    }
+
+    private Optional<TopicRevision> findEditableTopicRevision(User teacher, Long topicId) {
+        return topicRevisionRepository.findEditableLatestForTeacher(teacher.getId(), topicId);
+    }
+
+    private Optional<LessonRevision> findEditableLessonRevision(User teacher, Long lessonId) {
+        return lessonRevisionRepository.findEditableLatestForTeacher(teacher.getId(), lessonId);
+    }
+
+    private Optional<QuestionRevision> findEditableQuestionRevision(User teacher, Long questionId) {
+        return questionRevisionRepository.findEditableLatestForTeacher(teacher.getId(), questionId);
     }
 
     private void ensureEditable(Course course) {
@@ -637,7 +687,23 @@ public class TeacherContentService {
         topic.setOrderIndex(valueOrZero(request.orderIndex()));
     }
 
+    private void applyTopicRequest(TopicRevision topic, TopicRequest request) {
+        topic.setName(request.name());
+        topic.setDescription(request.description());
+        topic.setOrderIndex(valueOrZero(request.orderIndex()));
+    }
+
     private void applyLessonRequest(Lesson lesson, LessonRequest request) {
+        lesson.setTitle(request.title());
+        lesson.setDescription(request.description());
+        lesson.setContent(request.content());
+        lesson.setSkillType(request.skillType());
+        lesson.setOrderIndex(valueOrZero(request.orderIndex()));
+        lesson.setXpReward(valueOrZero(request.xpReward()));
+        lesson.setPlacementTest(request.placementTest());
+    }
+
+    private void applyLessonRequest(LessonRevision lesson, LessonRequest request) {
         lesson.setTitle(request.title());
         lesson.setDescription(request.description());
         lesson.setContent(request.content());
@@ -660,6 +726,27 @@ public class TeacherContentService {
             request.options().forEach(optionRequest -> {
                 QuestionOption option = new QuestionOption();
                 option.setQuestion(question);
+                option.setOptionText(optionRequest.optionText());
+                option.setCorrect(optionRequest.correct());
+                option.setOrderIndex(valueOrZero(optionRequest.orderIndex()));
+                question.getOptions().add(option);
+            });
+        }
+    }
+
+    private void applyQuestionRequest(QuestionRevision question, QuestionRequest request) {
+        question.setType(request.type());
+        question.setQuestionText(request.questionText());
+        question.setExplanation(request.explanation());
+        question.setCorrectAnswer(request.correctAnswer());
+        question.setKnowledgePoint(request.knowledgePoint());
+        question.setOrderIndex(valueOrZero(request.orderIndex()));
+        question.setDifficulty(request.difficulty());
+        question.setXpReward(valueOrZero(request.xpReward()));
+        if (request.options() != null) {
+            request.options().forEach(optionRequest -> {
+                QuestionOptionRevision option = new QuestionOptionRevision();
+                option.setQuestionRevision(question);
                 option.setOptionText(optionRequest.optionText());
                 option.setCorrect(optionRequest.correct());
                 option.setOrderIndex(valueOrZero(optionRequest.orderIndex()));
