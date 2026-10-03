@@ -193,8 +193,9 @@ public class TeacherContentService {
     @Transactional
     public TopicResponse updateTopic(User teacher, Long topicId, TopicRequest request) {
         Optional<Topic> liveTopic = findTopicOptional(teacher, topicId);
-        if (liveTopic.isPresent() && isEditableCourse(liveTopic.get().getCourse())) {
+        if (liveTopic.isPresent()) {
             Topic topic = liveTopic.get();
+            ensureEditable(topic.getCourse());
             applyTopicRequest(topic, request);
             Topic savedTopic = topicRepository.save(topic);
             syncEditableRevision(savedTopic.getCourse());
@@ -251,8 +252,9 @@ public class TeacherContentService {
     @Transactional
     public LessonResponse updateLesson(User teacher, Long lessonId, LessonRequest request) {
         Optional<Lesson> liveLesson = findLessonOptional(teacher, lessonId);
-        if (liveLesson.isPresent() && isEditableCourse(liveLesson.get().getTopic().getCourse())) {
+        if (liveLesson.isPresent()) {
             Lesson lesson = liveLesson.get();
+            ensureEditable(lesson.getTopic().getCourse());
             applyLessonRequest(lesson, request);
             Lesson savedLesson = lessonRepository.save(lesson);
             syncEditableRevision(savedLesson.getTopic().getCourse());
@@ -310,8 +312,9 @@ public class TeacherContentService {
     @Transactional
     public QuestionResponse updateQuestion(User teacher, Long questionId, QuestionRequest request) {
         Optional<Question> liveQuestion = findQuestionOptional(teacher, questionId);
-        if (liveQuestion.isPresent() && isEditableCourse(liveQuestion.get().getLesson().getTopic().getCourse())) {
+        if (liveQuestion.isPresent()) {
             Question question = liveQuestion.get();
+            ensureEditable(question.getLesson().getTopic().getCourse());
             validateQuestion(request);
             question.getOptions().clear();
             applyQuestionRequest(question, request);

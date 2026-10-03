@@ -1001,6 +1001,111 @@ class TeacherContentApiTests {
     }
 
     @Test
+    void teacherCannotUpdateApprovedLiveNestedContentBeforeCollidingRevisionIds() throws Exception {
+        User teacher = saveUser("approved-live-collision-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("approved-live-collision-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long revisionSourceCourseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, revisionSourceCourseId);
+        MvcResult editResult = mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(revisionSourceCourseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode editBody = objectMapper.readTree(editResult.getResponse().getContentAsString());
+        long topicRevisionId = editBody.get("topics").get(0).get("id").asLong();
+        long lessonRevisionId = editBody.get("topics").get(0).get("lessons").get(0).get("id").asLong();
+        long questionRevisionId = editBody.get("topics").get(0).get("lessons").get(0).get("questions").get(0).get("id").asLong();
+
+        long approvedCourseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, approvedCourseId);
+        long liveLessonId = jdbcTemplate.queryForObject(
+                "select l.id from lessons l join topics t on l.topic_id = t.id where t.course_id = ?",
+                Long.class,
+                approvedCourseId);
+        long liveTopicId = jdbcTemplate.queryForObject(
+                "select t.id from topics t join lessons l on l.topic_id = t.id where l.id = ?",
+                Long.class,
+                liveLessonId);
+        long liveQuestionId = jdbcTemplate.queryForObject(
+                "select q.id from questions q where q.lesson_id = ?",
+                Long.class,
+                liveLessonId);
+        jdbcTemplate.execute("set referential_integrity false");
+        try {
+            jdbcTemplate.update("update topics set id = ? where id = ?", topicRevisionId, liveTopicId);
+            jdbcTemplate.update("update lessons set topic_id = ?, id = ? where id = ?", topicRevisionId, lessonRevisionId, liveLessonId);
+            jdbcTemplate.update("update questions set lesson_id = ?, id = ? where id = ?", lessonRevisionId, questionRevisionId, liveQuestionId);
+        } finally {
+            jdbcTemplate.execute("set referential_integrity true");
+        }
+
+        mockMvc.perform(put("/api/teacher/content/topics/%d".formatted(topicRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Should not update approved live topic",
+                                  "description": "Approved live topic must win over revision id collision.",
+                                  "orderIndex": 3
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Only draft or rejected content can be edited."));
+
+        mockMvc.perform(put("/api/teacher/content/lessons/%d".formatted(lessonRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Should not update approved live lesson",
+                                  "description": "Approved live lesson must win over revision id collision.",
+                                  "content": "Approved live content remains locked.",
+                                  "skillType": "PRONUNCIATION",
+                                  "orderIndex": 2,
+                                  "xpReward": 12,
+                                  "placementTest": true
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Only draft or rejected content can be edited."));
+
+        mockMvc.perform(put("/api/teacher/content/questions/%d".formatted(questionRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "type": "SHORT_ANSWER",
+                                  "questionText": "Should not update approved live question.",
+                                  "correctAnswer": "No",
+                                  "knowledgePoint": "live_collision",
+                                  "orderIndex": 4,
+                                  "difficulty": "medium",
+                                  "xpReward": 9
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Only draft or rejected content can be edited."));
+
+        String topicRevisionName = jdbcTemplate.queryForObject(
+                "select name from topic_revisions where id = ?",
+                String.class,
+                topicRevisionId);
+        String lessonRevisionTitle = jdbcTemplate.queryForObject(
+                "select title from lesson_revisions where id = ?",
+                String.class,
+                lessonRevisionId);
+        String questionRevisionText = jdbcTemplate.queryForObject(
+                "select question_text from question_revisions where id = ?",
+                String.class,
+                questionRevisionId);
+
+        assertThat(topicRevisionName).isEqualTo("Topic");
+        assertThat(lessonRevisionTitle).isEqualTo("Lesson");
+        assertThat(questionRevisionText).isEqualTo("Write the greeting.");
+    }
+
+    @Test
     void teacherUpdatesApprovedPaidCourseMetadataWithoutClearingDraftRevisionPricing() throws Exception {
         User teacher = saveUser("paid-draft-preserve-teacher@example.com", UserRole.TEACHER);
         User admin = saveUser("paid-draft-preserve-admin@example.com", UserRole.ADMIN);
