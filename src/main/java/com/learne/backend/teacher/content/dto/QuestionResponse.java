@@ -42,6 +42,10 @@ public record QuestionResponse(
     }
 
     public static QuestionResponse from(QuestionRevision question) {
+        return from(question, ContentStatus.DRAFT);
+    }
+
+    public static QuestionResponse from(QuestionRevision question, ContentStatus status) {
         return new QuestionResponse(
                 question.getId(),
                 question.getType(),
@@ -52,7 +56,7 @@ public record QuestionResponse(
                 question.getOrderIndex(),
                 question.getDifficulty(),
                 question.getXpReward(),
-                ContentStatus.DRAFT,
+                status,
                 question.getOptions().stream()
                         .sorted(Comparator.comparingInt(QuestionOptionRevision::getOrderIndex)
                                 .thenComparing(QuestionOptionRevision::getId))

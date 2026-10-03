@@ -59,6 +59,7 @@ public record CourseResponse(
     }
 
     public static CourseResponse fromRevisionBackedCourse(Course course, CourseRevision revision) {
+        ContentStatus revisionContentStatus = toContentStatus(revision.getStatus());
         return new CourseResponse(
                 course.getId(),
                 revision.getName(),
@@ -78,9 +79,18 @@ public record CourseResponse(
                 revision.getTopics().stream()
                         .sorted(Comparator.comparingInt(TopicRevision::getOrderIndex)
                                 .thenComparing(TopicRevision::getId))
-                        .map(TopicResponse::from)
+                        .map(topic -> TopicResponse.from(topic, revisionContentStatus))
                         .toList()
         );
+    }
+
+    private static ContentStatus toContentStatus(CourseRevisionStatus status) {
+        return switch (status) {
+            case DRAFT, SUPERSEDED -> ContentStatus.DRAFT;
+            case PENDING_REVIEW -> ContentStatus.PENDING_REVIEW;
+            case APPROVED -> ContentStatus.APPROVED;
+            case REJECTED -> ContentStatus.REJECTED;
+        };
     }
 
     private static boolean isEditable(CourseRevisionStatus status) {

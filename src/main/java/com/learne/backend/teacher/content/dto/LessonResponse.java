@@ -42,6 +42,10 @@ public record LessonResponse(
     }
 
     public static LessonResponse from(LessonRevision lesson) {
+        return from(lesson, ContentStatus.DRAFT);
+    }
+
+    public static LessonResponse from(LessonRevision lesson, ContentStatus status) {
         return new LessonResponse(
                 lesson.getId(),
                 lesson.getTitle(),
@@ -51,12 +55,12 @@ public record LessonResponse(
                 lesson.getOrderIndex(),
                 lesson.getXpReward(),
                 lesson.isPlacementTest(),
-                ContentStatus.DRAFT,
+                status,
                 null,
                 lesson.getQuestions().stream()
                         .sorted(Comparator.comparingInt(QuestionRevision::getOrderIndex)
                                 .thenComparing(QuestionRevision::getId))
-                        .map(QuestionResponse::from)
+                        .map(question -> QuestionResponse.from(question, status))
                         .toList()
         );
     }
