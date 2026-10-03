@@ -1394,6 +1394,61 @@ class TeacherContentApiTests {
     }
 
     @Test
+    void submittingNewEditRevisionSupersedesOlderPendingAndKeepsLiveApprovedContent() throws Exception {
+        User teacher = saveUser("supersede-pending-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("supersede-pending-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long courseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, courseId);
+        String liveNameBefore = jdbcTemplate.queryForObject("select name from courses where id = ?", String.class, courseId);
+
+        mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/api/teacher/content/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "name": "First pending name", "description": "First", "type": "COMPREHENSIVE", "level": "A1", "orderIndex": 1 }
+                                """))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.latestRevisionStatus").value("PENDING_REVIEW"));
+        long firstPendingRevisionId = latestRevisionId(courseId);
+
+        mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("First pending name"))
+                .andExpect(jsonPath("$.latestRevisionStatus").value("DRAFT"));
+        mockMvc.perform(put("/api/teacher/content/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "name": "Second pending name", "description": "Second", "type": "COMPREHENSIVE", "level": "A1", "orderIndex": 1 }
+                                """))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.latestRevisionStatus").value("PENDING_REVIEW"));
+
+        String firstStatus = jdbcTemplate.queryForObject("select status from course_revisions where id = ?", String.class, firstPendingRevisionId);
+        Integer latestPendingCount = jdbcTemplate.queryForObject(
+                "select count(*) from course_revisions cr where cr.course_id = ? and cr.status = 'PENDING_REVIEW' and not exists (select 1 from course_revisions newer where newer.course_id = cr.course_id and newer.revision_number > cr.revision_number)",
+                Integer.class,
+                courseId);
+        String liveNameAfter = jdbcTemplate.queryForObject("select name from courses where id = ?", String.class, courseId);
+
+        assertThat(firstStatus).isEqualTo("SUPERSEDED");
+        assertThat(latestPendingCount).isEqualTo(1);
+        assertThat(liveNameAfter).isEqualTo(liveNameBefore);
+    }
+
+    @Test
     void teacherCannotCreateEditRevisionForAnotherTeachersCourse() throws Exception {
         User owner = saveUser("edit-owner@example.com", UserRole.TEACHER);
         User other = saveUser("edit-other@example.com", UserRole.TEACHER);
@@ -1959,6 +2014,13 @@ class TeacherContentApiTests {
         return jdbcTemplate.queryForObject(
                 "select count(*) from course_revisions where course_id = ?",
                 Integer.class,
+                courseId);
+    }
+
+    private long latestRevisionId(long courseId) {
+        return jdbcTemplate.queryForObject(
+                "select id from course_revisions where course_id = ? order by revision_number desc limit 1",
+                Long.class,
                 courseId);
     }
 
