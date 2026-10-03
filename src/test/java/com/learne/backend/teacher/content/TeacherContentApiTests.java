@@ -568,6 +568,76 @@ class TeacherContentApiTests {
     }
 
     @Test
+    void teacherCanCreateEditRevisionFromApprovedCourseWithoutChangingLiveContent() throws Exception {
+        User teacher = saveUser("edit-approved-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("edit-approved-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long courseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, courseId);
+        String liveNameBefore = jdbcTemplate.queryForObject("select name from courses where id = ?", String.class, courseId);
+
+        MvcResult result = mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(courseId))
+                .andExpect(jsonPath("$.status").value("APPROVED"))
+                .andExpect(jsonPath("$.latestRevisionStatus").value("DRAFT"))
+                .andExpect(jsonPath("$.hasEditableRevision").value(true))
+                .andExpect(jsonPath("$.topics", hasSize(1)))
+                .andReturn();
+
+        long draftRevisionId = objectMapper.readTree(result.getResponse().getContentAsString()).get("latestRevisionId").asLong();
+        Integer draftRevisionNumber = jdbcTemplate.queryForObject(
+                "select revision_number from course_revisions where id = ? and status = 'DRAFT'",
+                Integer.class,
+                draftRevisionId);
+        String liveNameAfter = jdbcTemplate.queryForObject("select name from courses where id = ?", String.class, courseId);
+
+        assertThat(draftRevisionNumber).isEqualTo(2);
+        assertThat(liveNameAfter).isEqualTo(liveNameBefore);
+    }
+
+    @Test
+    void editRevisionEndpointIsIdempotentForExistingDraft() throws Exception {
+        User teacher = saveUser("idempotent-edit-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("idempotent-edit-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long courseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, courseId);
+
+        MvcResult first = mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        long firstRevisionId = objectMapper.readTree(first.getResponse().getContentAsString()).get("latestRevisionId").asLong();
+        int countAfterFirstCall = revisionCount(courseId);
+
+        MvcResult second = mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        long secondRevisionId = objectMapper.readTree(second.getResponse().getContentAsString()).get("latestRevisionId").asLong();
+
+        assertThat(secondRevisionId).isEqualTo(firstRevisionId);
+        assertThat(revisionCount(courseId)).isEqualTo(countAfterFirstCall);
+    }
+
+    @Test
+    void teacherCannotCreateEditRevisionForAnotherTeachersCourse() throws Exception {
+        User owner = saveUser("edit-owner@example.com", UserRole.TEACHER);
+        User other = saveUser("edit-other@example.com", UserRole.TEACHER);
+        String ownerToken = loginAndGetAccessToken(owner.getEmail());
+        String otherToken = loginAndGetAccessToken(other.getEmail());
+        long courseId = createCourse(ownerToken);
+
+        mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void courseEndpointsRequireTeacherRole() throws Exception {
         User student = saveUser("student@example.com", UserRole.STUDENT);
         User admin = saveUser("admin@example.com", UserRole.ADMIN);
@@ -1064,6 +1134,32 @@ class TeacherContentApiTests {
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
+    }
+
+    private long approveCourseThroughAdmin(String teacherToken, String adminToken, long courseId) throws Exception {
+        long lessonId = createLesson(teacherToken, courseId);
+        createShortAnswerQuestion(teacherToken, lessonId);
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk());
+        return lessonId;
+    }
+
+    private long latestRevisionId(long courseId) {
+        return jdbcTemplate.queryForObject(
+                "select id from course_revisions where course_id = ? order by revision_number desc limit 1",
+                Long.class,
+                courseId);
+    }
+
+    private int revisionCount(long courseId) {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from course_revisions where course_id = ?",
+                Integer.class,
+                courseId);
     }
 
     private User saveUser(String email, UserRole role) {
