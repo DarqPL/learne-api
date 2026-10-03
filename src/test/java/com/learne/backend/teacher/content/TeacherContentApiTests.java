@@ -645,6 +645,44 @@ class TeacherContentApiTests {
     }
 
     @Test
+    void editRevisionFromPendingReviewSupersedesPendingSourceAndWithdrawsUnpublishedCourse() throws Exception {
+        User teacher = saveUser("edit-pending-teacher@example.com", UserRole.TEACHER);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        long courseId = createCourse(teacherToken);
+        long lessonId = createLesson(teacherToken, courseId);
+        createShortAnswerQuestion(teacherToken, lessonId);
+
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING_REVIEW"))
+                .andExpect(jsonPath("$.latestRevisionStatus").value("PENDING_REVIEW"));
+
+        Long pendingRevisionId = jdbcTemplate.queryForObject(
+                "select id from course_revisions where course_id = ? and status = 'PENDING_REVIEW'",
+                Long.class,
+                courseId);
+
+        mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.latestRevisionStatus").value("DRAFT"));
+
+        String pendingRevisionStatus = jdbcTemplate.queryForObject(
+                "select status from course_revisions where id = ?",
+                String.class,
+                pendingRevisionId);
+        String courseStatus = jdbcTemplate.queryForObject(
+                "select status from courses where id = ?",
+                String.class,
+                courseId);
+
+        assertThat(pendingRevisionStatus).isEqualTo("SUPERSEDED");
+        assertThat(courseStatus).isEqualTo("DRAFT");
+    }
+
+    @Test
     void teacherCannotCreateEditRevisionForAnotherTeachersCourse() throws Exception {
         User owner = saveUser("edit-owner@example.com", UserRole.TEACHER);
         User other = saveUser("edit-other@example.com", UserRole.TEACHER);

@@ -121,6 +121,12 @@ public class TeacherContentService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Course cannot be edited in its current state.");
         }
         CourseRevision draft = cloneRevisionForEdit(course, teacher, latestRevision);
+        if (latestRevision.getStatus() == CourseRevisionStatus.PENDING_REVIEW) {
+            latestRevision.setStatus(CourseRevisionStatus.SUPERSEDED);
+            if (course.getPublishedAt() == null) {
+                course.setStatus(ContentStatus.DRAFT);
+            }
+        }
         CourseRevision savedDraft = courseRevisionRepository.save(draft);
         evictContentCaches(teacher);
         return CourseResponse.fromRevisionBackedCourse(course, savedDraft);
