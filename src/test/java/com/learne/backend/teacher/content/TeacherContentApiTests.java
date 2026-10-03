@@ -973,15 +973,45 @@ class TeacherContentApiTests {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Question deleted."));
+
+        Integer deletedQuestionRevisionCount = jdbcTemplate.queryForObject(
+                "select count(*) from question_revisions where id = ?",
+                Integer.class,
+                existingQuestionRevisionId);
+        Integer originalLessonQuestionCount = jdbcTemplate.queryForObject(
+                "select count(*) from question_revisions where lesson_revision_id = ?",
+                Integer.class,
+                existingLessonRevisionId);
+
+        assertThat(deletedQuestionRevisionCount).isZero();
+        assertThat(originalLessonQuestionCount).isZero();
+
         mockMvc.perform(delete("/api/teacher/content/lessons/%d".formatted(existingLessonRevisionId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Lesson deleted."));
+
+        Integer deletedLessonRevisionCount = jdbcTemplate.queryForObject(
+                "select count(*) from lesson_revisions where id = ?",
+                Integer.class,
+                existingLessonRevisionId);
+        Integer originalTopicLessonCount = jdbcTemplate.queryForObject(
+                "select count(*) from lesson_revisions where topic_revision_id = ?",
+                Integer.class,
+                existingTopicRevisionId);
+
+        assertThat(deletedLessonRevisionCount).isZero();
+        assertThat(originalTopicLessonCount).isZero();
+
         mockMvc.perform(delete("/api/teacher/content/topics/%d".formatted(existingTopicRevisionId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Topic deleted."));
 
+        Integer deletedTopicRevisionCount = jdbcTemplate.queryForObject(
+                "select count(*) from topic_revisions where id = ?",
+                Integer.class,
+                existingTopicRevisionId);
         Integer revisionTopicCount = jdbcTemplate.queryForObject(
                 "select count(*) from topic_revisions where revision_id = ?",
                 Integer.class,
@@ -991,6 +1021,7 @@ class TeacherContentApiTests {
                 Integer.class,
                 courseId);
 
+        assertThat(deletedTopicRevisionCount).isZero();
         assertThat(revisionTopicCount).isEqualTo(1);
         assertThat(liveTopicCount).isEqualTo(1);
     }
