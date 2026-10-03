@@ -136,11 +136,21 @@ public class TeacherContentService {
     @Transactional
     public CourseResponse updateCourse(User teacher, Long courseId, CourseRequest request) {
         Course course = findCourse(teacher, courseId);
+        CourseRevision latestRevision = findLatestRevision(course);
+        if (course.getPublishedAt() != null || course.getStatus() == ContentStatus.APPROVED) {
+            CourseRevision editableRevision = latestEditableRevision(course)
+                    .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Create an edit revision before editing this course."));
+            applyCourseRequestToRevision(editableRevision, request, false);
+            CourseRevision savedRevision = courseRevisionRepository.save(editableRevision);
+            CourseResponse response = CourseResponse.fromRevisionBackedCourse(course, savedRevision);
+            evictContentCaches(teacher);
+            return response;
+        }
         ensureEditable(course);
         applyCourseRequest(course, request, false);
         Course savedCourse = courseRepository.save(course);
         CourseRevision revision = syncEditableRevision(savedCourse);
-        CourseResponse response = CourseResponse.from(savedCourse, revision);
+        CourseResponse response = teacherCourseResponse(savedCourse, revision == null ? latestRevision : revision);
         evictContentCaches(teacher);
         return response;
     }
@@ -389,6 +399,27 @@ public class TeacherContentService {
         course.setLevel(request.level());
         course.setOrderIndex(valueOrZero(request.orderIndex()));
         applyPricingRequest(course, request, defaultMissingPricingTypeToFree);
+    }
+
+    private void applyCourseRequestToRevision(CourseRevision revision, CourseRequest request, boolean defaultMissingPricingTypeToFree) {
+        revision.setName(request.name());
+        revision.setDescription(request.description());
+        revision.setType(request.type());
+        revision.setLevel(request.level());
+        revision.setOrderIndex(valueOrZero(request.orderIndex()));
+        if (request.pricingType() == null && !defaultMissingPricingTypeToFree) {
+            return;
+        }
+        CoursePricingType pricingType = request.pricingType() == null ? CoursePricingType.FREE : request.pricingType();
+        revision.setPricingType(pricingType);
+        if (pricingType == CoursePricingType.FREE) {
+            revision.setProposedPriceAmountVnd(null);
+            return;
+        }
+        if (request.proposedPriceAmountVnd() == null || request.proposedPriceAmountVnd() <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Paid course requires a positive proposed price.");
+        }
+        revision.setProposedPriceAmountVnd(request.proposedPriceAmountVnd());
     }
 
     private void applyPricingRequest(Course course, CourseRequest request, boolean defaultMissingPricingTypeToFree) {

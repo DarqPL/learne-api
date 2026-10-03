@@ -676,6 +676,44 @@ class TeacherContentApiTests {
     }
 
     @Test
+    void teacherUpdatesApprovedCourseMetadataOnDraftRevisionOnly() throws Exception {
+        User teacher = saveUser("metadata-draft-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("metadata-draft-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long courseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, courseId);
+        mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/teacher/content/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Edited Draft Course",
+                                  "description": "Draft-only metadata.",
+                                  "type": "GRAMMAR",
+                                  "level": "A2",
+                                  "orderIndex": 7
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Edited Draft Course"))
+                .andExpect(jsonPath("$.status").value("APPROVED"))
+                .andExpect(jsonPath("$.latestRevisionStatus").value("DRAFT"));
+
+        String liveName = jdbcTemplate.queryForObject("select name from courses where id = ?", String.class, courseId);
+        String draftName = jdbcTemplate.queryForObject(
+                "select name from course_revisions where course_id = ? order by revision_number desc limit 1",
+                String.class,
+                courseId);
+        assertThat(liveName).isEqualTo("English A1 Foundation");
+        assertThat(draftName).isEqualTo("Edited Draft Course");
+    }
+
+    @Test
     void editRevisionFromPendingReviewSupersedesPendingSourceAndWithdrawsUnpublishedCourse() throws Exception {
         User teacher = saveUser("edit-pending-teacher@example.com", UserRole.TEACHER);
         String teacherToken = loginAndGetAccessToken(teacher.getEmail());
