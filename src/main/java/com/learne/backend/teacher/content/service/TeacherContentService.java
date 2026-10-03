@@ -36,6 +36,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -102,6 +103,27 @@ public class TeacherContentService {
         CourseResponse response = CourseResponse.from(savedCourse, savedRevision);
         evictContentCaches(teacher);
         return response;
+    }
+
+    @Transactional
+    public CourseResponse createEditRevision(User teacher, Long courseId) {
+        Course course = findCourse(teacher, courseId);
+        CourseRevision latestRevision = courseRevisionRepository.findTopByCourseIdOrderByRevisionNumberDesc(courseId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course revision not found."));
+        if (!latestRevision.getTeacher().getId().equals(teacher.getId())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Course not found.");
+        }
+        if (isEditableRevision(latestRevision)) {
+            return CourseResponse.fromRevisionBackedCourse(course, latestRevision);
+        }
+        if (latestRevision.getStatus() != CourseRevisionStatus.APPROVED
+                && latestRevision.getStatus() != CourseRevisionStatus.PENDING_REVIEW) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Course cannot be edited in its current state.");
+        }
+        CourseRevision draft = cloneRevisionForEdit(course, teacher, latestRevision);
+        CourseRevision savedDraft = courseRevisionRepository.save(draft);
+        evictContentCaches(teacher);
+        return CourseResponse.fromRevisionBackedCourse(course, savedDraft);
     }
 
     @Transactional
@@ -396,10 +418,100 @@ public class TeacherContentService {
         }).orElse(null);
     }
 
-    private java.util.Optional<CourseRevision> latestEditableRevision(Course course) {
+    private Optional<CourseRevision> latestEditableRevision(Course course) {
         return courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(course, CourseRevisionStatus.DRAFT)
                 .or(() -> courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(
                         course, CourseRevisionStatus.REJECTED));
+    }
+
+    private boolean isEditableRevision(CourseRevision revision) {
+        return revision.getStatus() == CourseRevisionStatus.DRAFT
+                || revision.getStatus() == CourseRevisionStatus.REJECTED;
+    }
+
+    private CourseRevision cloneRevisionForEdit(Course course, User teacher, CourseRevision source) {
+        CourseRevision revision = new CourseRevision();
+        revision.setCourse(course);
+        revision.setTeacher(teacher);
+        revision.setRevisionNumber(source.getRevisionNumber() + 1);
+        revision.setStatus(CourseRevisionStatus.DRAFT);
+        revision.setName(source.getName());
+        revision.setDescription(source.getDescription());
+        revision.setType(source.getType());
+        revision.setLevel(source.getLevel());
+        revision.setOrderIndex(source.getOrderIndex());
+        revision.setPricingType(source.getPricingType());
+        revision.setProposedPriceAmountVnd(source.getProposedPriceAmountVnd());
+        source.getTopics().stream()
+                .sorted(Comparator.comparingInt(TopicRevision::getOrderIndex)
+                        .thenComparing(TopicRevision::getId, Comparator.nullsLast(Long::compareTo)))
+                .forEach(topic -> revision.getTopics().add(cloneTopicRevision(revision, topic)));
+        return revision;
+    }
+
+    private TopicRevision cloneTopicRevision(CourseRevision targetRevision, TopicRevision source) {
+        TopicRevision clone = new TopicRevision();
+        clone.setCourseRevision(targetRevision);
+        clone.setSourceTopic(source.getSourceTopic());
+        clone.setName(source.getName());
+        clone.setDescription(source.getDescription());
+        clone.setOrderIndex(source.getOrderIndex());
+        source.getLessons().stream()
+                .sorted(Comparator.comparingInt(LessonRevision::getOrderIndex)
+                        .thenComparing(LessonRevision::getId, Comparator.nullsLast(Long::compareTo)))
+                .forEach(lesson -> clone.getLessons().add(cloneLessonRevision(clone, lesson)));
+        return clone;
+    }
+
+    private LessonRevision cloneLessonRevision(TopicRevision targetTopic, LessonRevision source) {
+        LessonRevision clone = new LessonRevision();
+        clone.setTopicRevision(targetTopic);
+        clone.setSourceLesson(source.getSourceLesson());
+        clone.setTeacher(source.getTeacher());
+        clone.setTitle(source.getTitle());
+        clone.setDescription(source.getDescription());
+        clone.setContent(source.getContent());
+        clone.setAudioUrl(source.getAudioUrl());
+        clone.setAudioPublicId(source.getAudioPublicId());
+        clone.setSkillType(source.getSkillType());
+        clone.setOrderIndex(source.getOrderIndex());
+        clone.setXpReward(source.getXpReward());
+        clone.setPlacementTest(source.isPlacementTest());
+        source.getQuestions().stream()
+                .sorted(Comparator.comparingInt(QuestionRevision::getOrderIndex)
+                        .thenComparing(QuestionRevision::getId, Comparator.nullsLast(Long::compareTo)))
+                .forEach(question -> clone.getQuestions().add(cloneQuestionRevision(clone, question)));
+        return clone;
+    }
+
+    private QuestionRevision cloneQuestionRevision(LessonRevision targetLesson, QuestionRevision source) {
+        QuestionRevision clone = new QuestionRevision();
+        clone.setLessonRevision(targetLesson);
+        clone.setSourceQuestion(source.getSourceQuestion());
+        clone.setTeacher(source.getTeacher());
+        clone.setType(source.getType());
+        clone.setQuestionText(source.getQuestionText());
+        clone.setExplanation(source.getExplanation());
+        clone.setCorrectAnswer(source.getCorrectAnswer());
+        clone.setKnowledgePoint(source.getKnowledgePoint());
+        clone.setOrderIndex(source.getOrderIndex());
+        clone.setDifficulty(source.getDifficulty());
+        clone.setXpReward(source.getXpReward());
+        source.getOptions().stream()
+                .sorted(Comparator.comparingInt(QuestionOptionRevision::getOrderIndex)
+                        .thenComparing(QuestionOptionRevision::getId, Comparator.nullsLast(Long::compareTo)))
+                .forEach(option -> clone.getOptions().add(cloneQuestionOptionRevision(clone, option)));
+        return clone;
+    }
+
+    private QuestionOptionRevision cloneQuestionOptionRevision(QuestionRevision targetQuestion, QuestionOptionRevision source) {
+        QuestionOptionRevision clone = new QuestionOptionRevision();
+        clone.setQuestionRevision(targetQuestion);
+        clone.setSourceOption(source.getSourceOption());
+        clone.setOptionText(source.getOptionText());
+        clone.setCorrect(source.isCorrect());
+        clone.setOrderIndex(source.getOrderIndex());
+        return clone;
     }
 
     private TopicRevision toTopicRevision(CourseRevision revision, Topic topic) {

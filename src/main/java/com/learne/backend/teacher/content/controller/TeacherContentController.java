@@ -163,6 +163,11 @@ class TeacherContentController {
         return teacherContentService.submitCourse(currentUser(authentication), courseId);
     }
 
+    @PostMapping("/courses/{courseId}/edit-revision")
+    CourseResponse createEditRevision(@PathVariable Long courseId, Authentication authentication) {
+        return teacherContentService.createEditRevision(currentUser(authentication), courseId);
+    }
+
     private User currentUser(Authentication authentication) {
         return (User) authentication.getPrincipal();
     }
