@@ -5,9 +5,11 @@ import com.learne.backend.student.learning.repository.CourseCatalogRow;
 import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.entity.Course;
 import com.learne.backend.teacher.dashboard.repository.TeacherDashboardOverviewRow;
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -61,6 +63,9 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     List<Course> findByStatusOrderByUpdatedAtAscIdAsc(ContentStatus status);
 
     Optional<Course> findByIdAndTeacher(Long id, User teacher);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Course> findLockedByIdAndTeacher(Long id, User teacher);
 
     @Query("""
             select distinct c from Course c

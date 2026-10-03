@@ -107,7 +107,8 @@ public class TeacherContentService {
 
     @Transactional
     public CourseResponse createEditRevision(User teacher, Long courseId) {
-        Course course = findCourse(teacher, courseId);
+        Course course = courseRepository.findLockedByIdAndTeacher(courseId, teacher)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
         CourseRevision latestRevision = courseRevisionRepository.findTopByCourseIdOrderByRevisionNumberDesc(courseId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course revision not found."));
         if (!latestRevision.getTeacher().getId().equals(teacher.getId())) {
