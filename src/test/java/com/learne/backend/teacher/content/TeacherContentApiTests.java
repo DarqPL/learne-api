@@ -805,7 +805,9 @@ class TeacherContentApiTests {
         String adminToken = loginAndGetAccessToken(admin.getEmail());
         long courseId = createCourse(teacherToken);
         approveCourseThroughAdmin(teacherToken, adminToken, courseId);
-        String liveNameBefore = jdbcTemplate.queryForObject("select name from courses where id = ?", String.class, courseId);
+        Map<String, Object> liveMetadataBefore = jdbcTemplate.queryForMap(
+                "select name, description, type, level, order_index from courses where id = ?",
+                courseId);
 
         mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
@@ -824,15 +826,22 @@ class TeacherContentApiTests {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value(liveNameBefore))
+                .andExpect(jsonPath("$.name").value(liveMetadataBefore.get("name")))
                 .andExpect(jsonPath("$.status").value("APPROVED"));
 
-        String liveNameAfter = jdbcTemplate.queryForObject("select name from courses where id = ?", String.class, courseId);
+        Map<String, Object> liveMetadataAfter = jdbcTemplate.queryForMap(
+                "select name, description, type, level, order_index from courses where id = ?",
+                courseId);
         String latestRevisionStatus = jdbcTemplate.queryForObject(
                 "select status from course_revisions where course_id = ? order by revision_number desc limit 1",
                 String.class,
                 courseId);
-        assertThat(liveNameAfter).isEqualTo(liveNameBefore);
+        assertThat(liveMetadataAfter.get("name")).isEqualTo(liveMetadataBefore.get("name"));
+        assertThat(liveMetadataAfter.get("description")).isEqualTo(liveMetadataBefore.get("description"));
+        assertThat(liveMetadataAfter.get("type")).isEqualTo(liveMetadataBefore.get("type"));
+        assertThat(liveMetadataAfter.get("level")).isEqualTo(liveMetadataBefore.get("level"));
+        assertThat(((Number) liveMetadataAfter.get("order_index")).intValue())
+                .isEqualTo(((Number) liveMetadataBefore.get("order_index")).intValue());
         assertThat(latestRevisionStatus).isEqualTo("REJECTED");
     }
 
