@@ -147,14 +147,6 @@ class CourseImportExportServiceTests {
         when(zipReader.read(any())).thenReturn(importPackage);
         when(templateParser.parse(importPackage.workbook())).thenReturn(model);
         when(courseRepository.findByIdAndTeacher(42L, teacher)).thenReturn(Optional.of(course));
-        when(courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(course, CourseRevisionStatus.DRAFT))
-                .thenReturn(Optional.empty());
-        when(courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(course, CourseRevisionStatus.REJECTED))
-                .thenReturn(Optional.empty());
-        when(courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(course, CourseRevisionStatus.PENDING_REVIEW))
-                .thenReturn(Optional.empty());
-        when(courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(course, CourseRevisionStatus.APPROVED))
-                .thenReturn(Optional.of(sourceRevision));
         when(courseRevisionRepository.findTopByCourseOrderByRevisionNumberDesc(course)).thenReturn(Optional.of(sourceRevision));
         when(courseRevisionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
