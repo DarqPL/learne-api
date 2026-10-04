@@ -756,6 +756,87 @@ class TeacherContentApiTests {
     }
 
     @Test
+    void adminApproveEditedRevisionUpdatesLiveContent() throws Exception {
+        User teacher = saveUser("approve-edited-revision-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("approve-edited-revision-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long courseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, courseId);
+
+        mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+        updateCourseMetadata(teacherToken, courseId, "Approved edited name", "GRAMMAR", "A2", 7);
+        long draftRevisionId = latestRevisionId(courseId);
+        jdbcTemplate.update("update lesson_revisions set title = ? where topic_revision_id in "
+                        + "(select id from topic_revisions where revision_id = ?)",
+                "Approved edited lesson",
+                draftRevisionId);
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Approved edited name"))
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+
+        Map<String, Object> liveMetadata = jdbcTemplate.queryForMap(
+                "select name, type, level, order_index from courses where id = ?",
+                courseId);
+        String liveLessonTitle = jdbcTemplate.queryForObject(
+                "select l.title from lessons l join topics t on l.topic_id = t.id where t.course_id = ?",
+                String.class,
+                courseId);
+        assertThat(liveMetadata.get("name")).isEqualTo("Approved edited name");
+        assertThat(liveMetadata.get("type")).isEqualTo("GRAMMAR");
+        assertThat(liveMetadata.get("level")).isEqualTo("A2");
+        assertThat(((Number) liveMetadata.get("order_index")).intValue()).isEqualTo(7);
+        assertThat(liveLessonTitle).isEqualTo("Approved edited lesson");
+    }
+
+    @Test
+    void adminRejectEditedRevisionLeavesPreviousLiveContentUnchanged() throws Exception {
+        User teacher = saveUser("reject-edited-revision-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("reject-edited-revision-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long courseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, courseId);
+        String liveNameBefore = jdbcTemplate.queryForObject("select name from courses where id = ?", String.class, courseId);
+
+        mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+        updateCourseMetadata(teacherToken, courseId, "Rejected edited name", "GRAMMAR", "A2", 7);
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/admin/content/courses/%d/reject".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "Keep previous approved content."
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value(liveNameBefore))
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+
+        String liveNameAfter = jdbcTemplate.queryForObject("select name from courses where id = ?", String.class, courseId);
+        String latestRevisionStatus = jdbcTemplate.queryForObject(
+                "select status from course_revisions where course_id = ? order by revision_number desc limit 1",
+                String.class,
+                courseId);
+        assertThat(liveNameAfter).isEqualTo(liveNameBefore);
+        assertThat(latestRevisionStatus).isEqualTo("REJECTED");
+    }
+
+    @Test
     void teacherCannotUpdateStaleEditableRevisionBehindLatestPendingRevision() throws Exception {
         User teacher = saveUser("stale-editable-teacher@example.com", UserRole.TEACHER);
         User admin = saveUser("stale-editable-admin@example.com", UserRole.ADMIN);
@@ -2093,6 +2174,11 @@ class TeacherContentApiTests {
     }
 
     private void updateCourseMetadata(String token, long courseId, String name) throws Exception {
+        updateCourseMetadata(token, courseId, name, "COMPREHENSIVE", "A1", 1);
+    }
+
+    private void updateCourseMetadata(String token, long courseId, String name, String type, String level, int orderIndex)
+            throws Exception {
         mockMvc.perform(put("/api/teacher/content/courses/%d".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -2100,11 +2186,11 @@ class TeacherContentApiTests {
                                 {
                                   "name": "%s",
                                   "description": "Revision metadata update.",
-                                  "type": "COMPREHENSIVE",
-                                  "level": "A1",
-                                  "orderIndex": 1
+                                  "type": "%s",
+                                  "level": "%s",
+                                  "orderIndex": %d
                                 }
-                                """.formatted(name)))
+                                """.formatted(name, type, level, orderIndex)))
                 .andExpect(status().isOk());
     }
 
