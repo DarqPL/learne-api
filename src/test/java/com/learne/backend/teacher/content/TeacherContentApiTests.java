@@ -1402,6 +1402,18 @@ class TeacherContentApiTests {
         long courseId = createCourse(teacherToken);
         approveCourseThroughAdmin(teacherToken, adminToken, courseId);
         String liveNameBefore = jdbcTemplate.queryForObject("select name from courses where id = ?", String.class, courseId);
+        String liveTopicNameBefore = jdbcTemplate.queryForObject(
+                "select name from topics where course_id = ?",
+                String.class,
+                courseId);
+        String liveLessonTitleBefore = jdbcTemplate.queryForObject(
+                "select l.title from lessons l join topics t on l.topic_id = t.id where t.course_id = ?",
+                String.class,
+                courseId);
+        String liveQuestionTextBefore = jdbcTemplate.queryForObject(
+                "select q.question_text from questions q join lessons l on q.lesson_id = l.id join topics t on l.topic_id = t.id where t.course_id = ?",
+                String.class,
+                courseId);
 
         mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
@@ -1419,11 +1431,16 @@ class TeacherContentApiTests {
                 .andExpect(jsonPath("$.latestRevisionStatus").value("PENDING_REVIEW"));
         long firstPendingRevisionId = latestRevisionId(courseId);
 
-        mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+        MvcResult secondEditResult = mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("First pending name"))
-                .andExpect(jsonPath("$.latestRevisionStatus").value("DRAFT"));
+                .andExpect(jsonPath("$.latestRevisionStatus").value("DRAFT"))
+                .andReturn();
+        JsonNode secondEditBody = objectMapper.readTree(secondEditResult.getResponse().getContentAsString());
+        long topicRevisionId = secondEditBody.get("topics").get(0).get("id").asLong();
+        long lessonRevisionId = secondEditBody.get("topics").get(0).get("lessons").get(0).get("id").asLong();
+        long questionRevisionId = secondEditBody.get("topics").get(0).get("lessons").get(0).get("questions").get(0).get("id").asLong();
         mockMvc.perform(put("/api/teacher/content/courses/%d".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -1431,10 +1448,55 @@ class TeacherContentApiTests {
                                 { "name": "Second pending name", "description": "Second", "type": "COMPREHENSIVE", "level": "A1", "orderIndex": 1 }
                                 """))
                 .andExpect(status().isOk());
+        mockMvc.perform(put("/api/teacher/content/topics/%d".formatted(topicRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "name": "Second pending topic", "description": "Second topic", "orderIndex": 2 }
+                                """))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/api/teacher/content/lessons/%d".formatted(lessonRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Second pending lesson",
+                                  "description": "Second lesson",
+                                  "content": "Second lesson content",
+                                  "skillType": "GRAMMAR",
+                                  "orderIndex": 2,
+                                  "xpReward": 11,
+                                  "placementTest": false
+                                }
+                                """))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/api/teacher/content/questions/%d".formatted(questionRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "type": "SHORT_ANSWER",
+                                  "questionText": "Write the second pending greeting.",
+                                  "correctAnswer": "Hi",
+                                  "knowledgePoint": "pending_greetings",
+                                  "orderIndex": 2,
+                                  "difficulty": "easy",
+                                  "xpReward": 6
+                                }
+                                """))
+                .andExpect(status().isOk());
         mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.latestRevisionStatus").value("PENDING_REVIEW"));
+
+        mockMvc.perform(get("/api/admin/content/courses/pending")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").value(courseId))
+                .andExpect(jsonPath("$[0].name").value("Second pending name"))
+                .andExpect(jsonPath("$[0].status").value("PENDING_REVIEW"));
 
         String firstStatus = jdbcTemplate.queryForObject("select status from course_revisions where id = ?", String.class, firstPendingRevisionId);
         Integer latestPendingCount = jdbcTemplate.queryForObject(
@@ -1442,10 +1504,25 @@ class TeacherContentApiTests {
                 Integer.class,
                 courseId);
         String liveNameAfter = jdbcTemplate.queryForObject("select name from courses where id = ?", String.class, courseId);
+        String liveTopicNameAfter = jdbcTemplate.queryForObject(
+                "select name from topics where course_id = ?",
+                String.class,
+                courseId);
+        String liveLessonTitleAfter = jdbcTemplate.queryForObject(
+                "select l.title from lessons l join topics t on l.topic_id = t.id where t.course_id = ?",
+                String.class,
+                courseId);
+        String liveQuestionTextAfter = jdbcTemplate.queryForObject(
+                "select q.question_text from questions q join lessons l on q.lesson_id = l.id join topics t on l.topic_id = t.id where t.course_id = ?",
+                String.class,
+                courseId);
 
         assertThat(firstStatus).isEqualTo("SUPERSEDED");
         assertThat(latestPendingCount).isEqualTo(1);
         assertThat(liveNameAfter).isEqualTo(liveNameBefore);
+        assertThat(liveTopicNameAfter).isEqualTo(liveTopicNameBefore);
+        assertThat(liveLessonTitleAfter).isEqualTo(liveLessonTitleBefore);
+        assertThat(liveQuestionTextAfter).isEqualTo(liveQuestionTextBefore);
     }
 
     @Test
