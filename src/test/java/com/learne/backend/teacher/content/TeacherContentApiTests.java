@@ -1401,18 +1401,80 @@ class TeacherContentApiTests {
         String adminToken = loginAndGetAccessToken(admin.getEmail());
         long courseId = createCourse(teacherToken);
         approveCourseThroughAdmin(teacherToken, adminToken, courseId);
-        String liveNameBefore = jdbcTemplate.queryForObject("select name from courses where id = ?", String.class, courseId);
-        String liveTopicNameBefore = jdbcTemplate.queryForObject(
-                "select name from topics where course_id = ?",
-                String.class,
+
+        record LiveCourse(String name, String description, String type, String level, int orderIndex) {}
+        record LiveTopic(String name, String description, int orderIndex) {}
+        record LiveLesson(
+                String title,
+                String description,
+                String content,
+                String skillType,
+                int orderIndex,
+                int xpReward,
+                boolean placementTest) {}
+        record LiveQuestion(
+                String questionText,
+                String correctAnswer,
+                String knowledgePoint,
+                int orderIndex,
+                String difficulty,
+                int xpReward) {}
+
+        LiveCourse liveCourseBefore = jdbcTemplate.queryForObject(
+                """
+                        select name, description, type, level, order_index
+                        from courses
+                        where id = ?
+                        """,
+                (rs, rowNum) -> new LiveCourse(
+                        rs.getString("name"),
+                        rs.getString("description"),
+                        rs.getString("type"),
+                        rs.getString("level"),
+                        rs.getInt("order_index")),
                 courseId);
-        String liveLessonTitleBefore = jdbcTemplate.queryForObject(
-                "select l.title from lessons l join topics t on l.topic_id = t.id where t.course_id = ?",
-                String.class,
+        LiveTopic liveTopicBefore = jdbcTemplate.queryForObject(
+                """
+                        select name, description, order_index
+                        from topics
+                        where course_id = ?
+                        """,
+                (rs, rowNum) -> new LiveTopic(
+                        rs.getString("name"),
+                        rs.getString("description"),
+                        rs.getInt("order_index")),
                 courseId);
-        String liveQuestionTextBefore = jdbcTemplate.queryForObject(
-                "select q.question_text from questions q join lessons l on q.lesson_id = l.id join topics t on l.topic_id = t.id where t.course_id = ?",
-                String.class,
+        LiveLesson liveLessonBefore = jdbcTemplate.queryForObject(
+                """
+                        select l.title, l.description, l.content, l.skill_type, l.order_index, l.xp_reward, l.is_placement_test
+                        from lessons l
+                        join topics t on l.topic_id = t.id
+                        where t.course_id = ?
+                        """,
+                (rs, rowNum) -> new LiveLesson(
+                        rs.getString("title"),
+                        rs.getString("description"),
+                        rs.getString("content"),
+                        rs.getString("skill_type"),
+                        rs.getInt("order_index"),
+                        rs.getInt("xp_reward"),
+                        rs.getBoolean("is_placement_test")),
+                courseId);
+        LiveQuestion liveQuestionBefore = jdbcTemplate.queryForObject(
+                """
+                        select q.question_text, q.correct_answer, q.knowledge_point, q.order_index, q.difficulty, q.xp_reward
+                        from questions q
+                        join lessons l on q.lesson_id = l.id
+                        join topics t on l.topic_id = t.id
+                        where t.course_id = ?
+                        """,
+                (rs, rowNum) -> new LiveQuestion(
+                        rs.getString("question_text"),
+                        rs.getString("correct_answer"),
+                        rs.getString("knowledge_point"),
+                        rs.getInt("order_index"),
+                        rs.getString("difficulty"),
+                        rs.getInt("xp_reward")),
                 courseId);
 
         mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
@@ -1503,26 +1565,69 @@ class TeacherContentApiTests {
                 "select count(*) from course_revisions cr where cr.course_id = ? and cr.status = 'PENDING_REVIEW' and not exists (select 1 from course_revisions newer where newer.course_id = cr.course_id and newer.revision_number > cr.revision_number)",
                 Integer.class,
                 courseId);
-        String liveNameAfter = jdbcTemplate.queryForObject("select name from courses where id = ?", String.class, courseId);
-        String liveTopicNameAfter = jdbcTemplate.queryForObject(
-                "select name from topics where course_id = ?",
-                String.class,
+        LiveCourse liveCourseAfter = jdbcTemplate.queryForObject(
+                """
+                        select name, description, type, level, order_index
+                        from courses
+                        where id = ?
+                        """,
+                (rs, rowNum) -> new LiveCourse(
+                        rs.getString("name"),
+                        rs.getString("description"),
+                        rs.getString("type"),
+                        rs.getString("level"),
+                        rs.getInt("order_index")),
                 courseId);
-        String liveLessonTitleAfter = jdbcTemplate.queryForObject(
-                "select l.title from lessons l join topics t on l.topic_id = t.id where t.course_id = ?",
-                String.class,
+        LiveTopic liveTopicAfter = jdbcTemplate.queryForObject(
+                """
+                        select name, description, order_index
+                        from topics
+                        where course_id = ?
+                        """,
+                (rs, rowNum) -> new LiveTopic(
+                        rs.getString("name"),
+                        rs.getString("description"),
+                        rs.getInt("order_index")),
                 courseId);
-        String liveQuestionTextAfter = jdbcTemplate.queryForObject(
-                "select q.question_text from questions q join lessons l on q.lesson_id = l.id join topics t on l.topic_id = t.id where t.course_id = ?",
-                String.class,
+        LiveLesson liveLessonAfter = jdbcTemplate.queryForObject(
+                """
+                        select l.title, l.description, l.content, l.skill_type, l.order_index, l.xp_reward, l.is_placement_test
+                        from lessons l
+                        join topics t on l.topic_id = t.id
+                        where t.course_id = ?
+                        """,
+                (rs, rowNum) -> new LiveLesson(
+                        rs.getString("title"),
+                        rs.getString("description"),
+                        rs.getString("content"),
+                        rs.getString("skill_type"),
+                        rs.getInt("order_index"),
+                        rs.getInt("xp_reward"),
+                        rs.getBoolean("is_placement_test")),
+                courseId);
+        LiveQuestion liveQuestionAfter = jdbcTemplate.queryForObject(
+                """
+                        select q.question_text, q.correct_answer, q.knowledge_point, q.order_index, q.difficulty, q.xp_reward
+                        from questions q
+                        join lessons l on q.lesson_id = l.id
+                        join topics t on l.topic_id = t.id
+                        where t.course_id = ?
+                        """,
+                (rs, rowNum) -> new LiveQuestion(
+                        rs.getString("question_text"),
+                        rs.getString("correct_answer"),
+                        rs.getString("knowledge_point"),
+                        rs.getInt("order_index"),
+                        rs.getString("difficulty"),
+                        rs.getInt("xp_reward")),
                 courseId);
 
         assertThat(firstStatus).isEqualTo("SUPERSEDED");
         assertThat(latestPendingCount).isEqualTo(1);
-        assertThat(liveNameAfter).isEqualTo(liveNameBefore);
-        assertThat(liveTopicNameAfter).isEqualTo(liveTopicNameBefore);
-        assertThat(liveLessonTitleAfter).isEqualTo(liveLessonTitleBefore);
-        assertThat(liveQuestionTextAfter).isEqualTo(liveQuestionTextBefore);
+        assertThat(liveCourseAfter).isEqualTo(liveCourseBefore);
+        assertThat(liveTopicAfter).isEqualTo(liveTopicBefore);
+        assertThat(liveLessonAfter).isEqualTo(liveLessonBefore);
+        assertThat(liveQuestionAfter).isEqualTo(liveQuestionBefore);
     }
 
     @Test
