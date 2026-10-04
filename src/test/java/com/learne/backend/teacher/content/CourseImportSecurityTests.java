@@ -9,6 +9,7 @@ import com.learne.backend.teacher.content.importexport.security.TcpClamAvClient;
 import com.learne.backend.teacher.content.importexport.zip.CourseImportPackage;
 import com.learne.backend.teacher.content.importexport.zip.CourseImportZipReader;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.ServerSocket;
@@ -157,11 +158,20 @@ class CourseImportSecurityTests {
                 InputStream input = socket.getInputStream();
                 byte[] commandBytes = input.readNBytes(command.length());
                 assertThat(new String(commandBytes, StandardCharsets.US_ASCII)).isEqualTo(command);
+                drainInstreamPayload(input);
                 socket.getOutputStream().write(response.getBytes(StandardCharsets.UTF_8));
                 socket.getOutputStream().flush();
             } catch (IOException e) {
                 throw new IllegalStateException(e);
             }
         });
+    }
+
+    private void drainInstreamPayload(InputStream input) throws IOException {
+        DataInputStream dataInput = new DataInputStream(input);
+        int length;
+        while ((length = dataInput.readInt()) > 0) {
+            dataInput.readNBytes(length);
+        }
     }
 }

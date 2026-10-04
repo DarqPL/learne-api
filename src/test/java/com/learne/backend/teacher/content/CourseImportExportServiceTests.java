@@ -147,14 +147,6 @@ class CourseImportExportServiceTests {
         when(zipReader.read(any())).thenReturn(importPackage);
         when(templateParser.parse(importPackage.workbook())).thenReturn(model);
         when(courseRepository.findByIdAndTeacher(42L, teacher)).thenReturn(Optional.of(course));
-        when(courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(course, CourseRevisionStatus.DRAFT))
-                .thenReturn(Optional.empty());
-        when(courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(course, CourseRevisionStatus.REJECTED))
-                .thenReturn(Optional.empty());
-        when(courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(course, CourseRevisionStatus.PENDING_REVIEW))
-                .thenReturn(Optional.empty());
-        when(courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(course, CourseRevisionStatus.APPROVED))
-                .thenReturn(Optional.of(sourceRevision));
         when(courseRevisionRepository.findTopByCourseOrderByRevisionNumberDesc(course)).thenReturn(Optional.of(sourceRevision));
         when(courseRevisionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -164,6 +156,48 @@ class CourseImportExportServiceTests {
         CourseRevision savedRevision = revisionCaptor.getValue();
         assertThat(savedRevision.getPricingType()).isEqualTo(CoursePricingType.PAID);
         assertThat(savedRevision.getProposedPriceAmountVnd()).isEqualTo(300000L);
+    }
+
+    @Test
+    void reimportPendingCourseSupersedesSourceRevision() {
+        CourseImportZipReader zipReader = mock(CourseImportZipReader.class);
+        CourseExcelTemplateParser templateParser = mock(CourseExcelTemplateParser.class);
+        CourseExcelTemplateExporter templateExporter = mock(CourseExcelTemplateExporter.class);
+        AudioFileValidator audioFileValidator = mock(AudioFileValidator.class);
+        ClamAvClient clamAvClient = mock(ClamAvClient.class);
+        StorageService storageService = mock(StorageService.class);
+        CourseRepository courseRepository = mock(CourseRepository.class);
+        CourseRevisionRepository courseRevisionRepository = mock(CourseRevisionRepository.class);
+        CourseImportExportService service = new CourseImportExportService(zipReader, templateParser, templateExporter,
+                audioFileValidator, clamAvClient, storageService, courseRepository, courseRevisionRepository);
+        User teacher = new User();
+        Course course = new Course();
+        ReflectionTestUtils.setField(course, "id", 42L);
+        course.setTeacher(teacher);
+        course.setStatus(ContentStatus.APPROVED);
+        CourseRevision sourceRevision = new CourseRevision();
+        sourceRevision.setCourse(course);
+        sourceRevision.setTeacher(teacher);
+        sourceRevision.setRevisionNumber(2);
+        sourceRevision.setStatus(CourseRevisionStatus.PENDING_REVIEW);
+        CourseImportPackage importPackage = new CourseImportPackage(new byte[] {1}, Map.of());
+        CourseImportModel model = courseImportModel(42L, null);
+        ArgumentCaptor<CourseRevision> revisionCaptor = ArgumentCaptor.forClass(CourseRevision.class);
+
+        when(zipReader.read(any())).thenReturn(importPackage);
+        when(templateParser.parse(importPackage.workbook())).thenReturn(model);
+        when(courseRepository.findByIdAndTeacher(42L, teacher)).thenReturn(Optional.of(course));
+        when(courseRevisionRepository.findTopByCourseOrderByRevisionNumberDesc(course)).thenReturn(Optional.of(sourceRevision));
+        when(courseRevisionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.importCourse(teacher, new MockMultipartFile("file", "course.zip", "application/zip", new byte[] {1}));
+
+        verify(courseRevisionRepository).save(revisionCaptor.capture());
+        CourseRevision savedRevision = revisionCaptor.getValue();
+        assertThat(savedRevision).isNotSameAs(sourceRevision);
+        assertThat(savedRevision.getStatus()).isEqualTo(CourseRevisionStatus.DRAFT);
+        assertThat(sourceRevision.getStatus()).isEqualTo(CourseRevisionStatus.SUPERSEDED);
+        assertThat(course.getStatus()).isEqualTo(ContentStatus.DRAFT);
     }
 
     private CourseImportModel courseImportModelWithAudio() {

@@ -153,6 +153,7 @@ public class CourseImportExportService {
             populateRevision(importPackage, model, revision, teacher, uploadedAudioPublicIds,
                     existingTopics, existingLessons, existingQuestions, existingOptions);
             if (sourceRevision.getStatus() == CourseRevisionStatus.PENDING_REVIEW) {
+                sourceRevision.setStatus(CourseRevisionStatus.SUPERSEDED);
                 course.setStatus(ContentStatus.DRAFT);
             }
             CourseRevision savedRevision = courseRevisionRepository.save(revision);
@@ -414,10 +415,11 @@ public class CourseImportExportService {
     }
 
     private java.util.Optional<CourseRevision> latestUpdatableSourceRevision(Course course) {
-        return latestEditableRevision(course)
-                .or(() -> courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(
-                        course, CourseRevisionStatus.PENDING_REVIEW))
-                .or(() -> latestApprovedRevision(course));
+        return courseRevisionRepository.findTopByCourseOrderByRevisionNumberDesc(course)
+                .filter(revision -> revision.getStatus() == CourseRevisionStatus.DRAFT
+                        || revision.getStatus() == CourseRevisionStatus.REJECTED
+                        || revision.getStatus() == CourseRevisionStatus.PENDING_REVIEW
+                        || revision.getStatus() == CourseRevisionStatus.APPROVED);
     }
 
     private void applyRevisionMetadata(CourseRevision revision, CourseImportModel model) {

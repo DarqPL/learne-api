@@ -30,12 +30,16 @@ import com.learne.backend.teacher.content.enums.QuestionType;
 import com.learne.backend.teacher.content.repository.CourseRepository;
 import com.learne.backend.teacher.content.repository.CourseRevisionRepository;
 import com.learne.backend.teacher.content.repository.LessonRepository;
+import com.learne.backend.teacher.content.repository.LessonRevisionRepository;
 import com.learne.backend.teacher.content.repository.QuestionRepository;
+import com.learne.backend.teacher.content.repository.QuestionRevisionRepository;
 import com.learne.backend.teacher.content.repository.TopicRepository;
+import com.learne.backend.teacher.content.repository.TopicRevisionRepository;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -49,19 +53,28 @@ public class TeacherContentService {
     private final TopicRepository topicRepository;
     private final LessonRepository lessonRepository;
     private final QuestionRepository questionRepository;
+    private final TopicRevisionRepository topicRevisionRepository;
+    private final LessonRevisionRepository lessonRevisionRepository;
+    private final QuestionRevisionRepository questionRevisionRepository;
     private final CacheInvalidationService cacheInvalidationService;
 
     public TeacherContentService(CourseRepository courseRepository,
                            CourseRevisionRepository courseRevisionRepository,
-                            TopicRepository topicRepository,
-                            LessonRepository lessonRepository,
-                            QuestionRepository questionRepository,
-                            CacheInvalidationService cacheInvalidationService) {
+                             TopicRepository topicRepository,
+                             LessonRepository lessonRepository,
+                             QuestionRepository questionRepository,
+                             TopicRevisionRepository topicRevisionRepository,
+                             LessonRevisionRepository lessonRevisionRepository,
+                             QuestionRevisionRepository questionRevisionRepository,
+                             CacheInvalidationService cacheInvalidationService) {
         this.courseRepository = courseRepository;
         this.courseRevisionRepository = courseRevisionRepository;
         this.topicRepository = topicRepository;
         this.lessonRepository = lessonRepository;
         this.questionRepository = questionRepository;
+        this.topicRevisionRepository = topicRevisionRepository;
+        this.lessonRevisionRepository = lessonRevisionRepository;
+        this.questionRevisionRepository = questionRevisionRepository;
         this.cacheInvalidationService = cacheInvalidationService;
     }
 
@@ -75,14 +88,14 @@ public class TeacherContentService {
                         courses.stream().map(Course::getId).toList()).stream()
                 .collect(Collectors.toMap(revision -> revision.getCourse().getId(), Function.identity()));
         return courses.stream()
-                .map(course -> CourseResponse.from(course, latestRevisions.get(course.getId())))
+                .map(course -> teacherCourseResponse(course, latestRevisions.get(course.getId())))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public CourseResponse getCourse(User teacher, Long courseId) {
         Course course = findCourse(teacher, courseId);
-        return CourseResponse.from(course, findLatestRevision(course));
+        return teacherCourseResponse(course, findLatestRevision(course));
     }
 
     @Transactional
@@ -105,13 +118,51 @@ public class TeacherContentService {
     }
 
     @Transactional
+    public CourseResponse createEditRevision(User teacher, Long courseId) {
+        Course course = courseRepository.findLockedByIdAndTeacher(courseId, teacher)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
+        CourseRevision latestRevision = courseRevisionRepository.findTopByCourseIdOrderByRevisionNumberDesc(courseId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course revision not found."));
+        if (!latestRevision.getTeacher().getId().equals(teacher.getId())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Course not found.");
+        }
+        if (isEditableRevision(latestRevision)) {
+            return CourseResponse.fromRevisionBackedCourse(course, latestRevision);
+        }
+        if (latestRevision.getStatus() != CourseRevisionStatus.APPROVED
+                && latestRevision.getStatus() != CourseRevisionStatus.PENDING_REVIEW) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Course cannot be edited in its current state.");
+        }
+        CourseRevision draft = cloneRevisionForEdit(course, teacher, latestRevision);
+        if (latestRevision.getStatus() == CourseRevisionStatus.PENDING_REVIEW) {
+            latestRevision.setStatus(CourseRevisionStatus.SUPERSEDED);
+            if (course.getPublishedAt() == null) {
+                course.setStatus(ContentStatus.DRAFT);
+            }
+        }
+        CourseRevision savedDraft = courseRevisionRepository.save(draft);
+        evictContentCaches(teacher);
+        return CourseResponse.fromRevisionBackedCourse(course, savedDraft);
+    }
+
+    @Transactional
     public CourseResponse updateCourse(User teacher, Long courseId, CourseRequest request) {
         Course course = findCourse(teacher, courseId);
+        CourseRevision latestRevision = findLatestRevision(course);
+        if (course.getPublishedAt() != null || course.getStatus() == ContentStatus.APPROVED) {
+            CourseRevision editableRevision = latestLockedEditableRevision(courseId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Create an edit revision before editing this course."));
+            applyCourseRequestToRevision(editableRevision, request, false);
+            CourseRevision savedRevision = courseRevisionRepository.save(editableRevision);
+            CourseResponse response = CourseResponse.fromRevisionBackedCourse(course, savedRevision);
+            evictContentCaches(teacher);
+            return response;
+        }
         ensureEditable(course);
         applyCourseRequest(course, request, false);
         Course savedCourse = courseRepository.save(course);
         CourseRevision revision = syncEditableRevision(savedCourse);
-        CourseResponse response = CourseResponse.from(savedCourse, revision);
+        CourseResponse response = teacherCourseResponse(savedCourse, revision == null ? latestRevision : revision);
         evictContentCaches(teacher);
         return response;
     }
@@ -127,6 +178,17 @@ public class TeacherContentService {
     @Transactional
     public TopicResponse createTopic(User teacher, Long courseId, TopicRequest request) {
         Course course = findCourse(teacher, courseId);
+        if (isPublishedOrApproved(course)) {
+            CourseRevision revision = latestLockedEditableRevision(courseId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Create an edit revision before editing this course."));
+            TopicRevision topic = new TopicRevision();
+            topic.setCourseRevision(revision);
+            applyTopicRequest(topic, request);
+            revision.getTopics().add(topic);
+            TopicRevision savedTopic = topicRevisionRepository.saveAndFlush(topic);
+            evictContentCaches(teacher);
+            return TopicResponse.from(savedTopic);
+        }
         ensureEditable(course);
         Topic topic = new Topic();
         topic.setCourse(course);
@@ -141,7 +203,27 @@ public class TeacherContentService {
 
     @Transactional
     public TopicResponse updateTopic(User teacher, Long topicId, TopicRequest request) {
-        Topic topic = findTopic(teacher, topicId);
+        Optional<Topic> liveTopic = findTopicOptional(teacher, topicId);
+        if (liveTopic.isPresent()) {
+            Topic topic = liveTopic.get();
+            ensureEditable(topic.getCourse());
+            applyTopicRequest(topic, request);
+            Topic savedTopic = topicRepository.save(topic);
+            syncEditableRevision(savedTopic.getCourse());
+            TopicResponse response = TopicResponse.from(savedTopic);
+            evictContentCaches(teacher);
+            return response;
+        }
+        Optional<TopicRevision> editableTopicRevision = findEditableTopicRevision(teacher, topicId);
+        if (editableTopicRevision.isPresent()) {
+            TopicRevision topic = editableTopicRevision.get();
+            ensureLockedLatestEditableRevision(teacher, topic.getCourseRevision());
+            applyTopicRequest(topic, request);
+            TopicResponse response = TopicResponse.from(topicRevisionRepository.save(topic));
+            evictContentCaches(teacher);
+            return response;
+        }
+        Topic topic = liveTopic.orElseGet(() -> findTopic(teacher, topicId));
         ensureEditable(topic.getCourse());
         applyTopicRequest(topic, request);
         Topic savedTopic = topicRepository.save(topic);
@@ -153,18 +235,44 @@ public class TeacherContentService {
 
     @Transactional
     public void deleteTopic(User teacher, Long topicId) {
-        Topic topic = findTopic(teacher, topicId);
-        ensureEditable(topic.getCourse());
-        Course course = topic.getCourse();
-        topicRepository.delete(topic);
-        course.getTopics().remove(topic);
-        syncEditableRevision(course);
+        Optional<Topic> liveTopic = findTopicOptional(teacher, topicId);
+        if (liveTopic.isPresent()) {
+            Topic topic = liveTopic.get();
+            ensureEditable(topic.getCourse());
+            Course course = topic.getCourse();
+            topicRepository.delete(topic);
+            course.getTopics().remove(topic);
+            syncEditableRevision(course);
+            evictContentCaches(teacher);
+            return;
+        }
+        TopicRevision topic = findEditableTopicRevision(teacher, topicId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Topic not found."));
+        CourseRevision revision = topic.getCourseRevision();
+        ensureLockedLatestEditableRevision(teacher, revision);
+        revision.getTopics().remove(topic);
+        courseRevisionRepository.save(revision);
         evictContentCaches(teacher);
     }
 
     @Transactional
     public LessonResponse createLesson(User teacher, Long topicId, LessonRequest request) {
-        Topic topic = findTopic(teacher, topicId);
+        Optional<Topic> liveTopic = findTopicOptional(teacher, topicId);
+        if (liveTopic.isEmpty()) {
+            TopicRevision topic = findEditableTopicRevision(teacher, topicId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Topic not found."));
+            ensureLockedLatestEditableRevision(teacher, topic.getCourseRevision());
+            LessonRevision lesson = new LessonRevision();
+            lesson.setTopicRevision(topic);
+            lesson.setTeacher(teacher);
+            applyLessonRequest(lesson, request);
+            topic.getLessons().add(lesson);
+            LessonRevision savedLesson = lessonRevisionRepository.saveAndFlush(lesson);
+            LessonResponse response = LessonResponse.from(savedLesson);
+            evictContentCaches(teacher);
+            return response;
+        }
+        Topic topic = liveTopic.get();
         ensureEditable(topic.getCourse());
         Lesson lesson = new Lesson();
         lesson.setTopic(topic);
@@ -181,7 +289,27 @@ public class TeacherContentService {
 
     @Transactional
     public LessonResponse updateLesson(User teacher, Long lessonId, LessonRequest request) {
-        Lesson lesson = findLesson(teacher, lessonId);
+        Optional<Lesson> liveLesson = findLessonOptional(teacher, lessonId);
+        if (liveLesson.isPresent()) {
+            Lesson lesson = liveLesson.get();
+            ensureEditable(lesson.getTopic().getCourse());
+            applyLessonRequest(lesson, request);
+            Lesson savedLesson = lessonRepository.save(lesson);
+            syncEditableRevision(savedLesson.getTopic().getCourse());
+            LessonResponse response = LessonResponse.from(savedLesson);
+            evictContentCaches(teacher);
+            return response;
+        }
+        Optional<LessonRevision> editableLessonRevision = findEditableLessonRevision(teacher, lessonId);
+        if (editableLessonRevision.isPresent()) {
+            LessonRevision lesson = editableLessonRevision.get();
+            ensureLockedLatestEditableRevision(teacher, lesson.getTopicRevision().getCourseRevision());
+            applyLessonRequest(lesson, request);
+            LessonResponse response = LessonResponse.from(lessonRevisionRepository.save(lesson));
+            evictContentCaches(teacher);
+            return response;
+        }
+        Lesson lesson = liveLesson.orElseGet(() -> findLesson(teacher, lessonId));
         ensureEditable(lesson.getTopic().getCourse());
         applyLessonRequest(lesson, request);
         Lesson savedLesson = lessonRepository.save(lesson);
@@ -193,20 +321,46 @@ public class TeacherContentService {
 
     @Transactional
     public void deleteLesson(User teacher, Long lessonId) {
-        Lesson lesson = findLesson(teacher, lessonId);
-        ensureEditable(lesson.getTopic().getCourse());
-        Course course = lesson.getTopic().getCourse();
-        lesson.getTopic().getLessons().remove(lesson);
-        lessonRepository.delete(lesson);
-        syncEditableRevision(course);
+        Optional<Lesson> liveLesson = findLessonOptional(teacher, lessonId);
+        if (liveLesson.isPresent()) {
+            Lesson lesson = liveLesson.get();
+            ensureEditable(lesson.getTopic().getCourse());
+            Course course = lesson.getTopic().getCourse();
+            lesson.getTopic().getLessons().remove(lesson);
+            lessonRepository.delete(lesson);
+            syncEditableRevision(course);
+            evictContentCaches(teacher);
+            return;
+        }
+        LessonRevision lesson = findEditableLessonRevision(teacher, lessonId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Lesson not found."));
+        TopicRevision topic = lesson.getTopicRevision();
+        ensureLockedLatestEditableRevision(teacher, topic.getCourseRevision());
+        topic.getLessons().remove(lesson);
+        courseRevisionRepository.save(topic.getCourseRevision());
         evictContentCaches(teacher);
     }
 
     @Transactional
     public QuestionResponse createQuestion(User teacher, Long lessonId, QuestionRequest request) {
-        Lesson lesson = findLesson(teacher, lessonId);
-        ensureEditable(lesson.getTopic().getCourse());
         validateQuestion(request);
+        Optional<Lesson> liveLesson = findLessonOptional(teacher, lessonId);
+        if (liveLesson.isEmpty()) {
+            LessonRevision lesson = findEditableLessonRevision(teacher, lessonId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Lesson not found."));
+            ensureLockedLatestEditableRevision(teacher, lesson.getTopicRevision().getCourseRevision());
+            QuestionRevision question = new QuestionRevision();
+            question.setLessonRevision(lesson);
+            question.setTeacher(teacher);
+            applyQuestionRequest(question, request);
+            lesson.getQuestions().add(question);
+            QuestionRevision savedQuestion = questionRevisionRepository.saveAndFlush(question);
+            QuestionResponse response = QuestionResponse.from(savedQuestion);
+            evictContentCaches(teacher);
+            return response;
+        }
+        Lesson lesson = liveLesson.get();
+        ensureEditable(lesson.getTopic().getCourse());
         Question question = new Question();
         question.setLesson(lesson);
         question.setTeacher(teacher);
@@ -222,7 +376,31 @@ public class TeacherContentService {
 
     @Transactional
     public QuestionResponse updateQuestion(User teacher, Long questionId, QuestionRequest request) {
-        Question question = findQuestion(teacher, questionId);
+        Optional<Question> liveQuestion = findQuestionOptional(teacher, questionId);
+        if (liveQuestion.isPresent()) {
+            Question question = liveQuestion.get();
+            ensureEditable(question.getLesson().getTopic().getCourse());
+            validateQuestion(request);
+            question.getOptions().clear();
+            applyQuestionRequest(question, request);
+            Question savedQuestion = questionRepository.save(question);
+            syncEditableRevision(savedQuestion.getLesson().getTopic().getCourse());
+            QuestionResponse response = QuestionResponse.from(savedQuestion);
+            evictContentCaches(teacher);
+            return response;
+        }
+        Optional<QuestionRevision> editableQuestionRevision = findEditableQuestionRevision(teacher, questionId);
+        if (editableQuestionRevision.isPresent()) {
+            QuestionRevision question = editableQuestionRevision.get();
+            ensureLockedLatestEditableRevision(teacher, question.getLessonRevision().getTopicRevision().getCourseRevision());
+            validateQuestion(request);
+            question.getOptions().clear();
+            applyQuestionRequest(question, request);
+            QuestionResponse response = QuestionResponse.from(questionRevisionRepository.save(question));
+            evictContentCaches(teacher);
+            return response;
+        }
+        Question question = liveQuestion.orElseGet(() -> findQuestion(teacher, questionId));
         ensureEditable(question.getLesson().getTopic().getCourse());
         validateQuestion(request);
         question.getOptions().clear();
@@ -236,12 +414,23 @@ public class TeacherContentService {
 
     @Transactional
     public void deleteQuestion(User teacher, Long questionId) {
-        Question question = findQuestion(teacher, questionId);
-        ensureEditable(question.getLesson().getTopic().getCourse());
-        Course course = question.getLesson().getTopic().getCourse();
-        question.getLesson().getQuestions().remove(question);
-        questionRepository.delete(question);
-        syncEditableRevision(course);
+        Optional<Question> liveQuestion = findQuestionOptional(teacher, questionId);
+        if (liveQuestion.isPresent()) {
+            Question question = liveQuestion.get();
+            ensureEditable(question.getLesson().getTopic().getCourse());
+            Course course = question.getLesson().getTopic().getCourse();
+            question.getLesson().getQuestions().remove(question);
+            questionRepository.delete(question);
+            syncEditableRevision(course);
+            evictContentCaches(teacher);
+            return;
+        }
+        QuestionRevision question = findEditableQuestionRevision(teacher, questionId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Question not found."));
+        LessonRevision lesson = question.getLessonRevision();
+        ensureLockedLatestEditableRevision(teacher, lesson.getTopicRevision().getCourseRevision());
+        lesson.getQuestions().remove(question);
+        courseRevisionRepository.save(lesson.getTopicRevision().getCourseRevision());
         evictContentCaches(teacher);
     }
 
@@ -286,42 +475,73 @@ public class TeacherContentService {
                 .orElse(null);
     }
 
+    private CourseResponse teacherCourseResponse(Course course, CourseRevision latestRevision) {
+        boolean publishedCourse = course.getPublishedAt() != null || course.getStatus() == ContentStatus.APPROVED;
+        if (publishedCourse && latestRevision != null && isEditableRevision(latestRevision)) {
+            return CourseResponse.fromRevisionBackedCourse(course, latestRevision);
+        }
+        return CourseResponse.from(course, latestRevision);
+    }
+
     private Course findCourse(User teacher, Long courseId) {
         return courseRepository.findByIdAndTeacher(courseId, teacher)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
     }
 
     private Topic findTopic(User teacher, Long topicId) {
-        Topic topic = topicRepository.findById(topicId)
+        return findTopicOptional(teacher, topicId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Topic not found."));
-        if (!topic.getCourse().getTeacher().getId().equals(teacher.getId())) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "Topic not found.");
-        }
-        return topic;
     }
 
     private Lesson findLesson(User teacher, Long lessonId) {
-        Lesson lesson = lessonRepository.findById(lessonId)
+        return findLessonOptional(teacher, lessonId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Lesson not found."));
-        if (!lesson.getTeacher().getId().equals(teacher.getId())) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "Lesson not found.");
-        }
-        return lesson;
     }
 
     private Question findQuestion(User teacher, Long questionId) {
-        Question question = questionRepository.findById(questionId)
+        return findQuestionOptional(teacher, questionId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Question not found."));
-        if (!question.getTeacher().getId().equals(teacher.getId())) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "Question not found.");
-        }
-        return question;
+    }
+
+    private Optional<Topic> findTopicOptional(User teacher, Long topicId) {
+        return topicRepository.findById(topicId)
+                .filter(topic -> topic.getCourse().getTeacher().getId().equals(teacher.getId()));
+    }
+
+    private Optional<Lesson> findLessonOptional(User teacher, Long lessonId) {
+        return lessonRepository.findById(lessonId)
+                .filter(lesson -> lesson.getTeacher().getId().equals(teacher.getId()));
+    }
+
+    private Optional<Question> findQuestionOptional(User teacher, Long questionId) {
+        return questionRepository.findById(questionId)
+                .filter(question -> question.getTeacher().getId().equals(teacher.getId()));
+    }
+
+    private Optional<TopicRevision> findEditableTopicRevision(User teacher, Long topicId) {
+        return topicRevisionRepository.findEditableLatestForTeacher(teacher.getId(), topicId);
+    }
+
+    private Optional<LessonRevision> findEditableLessonRevision(User teacher, Long lessonId) {
+        return lessonRevisionRepository.findEditableLatestForTeacher(teacher.getId(), lessonId);
+    }
+
+    private Optional<QuestionRevision> findEditableQuestionRevision(User teacher, Long questionId) {
+        return questionRevisionRepository.findEditableLatestForTeacher(teacher.getId(), questionId);
     }
 
     private void ensureEditable(Course course) {
-        if (course.getStatus() != ContentStatus.DRAFT && course.getStatus() != ContentStatus.REJECTED) {
+        if (!isEditableCourse(course)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Only draft or rejected content can be edited.");
         }
+    }
+
+    private boolean isEditableCourse(Course course) {
+        return course.getStatus() == ContentStatus.DRAFT || course.getStatus() == ContentStatus.REJECTED;
+    }
+
+    private boolean isPublishedOrApproved(Course course) {
+        return course.getPublishedAt() != null || course.getStatus() == ContentStatus.APPROVED;
     }
 
     private boolean hasMinimumReviewContent(Course course) {
@@ -352,6 +572,27 @@ public class TeacherContentService {
         course.setLevel(request.level());
         course.setOrderIndex(valueOrZero(request.orderIndex()));
         applyPricingRequest(course, request, defaultMissingPricingTypeToFree);
+    }
+
+    private void applyCourseRequestToRevision(CourseRevision revision, CourseRequest request, boolean defaultMissingPricingTypeToFree) {
+        revision.setName(request.name());
+        revision.setDescription(request.description());
+        revision.setType(request.type());
+        revision.setLevel(request.level());
+        revision.setOrderIndex(valueOrZero(request.orderIndex()));
+        if (request.pricingType() == null && !defaultMissingPricingTypeToFree) {
+            return;
+        }
+        CoursePricingType pricingType = request.pricingType() == null ? CoursePricingType.FREE : request.pricingType();
+        revision.setPricingType(pricingType);
+        if (pricingType == CoursePricingType.FREE) {
+            revision.setProposedPriceAmountVnd(null);
+            return;
+        }
+        if (request.proposedPriceAmountVnd() == null || request.proposedPriceAmountVnd() <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Paid course requires a positive proposed price.");
+        }
+        revision.setProposedPriceAmountVnd(request.proposedPriceAmountVnd());
     }
 
     private void applyPricingRequest(Course course, CourseRequest request, boolean defaultMissingPricingTypeToFree) {
@@ -396,10 +637,116 @@ public class TeacherContentService {
         }).orElse(null);
     }
 
-    private java.util.Optional<CourseRevision> latestEditableRevision(Course course) {
+    private Optional<CourseRevision> latestEditableRevision(Course course) {
         return courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(course, CourseRevisionStatus.DRAFT)
                 .or(() -> courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(
                         course, CourseRevisionStatus.REJECTED));
+    }
+
+    private Optional<CourseRevision> latestLockedEditableRevision(Long courseId) {
+        return courseRevisionRepository.findTopByCourseIdOrderByRevisionNumberDesc(courseId)
+                .filter(this::isEditableRevision);
+    }
+
+    private void ensureLockedLatestEditableRevision(User teacher, CourseRevision revision) {
+        Long courseId = revision.getCourse().getId();
+        courseRepository.findLockedByIdAndTeacher(courseId, teacher)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
+        CourseRevision latestRevision = latestLockedEditableRevision(courseId)
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Create an edit revision before editing this course."));
+        if (!latestRevision.getId().equals(revision.getId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only the latest edit revision can be edited.");
+        }
+    }
+
+    private boolean isEditableRevision(CourseRevision revision) {
+        return revision.getStatus() == CourseRevisionStatus.DRAFT
+                || revision.getStatus() == CourseRevisionStatus.REJECTED;
+    }
+
+    private CourseRevision cloneRevisionForEdit(Course course, User teacher, CourseRevision source) {
+        CourseRevision revision = new CourseRevision();
+        revision.setCourse(course);
+        revision.setTeacher(teacher);
+        revision.setRevisionNumber(source.getRevisionNumber() + 1);
+        revision.setStatus(CourseRevisionStatus.DRAFT);
+        revision.setName(source.getName());
+        revision.setDescription(source.getDescription());
+        revision.setType(source.getType());
+        revision.setLevel(source.getLevel());
+        revision.setOrderIndex(source.getOrderIndex());
+        revision.setPricingType(source.getPricingType());
+        revision.setProposedPriceAmountVnd(source.getProposedPriceAmountVnd());
+        source.getTopics().stream()
+                .sorted(Comparator.comparingInt(TopicRevision::getOrderIndex)
+                        .thenComparing(TopicRevision::getId, Comparator.nullsLast(Long::compareTo)))
+                .forEach(topic -> revision.getTopics().add(cloneTopicRevision(revision, topic)));
+        return revision;
+    }
+
+    private TopicRevision cloneTopicRevision(CourseRevision targetRevision, TopicRevision source) {
+        TopicRevision clone = new TopicRevision();
+        clone.setCourseRevision(targetRevision);
+        clone.setSourceTopic(source.getSourceTopic());
+        clone.setName(source.getName());
+        clone.setDescription(source.getDescription());
+        clone.setOrderIndex(source.getOrderIndex());
+        source.getLessons().stream()
+                .sorted(Comparator.comparingInt(LessonRevision::getOrderIndex)
+                        .thenComparing(LessonRevision::getId, Comparator.nullsLast(Long::compareTo)))
+                .forEach(lesson -> clone.getLessons().add(cloneLessonRevision(clone, lesson)));
+        return clone;
+    }
+
+    private LessonRevision cloneLessonRevision(TopicRevision targetTopic, LessonRevision source) {
+        LessonRevision clone = new LessonRevision();
+        clone.setTopicRevision(targetTopic);
+        clone.setSourceLesson(source.getSourceLesson());
+        clone.setTeacher(source.getTeacher());
+        clone.setTitle(source.getTitle());
+        clone.setDescription(source.getDescription());
+        clone.setContent(source.getContent());
+        clone.setAudioUrl(source.getAudioUrl());
+        clone.setAudioPublicId(source.getAudioPublicId());
+        clone.setSkillType(source.getSkillType());
+        clone.setOrderIndex(source.getOrderIndex());
+        clone.setXpReward(source.getXpReward());
+        clone.setPlacementTest(source.isPlacementTest());
+        source.getQuestions().stream()
+                .sorted(Comparator.comparingInt(QuestionRevision::getOrderIndex)
+                        .thenComparing(QuestionRevision::getId, Comparator.nullsLast(Long::compareTo)))
+                .forEach(question -> clone.getQuestions().add(cloneQuestionRevision(clone, question)));
+        return clone;
+    }
+
+    private QuestionRevision cloneQuestionRevision(LessonRevision targetLesson, QuestionRevision source) {
+        QuestionRevision clone = new QuestionRevision();
+        clone.setLessonRevision(targetLesson);
+        clone.setSourceQuestion(source.getSourceQuestion());
+        clone.setTeacher(source.getTeacher());
+        clone.setType(source.getType());
+        clone.setQuestionText(source.getQuestionText());
+        clone.setExplanation(source.getExplanation());
+        clone.setCorrectAnswer(source.getCorrectAnswer());
+        clone.setKnowledgePoint(source.getKnowledgePoint());
+        clone.setOrderIndex(source.getOrderIndex());
+        clone.setDifficulty(source.getDifficulty());
+        clone.setXpReward(source.getXpReward());
+        source.getOptions().stream()
+                .sorted(Comparator.comparingInt(QuestionOptionRevision::getOrderIndex)
+                        .thenComparing(QuestionOptionRevision::getId, Comparator.nullsLast(Long::compareTo)))
+                .forEach(option -> clone.getOptions().add(cloneQuestionOptionRevision(clone, option)));
+        return clone;
+    }
+
+    private QuestionOptionRevision cloneQuestionOptionRevision(QuestionRevision targetQuestion, QuestionOptionRevision source) {
+        QuestionOptionRevision clone = new QuestionOptionRevision();
+        clone.setQuestionRevision(targetQuestion);
+        clone.setSourceOption(source.getSourceOption());
+        clone.setOptionText(source.getOptionText());
+        clone.setCorrect(source.isCorrect());
+        clone.setOrderIndex(source.getOrderIndex());
+        return clone;
     }
 
     private TopicRevision toTopicRevision(CourseRevision revision, Topic topic) {
@@ -473,7 +820,23 @@ public class TeacherContentService {
         topic.setOrderIndex(valueOrZero(request.orderIndex()));
     }
 
+    private void applyTopicRequest(TopicRevision topic, TopicRequest request) {
+        topic.setName(request.name());
+        topic.setDescription(request.description());
+        topic.setOrderIndex(valueOrZero(request.orderIndex()));
+    }
+
     private void applyLessonRequest(Lesson lesson, LessonRequest request) {
+        lesson.setTitle(request.title());
+        lesson.setDescription(request.description());
+        lesson.setContent(request.content());
+        lesson.setSkillType(request.skillType());
+        lesson.setOrderIndex(valueOrZero(request.orderIndex()));
+        lesson.setXpReward(valueOrZero(request.xpReward()));
+        lesson.setPlacementTest(request.placementTest());
+    }
+
+    private void applyLessonRequest(LessonRevision lesson, LessonRequest request) {
         lesson.setTitle(request.title());
         lesson.setDescription(request.description());
         lesson.setContent(request.content());
@@ -496,6 +859,27 @@ public class TeacherContentService {
             request.options().forEach(optionRequest -> {
                 QuestionOption option = new QuestionOption();
                 option.setQuestion(question);
+                option.setOptionText(optionRequest.optionText());
+                option.setCorrect(optionRequest.correct());
+                option.setOrderIndex(valueOrZero(optionRequest.orderIndex()));
+                question.getOptions().add(option);
+            });
+        }
+    }
+
+    private void applyQuestionRequest(QuestionRevision question, QuestionRequest request) {
+        question.setType(request.type());
+        question.setQuestionText(request.questionText());
+        question.setExplanation(request.explanation());
+        question.setCorrectAnswer(request.correctAnswer());
+        question.setKnowledgePoint(request.knowledgePoint());
+        question.setOrderIndex(valueOrZero(request.orderIndex()));
+        question.setDifficulty(request.difficulty());
+        question.setXpReward(valueOrZero(request.xpReward()));
+        if (request.options() != null) {
+            request.options().forEach(optionRequest -> {
+                QuestionOptionRevision option = new QuestionOptionRevision();
+                option.setQuestionRevision(question);
                 option.setOptionText(optionRequest.optionText());
                 option.setCorrect(optionRequest.correct());
                 option.setOrderIndex(valueOrZero(optionRequest.orderIndex()));
