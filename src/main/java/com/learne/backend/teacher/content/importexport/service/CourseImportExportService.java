@@ -153,6 +153,7 @@ public class CourseImportExportService {
             populateRevision(importPackage, model, revision, teacher, uploadedAudioPublicIds,
                     existingTopics, existingLessons, existingQuestions, existingOptions);
             if (sourceRevision.getStatus() == CourseRevisionStatus.PENDING_REVIEW) {
+                sourceRevision.setStatus(CourseRevisionStatus.SUPERSEDED);
                 course.setStatus(ContentStatus.DRAFT);
             }
             CourseRevision savedRevision = courseRevisionRepository.save(revision);

@@ -217,6 +217,7 @@ public class TeacherContentService {
         Optional<TopicRevision> editableTopicRevision = findEditableTopicRevision(teacher, topicId);
         if (editableTopicRevision.isPresent()) {
             TopicRevision topic = editableTopicRevision.get();
+            ensureLockedLatestEditableRevision(teacher, topic.getCourseRevision());
             applyTopicRequest(topic, request);
             TopicResponse response = TopicResponse.from(topicRevisionRepository.save(topic));
             evictContentCaches(teacher);
@@ -248,6 +249,7 @@ public class TeacherContentService {
         TopicRevision topic = findEditableTopicRevision(teacher, topicId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Topic not found."));
         CourseRevision revision = topic.getCourseRevision();
+        ensureLockedLatestEditableRevision(teacher, revision);
         revision.getTopics().remove(topic);
         courseRevisionRepository.save(revision);
         evictContentCaches(teacher);
@@ -259,6 +261,7 @@ public class TeacherContentService {
         if (liveTopic.isEmpty()) {
             TopicRevision topic = findEditableTopicRevision(teacher, topicId)
                     .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Topic not found."));
+            ensureLockedLatestEditableRevision(teacher, topic.getCourseRevision());
             LessonRevision lesson = new LessonRevision();
             lesson.setTopicRevision(topic);
             lesson.setTeacher(teacher);
@@ -300,6 +303,7 @@ public class TeacherContentService {
         Optional<LessonRevision> editableLessonRevision = findEditableLessonRevision(teacher, lessonId);
         if (editableLessonRevision.isPresent()) {
             LessonRevision lesson = editableLessonRevision.get();
+            ensureLockedLatestEditableRevision(teacher, lesson.getTopicRevision().getCourseRevision());
             applyLessonRequest(lesson, request);
             LessonResponse response = LessonResponse.from(lessonRevisionRepository.save(lesson));
             evictContentCaches(teacher);
@@ -331,6 +335,7 @@ public class TeacherContentService {
         LessonRevision lesson = findEditableLessonRevision(teacher, lessonId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Lesson not found."));
         TopicRevision topic = lesson.getTopicRevision();
+        ensureLockedLatestEditableRevision(teacher, topic.getCourseRevision());
         topic.getLessons().remove(lesson);
         courseRevisionRepository.save(topic.getCourseRevision());
         evictContentCaches(teacher);
@@ -343,6 +348,7 @@ public class TeacherContentService {
         if (liveLesson.isEmpty()) {
             LessonRevision lesson = findEditableLessonRevision(teacher, lessonId)
                     .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Lesson not found."));
+            ensureLockedLatestEditableRevision(teacher, lesson.getTopicRevision().getCourseRevision());
             QuestionRevision question = new QuestionRevision();
             question.setLessonRevision(lesson);
             question.setTeacher(teacher);
@@ -386,6 +392,7 @@ public class TeacherContentService {
         Optional<QuestionRevision> editableQuestionRevision = findEditableQuestionRevision(teacher, questionId);
         if (editableQuestionRevision.isPresent()) {
             QuestionRevision question = editableQuestionRevision.get();
+            ensureLockedLatestEditableRevision(teacher, question.getLessonRevision().getTopicRevision().getCourseRevision());
             validateQuestion(request);
             question.getOptions().clear();
             applyQuestionRequest(question, request);
@@ -421,6 +428,7 @@ public class TeacherContentService {
         QuestionRevision question = findEditableQuestionRevision(teacher, questionId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Question not found."));
         LessonRevision lesson = question.getLessonRevision();
+        ensureLockedLatestEditableRevision(teacher, lesson.getTopicRevision().getCourseRevision());
         lesson.getQuestions().remove(question);
         courseRevisionRepository.save(lesson.getTopicRevision().getCourseRevision());
         evictContentCaches(teacher);
@@ -638,6 +646,17 @@ public class TeacherContentService {
     private Optional<CourseRevision> latestLockedEditableRevision(Long courseId) {
         return courseRevisionRepository.findTopByCourseIdOrderByRevisionNumberDesc(courseId)
                 .filter(this::isEditableRevision);
+    }
+
+    private void ensureLockedLatestEditableRevision(User teacher, CourseRevision revision) {
+        Long courseId = revision.getCourse().getId();
+        courseRepository.findLockedByIdAndTeacher(courseId, teacher)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
+        CourseRevision latestRevision = latestLockedEditableRevision(courseId)
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Create an edit revision before editing this course."));
+        if (!latestRevision.getId().equals(revision.getId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only the latest edit revision can be edited.");
+        }
     }
 
     private boolean isEditableRevision(CourseRevision revision) {
