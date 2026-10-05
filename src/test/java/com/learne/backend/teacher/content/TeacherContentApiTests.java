@@ -447,10 +447,10 @@ class TeacherContentApiTests {
         mockMvc.perform(get("/api/teacher/content/courses")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].status").value("APPROVED"))
-                .andExpect(jsonPath("$[0].latestRevisionId").value(draftRevisionId))
-                .andExpect(jsonPath("$[0].latestRevisionStatus").value("DRAFT"))
-                .andExpect(jsonPath("$[0].hasEditableRevision").value(true));
+                .andExpect(jsonPath("$.content[0].status").value("APPROVED"))
+                .andExpect(jsonPath("$.content[0].latestRevisionId").value(draftRevisionId))
+                .andExpect(jsonPath("$.content[0].latestRevisionStatus").value("DRAFT"))
+                .andExpect(jsonPath("$.content[0].hasEditableRevision").value(true));
     }
 
     @Test
@@ -712,9 +712,9 @@ class TeacherContentApiTests {
         mockMvc.perform(get("/api/teacher/content/courses")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].name").value("Draft-only course name"))
-                .andExpect(jsonPath("$[0].status").value("APPROVED"))
-                .andExpect(jsonPath("$[0].latestRevisionStatus").value("DRAFT"));
+                .andExpect(jsonPath("$.content[0].name").value("Draft-only course name"))
+                .andExpect(jsonPath("$.content[0].status").value("APPROVED"))
+                .andExpect(jsonPath("$.content[0].latestRevisionStatus").value("DRAFT"));
     }
 
     @Test
@@ -1776,8 +1776,8 @@ class TeacherContentApiTests {
         mockMvc.perform(get("/api/teacher/content/courses")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].id").value(courseId));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].id").value(courseId));
 
         mockMvc.perform(get("/api/teacher/content/courses/%d".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
@@ -1810,7 +1810,7 @@ class TeacherContentApiTests {
         mockMvc.perform(get("/api/teacher/content/courses")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(0)));
+                .andExpect(jsonPath("$.content", hasSize(0)));
     }
 
     @Test

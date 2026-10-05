@@ -20,6 +20,7 @@ import com.learne.backend.student.learning.dto.StudentLearningPathResponse;
 import com.learne.backend.student.learning.dto.StudentQuizAttemptResponse;
 import com.learne.backend.student.learning.dto.StudentQuizResponse;
 import com.learne.backend.student.learning.dto.StudentStatsResponse;
+import com.learne.backend.shared.pagination.CursorPageResponse;
 import com.learne.backend.student.learning.service.StudentCourseRecommendationService;
 import com.learne.backend.student.learning.service.StudentLearningReadCacheService;
 import com.learne.backend.student.learning.service.StudentLearningPathService;
@@ -58,10 +59,15 @@ class StudentLearningController {
     }
 
     @GetMapping("/courses")
-    List<StudentCourseSummaryResponse> listCourses(Authentication authentication,
-                                                    @RequestParam(required = false) String level,
-                                                    @RequestParam(required = false) Long teacherId) {
-        return studentLearningReadCacheService.listCourses(currentUser(authentication), level, teacherId);
+    CursorPageResponse<StudentCourseSummaryResponse> listCourses(
+            Authentication authentication,
+            @RequestParam(required = false) String level,
+            @RequestParam(required = false) Long teacherId,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String cursor) {
+        return studentLearningReadCacheService.listCourses(
+                currentUser(authentication), level, teacherId, q, boundedCursorSize(size), cursor);
     }
 
     @GetMapping("/courses/{courseId}")
@@ -75,8 +81,18 @@ class StudentLearningController {
     }
 
     @GetMapping("/enrollments")
-    List<StudentEnrollmentResponse> listEnrollments(Authentication authentication) {
-        return studentLearningService.listEnrollments(currentUser(authentication));
+    CursorPageResponse<StudentEnrollmentResponse> listEnrollments(
+            Authentication authentication,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String cursor) {
+        return studentLearningService.listEnrollments(currentUser(authentication), boundedCursorSize(size), cursor);
+    }
+
+    private static int boundedCursorSize(Integer size) {
+        if (size == null) {
+            return 20;
+        }
+        return Math.max(1, Math.min(size, 50));
     }
 
     @GetMapping("/stats")

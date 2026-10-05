@@ -4,6 +4,8 @@ import com.learne.backend.domain.auth.User;
 import com.learne.backend.shared.api.ApiMessageResponse;
 import com.learne.backend.teacher.content.dto.CourseRequest;
 import com.learne.backend.teacher.content.dto.CourseResponse;
+import com.learne.backend.shared.pagination.CursorPageResponse;
+import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.dto.LessonRequest;
 import com.learne.backend.teacher.content.dto.LessonResponse;
 import com.learne.backend.teacher.content.dto.QuestionRequest;
@@ -71,8 +73,21 @@ class TeacherContentController {
     }
 
     @GetMapping("/courses")
-    List<CourseResponse> listCourses(Authentication authentication) {
-        return teacherContentService.listCourses(currentUser(authentication));
+    CursorPageResponse<CourseResponse> listCourses(
+            Authentication authentication,
+            @RequestParam(required = false) ContentStatus status,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String cursor) {
+        return teacherContentService.listCourses(
+                currentUser(authentication), status, q, boundedCursorSize(size), cursor);
+    }
+
+    private static int boundedCursorSize(Integer size) {
+        if (size == null) {
+            return 20;
+        }
+        return Math.max(1, Math.min(size, 50));
     }
 
     @PostMapping("/courses")

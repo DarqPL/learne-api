@@ -8,6 +8,8 @@ import com.learne.backend.teacher.dashboard.repository.TeacherDashboardOverviewR
 import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
+import java.time.Instant;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -20,6 +22,23 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     }
 
     List<Course> findByTeacherOrderByOrderIndexAscIdAsc(User teacher);
+
+    @Query("""
+            select course from Course course
+            where course.teacher = :teacher
+              and (:status is null or course.status = :status)
+              and (:query is null or lower(course.name) like lower(concat('%', :query, '%')))
+              and (course.orderIndex > :cursorOrderIndex
+                   or (course.orderIndex = :cursorOrderIndex and course.id > :cursorId))
+            order by course.orderIndex asc, course.id asc
+            """)
+    List<Course> findTeacherCoursePage(
+            @Param("teacher") User teacher,
+            @Param("status") ContentStatus status,
+            @Param("query") String query,
+            @Param("cursorOrderIndex") Integer cursorOrderIndex,
+            @Param("cursorId") Long cursorId,
+            Pageable pageable);
 
     long countByTeacher(User teacher);
 
@@ -92,6 +111,7 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
             left join t.lessons l
             left join l.questions q
             where c.status = :status
+              and c.publishedAt is not null
               and (:level is null or c.level = :level)
               and (:teacherId is null or c.teacher.id = :teacherId)
             order by c.publishedAt desc, c.id desc
@@ -123,8 +143,16 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
             left join topic.lessons lesson
             left join lesson.questions question
             where course.status = :status
+              and course.publishedAt is not null
               and (:level is null or course.level = :level)
               and (:teacherId is null or teacher.id = :teacherId)
+              and (:query is null
+                   or lower(course.name) like lower(concat('%', :query, '%'))
+                   or lower(coalesce(course.description, '')) like lower(concat('%', :query, '%'))
+                   or lower(teacher.fullName) like lower(concat('%', :query, '%'))
+                   or lower(teacher.email) like lower(concat('%', :query, '%')))
+              and (course.publishedAt < :cursorPublishedAt
+                   or (course.publishedAt = :cursorPublishedAt and course.id < :cursorId))
             group by course.id, course.name, course.description, course.type, course.level,
                      teacher.id, teacher.fullName, teacher.email, teacher.avatarUrl,
                      course.publishedAt, course.pricingType, course.priceAmountVnd
@@ -132,7 +160,11 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
             """)
     List<CourseCatalogRow> findStudentCatalogRows(@Param("status") ContentStatus status,
                                                   @Param("level") String level,
-                                                  @Param("teacherId") Long teacherId);
+                                                  @Param("teacherId") Long teacherId,
+                                                  @Param("query") String query,
+                                                  @Param("cursorPublishedAt") Instant cursorPublishedAt,
+                                                  @Param("cursorId") Long cursorId,
+                                                  Pageable pageable);
 
     @Query("""
             select distinct c from Course c

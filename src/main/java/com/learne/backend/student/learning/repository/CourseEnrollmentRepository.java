@@ -7,6 +7,7 @@ import com.learne.backend.teacher.content.entity.Course;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.time.Instant;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -16,6 +17,20 @@ public interface CourseEnrollmentRepository extends JpaRepository<CourseEnrollme
     Optional<CourseEnrollment> findByUserAndCourse(User user, Course course);
     Optional<CourseEnrollment> findByIdAndUser(Long id, User user);
     List<CourseEnrollment> findByUserOrderByEnrolledAtDescIdDesc(User user);
+
+    @Query("""
+            select enrollment.id from CourseEnrollment enrollment
+            where enrollment.user = :user
+              and (:cursorEnrolledAt is null
+                   or enrollment.enrolledAt < :cursorEnrolledAt
+                   or (enrollment.enrolledAt = :cursorEnrolledAt and enrollment.id < :cursorId))
+            order by enrollment.enrolledAt desc, enrollment.id desc
+            """)
+    List<Long> findPageIdsByUser(
+            @Param("user") User user,
+            @Param("cursorEnrolledAt") Instant cursorEnrolledAt,
+            @Param("cursorId") Long cursorId,
+            Pageable pageable);
     boolean existsByUserAndCourse(User user, Course course);
     long countByUser(User user);
     long countByUserAndStatusIn(User user, Collection<EnrollmentStatus> statuses);
@@ -56,6 +71,17 @@ public interface CourseEnrollmentRepository extends JpaRepository<CourseEnrollme
             order by enrollment.enrolledAt desc, enrollment.id desc
             """)
     List<CourseEnrollment> findByUserWithDetailsOrderByEnrolledAtDescIdDesc(@Param("user") User user);
+
+    @Query("""
+            select distinct enrollment from CourseEnrollment enrollment
+            join fetch enrollment.course course
+            join fetch course.teacher
+            left join fetch enrollment.lessonProgress progress
+            left join fetch progress.lesson lesson
+            left join fetch lesson.topic
+            where enrollment.user = :user and enrollment.id in :ids
+            """)
+    List<CourseEnrollment> findByUserWithDetailsByIds(@Param("user") User user, @Param("ids") Collection<Long> ids);
 
     @Query("""
             select enrollment from CourseEnrollment enrollment

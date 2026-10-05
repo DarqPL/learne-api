@@ -18,6 +18,24 @@ public final class CacheKeySupport {
                 catalogVersion == null ? 0L : catalogVersion);
     }
 
+    public static String studentCatalogPage(
+            Long studentId,
+            String level,
+            Long teacherId,
+            String query,
+            int size,
+            String cursor,
+            Long catalogVersion) {
+        return "student:%d:level:%s:teacher:%s:q:%s:size:%d:cursor:%s:catalogVersion:%d".formatted(
+                Objects.requireNonNull(studentId, "studentId is required"),
+                normalize(level),
+                teacherId == null ? "all" : teacherId,
+                normalize(query),
+                size,
+                normalize(cursor),
+                catalogVersion == null ? 0L : catalogVersion);
+    }
+
     public static String studentCourseDetail(Long courseId, Long catalogVersion) {
         return "course:%d:catalogVersion:%d".formatted(
                 Objects.requireNonNull(courseId, "courseId is required"),

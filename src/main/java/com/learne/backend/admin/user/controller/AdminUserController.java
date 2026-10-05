@@ -3,6 +3,7 @@ package com.learne.backend.admin.user.controller;
 import com.learne.backend.admin.user.dto.AdminStudentDetailResponse;
 import com.learne.backend.admin.user.dto.AdminStudentSummaryResponse;
 import com.learne.backend.admin.user.dto.AdminTeacherResponse;
+import com.learne.backend.shared.pagination.NumberedPageResponse;
 import com.learne.backend.admin.user.dto.CreateTeacherRequest;
 import com.learne.backend.admin.user.service.AdminUserService;
 import com.learne.backend.auth.session.dto.AuthUserResponse;
@@ -13,6 +14,7 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -49,13 +51,21 @@ class AdminUserController {
     }
 
     @GetMapping("/teachers")
-    List<AdminTeacherResponse> listTeachers() {
-        return adminUserService.listTeachers();
+    NumberedPageResponse<AdminTeacherResponse> listTeachers(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        int normalizedPage = page == null ? 0 : Math.max(0, page);
+        int normalizedSize = size == null ? 20 : Math.max(1, Math.min(size, 100));
+        return adminUserService.listTeachers(normalizedPage, normalizedSize);
     }
 
     @GetMapping("/students")
-    List<AdminStudentSummaryResponse> listStudents() {
-        return adminUserService.listStudents();
+    NumberedPageResponse<AdminStudentSummaryResponse> listStudents(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        int normalizedPage = page == null ? 0 : Math.max(0, page);
+        int normalizedSize = size == null ? 20 : Math.max(1, Math.min(size, 100));
+        return adminUserService.listStudents(normalizedPage, normalizedSize);
     }
 
     @GetMapping("/students/{userId}")

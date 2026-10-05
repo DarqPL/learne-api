@@ -5,6 +5,8 @@ import com.learne.backend.domain.auth.User;
 import com.learne.backend.monetization.service.CourseAccessService;
 import com.learne.backend.shared.dashboard.service.LeaderboardReadCacheService;
 import com.learne.backend.shared.api.ApiException;
+import com.learne.backend.shared.pagination.CursorPageResponse;
+import com.learne.backend.shared.pagination.CursorTokenService;
 import com.learne.backend.student.learning.dto.SharedStudentCourseDetailResponse;
 import com.learne.backend.student.learning.dto.SubmitQuizRequest;
 import com.learne.backend.student.learning.dto.SubmitQuizResponse;
@@ -48,6 +50,7 @@ import com.learne.backend.teacher.content.repository.QuestionRepository;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
@@ -60,6 +63,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class StudentLearningService {
+    private static final Instant FIRST_PAGE_DESC_CURSOR_INSTANT = Instant.parse("9999-12-31T23:59:59Z");
+    private static final Long FIRST_PAGE_DESC_CURSOR_ID = Long.MAX_VALUE;
+
     private final CourseRepository courseRepository;
     private final CourseEnrollmentRepository courseEnrollmentRepository;
     private final LessonProgressRepository lessonProgressRepository;
@@ -74,6 +80,7 @@ public class StudentLearningService {
     private final CourseAccessContextService courseAccessContextService;
     private final CacheInvalidationService cacheInvalidationService;
     private final EntityManager entityManager;
+    private final CursorTokenService cursorTokenService;
     private final TransactionTemplate createEnrollmentTransactionTemplate;
 
     public StudentLearningService(CourseRepository courseRepository,
@@ -90,6 +97,7 @@ public class StudentLearningService {
                                          CourseAccessContextService courseAccessContextService,
                                          CacheInvalidationService cacheInvalidationService,
                                          EntityManager entityManager,
+                                         CursorTokenService cursorTokenService,
                                         PlatformTransactionManager transactionManager) {
         this.courseRepository = courseRepository;
         this.courseEnrollmentRepository = courseEnrollmentRepository;
@@ -105,19 +113,50 @@ public class StudentLearningService {
         this.courseAccessContextService = courseAccessContextService;
         this.cacheInvalidationService = cacheInvalidationService;
         this.entityManager = entityManager;
+        this.cursorTokenService = cursorTokenService;
         this.createEnrollmentTransactionTemplate = new TransactionTemplate(transactionManager);
         this.createEnrollmentTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     @Transactional(readOnly = true)
-    public List<StudentCourseSummaryResponse> listCourses(User student, String level, Long teacherId) {
-        List<CourseCatalogRow> rows = courseRepository.findStudentCatalogRows(ContentStatus.APPROVED, normalize(level), teacherId);
-        if (rows.isEmpty()) {
-            return List.of();
+    public CursorPageResponse<StudentCourseSummaryResponse> listCourses(
+            User student,
+            String level,
+            Long teacherId,
+            String query,
+            int size,
+            String cursor) {
+        String normalizedLevel = normalize(level);
+        String normalizedQuery = normalize(query);
+        Map<String, Object> filters = Map.of(
+                "level", normalizedLevel == null ? "" : normalizedLevel,
+                "teacherId", teacherId == null ? "" : teacherId,
+                "q", normalizedQuery == null ? "" : normalizedQuery);
+        String queryParameter = normalizedQuery == null ? "" : normalizedQuery;
+        Instant cursorPublishedAt = FIRST_PAGE_DESC_CURSOR_INSTANT;
+        Long cursorId = FIRST_PAGE_DESC_CURSOR_ID;
+        if (cursor != null && !cursor.isBlank()) {
+            CursorTokenService.DecodedCursor decoded = cursorTokenService.decode(
+                    cursor, "student-courses", "publishedAtDescIdDesc", filters);
+            cursorPublishedAt = Instant.parse(decoded.sortValues().get("publishedAt"));
+            cursorId = Long.valueOf(decoded.sortValues().get("id"));
         }
-        List<Long> courseIds = rows.stream().map(CourseCatalogRow::getId).toList();
+        List<CourseCatalogRow> rows = courseRepository.findStudentCatalogRows(
+                ContentStatus.APPROVED,
+                normalizedLevel,
+                teacherId,
+                queryParameter,
+                cursorPublishedAt,
+                cursorId,
+                PageRequest.of(0, size + 1));
+        boolean hasNext = rows.size() > size;
+        List<CourseCatalogRow> pageRows = hasNext ? rows.subList(0, size) : rows;
+        if (pageRows.isEmpty()) {
+            return new CursorPageResponse<>(List.of(), null, false, size);
+        }
+        List<Long> courseIds = pageRows.stream().map(CourseCatalogRow::getId).toList();
         CourseAccessContext accessContext = courseAccessContextService.build(student, courseIds);
-        return rows.stream()
+        List<StudentCourseSummaryResponse> content = pageRows.stream()
                 .map(row -> {
                     CourseAccessStatus accessStatus = accessContext.accessStatus(
                             student, row.getId(), row.getLevel(), row.getPricingType(), row.getTeacherId());
@@ -142,6 +181,16 @@ public class StudentLearningService {
                             accessContext.enrolledCourseIds().contains(row.getId()));
                 })
                 .toList();
+        String nextCursor = null;
+        if (hasNext) {
+            CourseCatalogRow last = pageRows.get(pageRows.size() - 1);
+            nextCursor = cursorTokenService.encode(
+                    "student-courses",
+                    "publishedAtDescIdDesc",
+                    filters,
+                    Map.of("publishedAt", last.getPublishedAt().toString(), "id", last.getId()));
+        }
+        return new CursorPageResponse<>(content, nextCursor, hasNext, size);
     }
 
     @Transactional
@@ -351,10 +400,42 @@ public class StudentLearningService {
     }
 
     @Transactional(readOnly = true)
-    public List<StudentEnrollmentResponse> listEnrollments(User student) {
-        return courseEnrollmentRepository.findByUserWithDetailsOrderByEnrolledAtDescIdDesc(student).stream()
+    public CursorPageResponse<StudentEnrollmentResponse> listEnrollments(User student, int size, String cursor) {
+        Map<String, Object> filters = Map.of();
+        Instant cursorEnrolledAt = FIRST_PAGE_DESC_CURSOR_INSTANT;
+        Long cursorId = FIRST_PAGE_DESC_CURSOR_ID;
+        if (cursor != null && !cursor.isBlank()) {
+            CursorTokenService.DecodedCursor decoded = cursorTokenService.decode(
+                    cursor, "student-enrollments", "enrolledAtDescIdDesc", filters);
+            cursorEnrolledAt = Instant.parse(decoded.sortValues().get("enrolledAt"));
+            cursorId = Long.valueOf(decoded.sortValues().get("id"));
+        }
+        List<Long> ids = courseEnrollmentRepository.findPageIdsByUser(
+                student, cursorEnrolledAt, cursorId, PageRequest.of(0, size + 1));
+        boolean hasNext = ids.size() > size;
+        List<Long> pageIds = hasNext ? ids.subList(0, size) : ids;
+        if (pageIds.isEmpty()) {
+            return new CursorPageResponse<>(List.of(), null, false, size);
+        }
+        Map<Long, CourseEnrollment> details = courseEnrollmentRepository
+                .findByUserWithDetailsByIds(student, pageIds)
+                .stream()
+                .collect(java.util.stream.Collectors.toMap(CourseEnrollment::getId, enrollment -> enrollment));
+        List<StudentEnrollmentResponse> content = pageIds.stream()
+                .map(details::get)
+                .filter(java.util.Objects::nonNull)
                 .map(StudentEnrollmentResponse::from)
                 .toList();
+        String nextCursor = null;
+        if (hasNext) {
+            CourseEnrollment last = details.get(pageIds.get(pageIds.size() - 1));
+            nextCursor = cursorTokenService.encode(
+                    "student-enrollments",
+                    "enrolledAtDescIdDesc",
+                    filters,
+                    Map.of("enrolledAt", last.getEnrolledAt().toString(), "id", last.getId()));
+        }
+        return new CursorPageResponse<>(content, nextCursor, hasNext, size);
     }
 
     @Transactional(readOnly = true)

@@ -390,15 +390,15 @@ class AdminUserApiTests {
         mockMvc.perform(get("/api/admin/teachers")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(3))
-                .andExpect(jsonPath("$[?(@.userId == %d)].fullName".formatted(teacherWithProfile.getId())).value("TEACHER User"))
-                .andExpect(jsonPath("$[?(@.userId == %d)].locked".formatted(teacherWithProfile.getId())).value(false))
-                .andExpect(jsonPath("$[?(@.userId == %d)].mustChangePassword".formatted(teacherWithProfile.getId())).value(false))
-                .andExpect(jsonPath("$[?(@.userId == %d)].profileStatus".formatted(teacherWithProfile.getId())).value("ACTIVE"))
-                .andExpect(jsonPath("$[?(@.userId == %d)].completed".formatted(teacherWithProfile.getId())).value(true))
-                .andExpect(jsonPath("$[?(@.userId == %d)].profileStatus".formatted(teacherWithoutProfile.getId())).value((Object) null))
-                .andExpect(jsonPath("$[?(@.userId == %d)].completed".formatted(teacherWithoutProfile.getId())).value(false))
-                .andExpect(jsonPath("$[?(@.userId == %d)].locked".formatted(lockedTeacher.getId())).value(true));
+                .andExpect(jsonPath("$.content.length()").value(3))
+                .andExpect(jsonPath("$.content[?(@.userId == %d)].fullName".formatted(teacherWithProfile.getId())).value("TEACHER User"))
+                .andExpect(jsonPath("$.content[?(@.userId == %d)].locked".formatted(teacherWithProfile.getId())).value(false))
+                .andExpect(jsonPath("$.content[?(@.userId == %d)].mustChangePassword".formatted(teacherWithProfile.getId())).value(false))
+                .andExpect(jsonPath("$.content[?(@.userId == %d)].profileStatus".formatted(teacherWithProfile.getId())).value("ACTIVE"))
+                .andExpect(jsonPath("$.content[?(@.userId == %d)].completed".formatted(teacherWithProfile.getId())).value(true))
+                .andExpect(jsonPath("$.content[?(@.userId == %d)].profileStatus".formatted(teacherWithoutProfile.getId())).value((Object) null))
+                .andExpect(jsonPath("$.content[?(@.userId == %d)].completed".formatted(teacherWithoutProfile.getId())).value(false))
+                .andExpect(jsonPath("$.content[?(@.userId == %d)].locked".formatted(lockedTeacher.getId())).value(true));
     }
 
     @Test
@@ -415,9 +415,9 @@ class AdminUserApiTests {
         mockMvc.perform(get("/api/admin/students")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].userId").value(student.getId()))
-                .andExpect(jsonPath("$[0].totalXp").value(250))
-                .andExpect(jsonPath("$[0].currentStreakDays").value(4));
+                .andExpect(jsonPath("$.content[0].userId").value(student.getId()))
+                .andExpect(jsonPath("$.content[0].totalXp").value(250))
+                .andExpect(jsonPath("$.content[0].currentStreakDays").value(4));
     }
 
     @Test
@@ -430,13 +430,13 @@ class AdminUserApiTests {
         mockMvc.perform(get("/api/admin/students")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].userId").value(student.getId()))
-                .andExpect(jsonPath("$[0].totalXp").value(0))
-                .andExpect(jsonPath("$[0].currentStreakDays").value(0))
-                .andExpect(jsonPath("$[0].longestStreakDays").value(0))
-                .andExpect(jsonPath("$[0].lastActivityDate").doesNotExist())
-                .andExpect(jsonPath("$[0].enrollmentCount").value(0))
-                .andExpect(jsonPath("$[0].completedLessonCount").value(0));
+                .andExpect(jsonPath("$.content[0].userId").value(student.getId()))
+                .andExpect(jsonPath("$.content[0].totalXp").value(0))
+                .andExpect(jsonPath("$.content[0].currentStreakDays").value(0))
+                .andExpect(jsonPath("$.content[0].longestStreakDays").value(0))
+                .andExpect(jsonPath("$.content[0].lastActivityDate").doesNotExist())
+                .andExpect(jsonPath("$.content[0].enrollmentCount").value(0))
+                .andExpect(jsonPath("$.content[0].completedLessonCount").value(0));
     }
 
     @Test
