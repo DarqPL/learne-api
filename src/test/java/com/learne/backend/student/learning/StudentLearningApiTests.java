@@ -135,8 +135,8 @@ class StudentLearningApiTests {
         mockMvc.perform(get("/api/student/enrollments")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].courseId").value(courseId));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].courseId").value(courseId));
 
         Course course = courseRepository.findById(courseId).orElseThrow();
         CourseEnrollment enrollment = courseEnrollmentRepository.findByUserAndCourse(student, course).orElseThrow();
@@ -190,16 +190,16 @@ class StudentLearningApiTests {
         mockMvc.perform(get("/api/student/courses")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].id").value(approvedCourseId))
-                .andExpect(jsonPath("$[0].name").value("English A1 Foundation"))
-                .andExpect(jsonPath("$[0].level").value("A1"))
-                .andExpect(jsonPath("$[0].teacherId").value(teacher.getId()))
-                .andExpect(jsonPath("$[0].teacherName").value("Teacher User"))
-                .andExpect(jsonPath("$[0].topicCount").value(1))
-                .andExpect(jsonPath("$[0].lessonCount").value(2))
-                .andExpect(jsonPath("$[0].questionCount").value(2))
-                .andExpect(jsonPath("$[0].enrolled").value(false));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].id").value(approvedCourseId))
+                .andExpect(jsonPath("$.content[0].name").value("English A1 Foundation"))
+                .andExpect(jsonPath("$.content[0].level").value("A1"))
+                .andExpect(jsonPath("$.content[0].teacherId").value(teacher.getId()))
+                .andExpect(jsonPath("$.content[0].teacherName").value("Teacher User"))
+                .andExpect(jsonPath("$.content[0].topicCount").value(1))
+                .andExpect(jsonPath("$.content[0].lessonCount").value(2))
+                .andExpect(jsonPath("$.content[0].questionCount").value(2))
+                .andExpect(jsonPath("$.content[0].enrolled").value(false));
 
         mockMvc.perform(post("/api/student/courses/%d/enroll".formatted(approvedCourseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
@@ -208,9 +208,9 @@ class StudentLearningApiTests {
         mockMvc.perform(get("/api/student/courses")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].id").value(approvedCourseId))
-                .andExpect(jsonPath("$[0].enrolled").value(true));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].id").value(approvedCourseId))
+                .andExpect(jsonPath("$.content[0].enrolled").value(true));
     }
 
     @Test
@@ -226,12 +226,12 @@ class StudentLearningApiTests {
         mockMvc.perform(get("/api/student/courses")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].id").value(courseId))
-                .andExpect(jsonPath("$[0].pricingType").value("PAID"))
-                .andExpect(jsonPath("$[0].priceAmountVnd").value(300000))
-                .andExpect(jsonPath("$[0].accessStatus").value("LOCKED"))
-                .andExpect(jsonPath("$[0].accessReason").value("Purchase is required."));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].id").value(courseId))
+                .andExpect(jsonPath("$.content[0].pricingType").value("PAID"))
+                .andExpect(jsonPath("$.content[0].priceAmountVnd").value(300000))
+                .andExpect(jsonPath("$.content[0].accessStatus").value("LOCKED"))
+                .andExpect(jsonPath("$.content[0].accessReason").value("Purchase is required."));
 
         mockMvc.perform(post("/api/student/courses/%d/enroll".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
@@ -366,17 +366,80 @@ class StudentLearningApiTests {
                         .queryParam("teacherId", teacherA.getId().toString())
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].id").value(teacherACourseId))
-                .andExpect(jsonPath("$[0].level").value("A1"))
-                .andExpect(jsonPath("$[0].teacherId").value(teacherA.getId()));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].id").value(teacherACourseId))
+                .andExpect(jsonPath("$.content[0].level").value("A1"))
+                .andExpect(jsonPath("$.content[0].teacherId").value(teacherA.getId()));
 
         mockMvc.perform(get("/api/student/courses")
                         .queryParam("level", "A2")
                         .queryParam("teacherId", teacherA.getId().toString())
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(0)));
+                .andExpect(jsonPath("$.content", hasSize(0)));
+    }
+
+    @Test
+    void catalogExcludesApprovedCoursesWithoutPublishedAt() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long courseId = createApprovedCourseWithTwoLessons(teacherToken, adminToken);
+        jdbcTemplate.update("update courses set published_at = null where id = ?", courseId);
+
+        mockMvc.perform(get("/api/student/courses")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(0)))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").value((Object) null));
+    }
+
+    @Test
+    void catalogCursorPagesAreOrderedBoundToFiltersAndSizeIsClamped() throws Exception {
+        User admin = saveUser("admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        long firstCourseId = createApprovedCourseWithTwoLessons(teacherToken, adminToken);
+        long secondCourseId = createApprovedCourse(teacherToken, adminToken, "English A2 Foundation", "A2");
+        long thirdCourseId = createApprovedCourse(teacherToken, adminToken, "English B1 Foundation", "B1");
+
+        MvcResult firstPage = mockMvc.perform(get("/api/student/courses")
+                        .queryParam("size", "0")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(1))
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andReturn();
+        String cursor = objectMapper.readTree(firstPage.getResponse().getContentAsString()).get("nextCursor").asText();
+        long firstPageId = objectMapper.readTree(firstPage.getResponse().getContentAsString()).get("content").get(0).get("id").asLong();
+
+        MvcResult secondPage = mockMvc.perform(get("/api/student/courses")
+                        .queryParam("size", "1")
+                        .queryParam("cursor", cursor)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].id").value(org.hamcrest.Matchers.not(firstPageId)))
+                .andReturn();
+        long secondPageId = objectMapper.readTree(secondPage.getResponse().getContentAsString()).get("content").get(0).get("id").asLong();
+        org.junit.jupiter.api.Assertions.assertTrue(
+                secondPageId == firstCourseId || secondPageId == secondCourseId || secondPageId == thirdCourseId);
+
+        mockMvc.perform(get("/api/student/courses")
+                        .queryParam("level", "A1")
+                        .queryParam("size", "1")
+                        .queryParam("cursor", cursor)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Invalid cursor."));
     }
 
     @Test

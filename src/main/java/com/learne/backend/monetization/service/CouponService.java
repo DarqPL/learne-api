@@ -12,6 +12,7 @@ import com.learne.backend.monetization.repository.CouponRepository;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
 import com.learne.backend.shared.api.ApiException;
+import com.learne.backend.shared.pagination.NumberedPageResponse;
 import com.learne.backend.teacher.content.repository.CourseRepository;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -22,6 +23,8 @@ import java.util.Set;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
@@ -62,10 +65,13 @@ public class CouponService {
     }
 
     @Transactional(readOnly = true)
-    public List<CouponResponse> list() {
-        return couponRepository.findAllByOrderByIdAsc().stream()
+    public NumberedPageResponse<CouponResponse> list(int page, int size) {
+        var result = couponRepository.findAllBy(PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "id")));
+        List<CouponResponse> content = result.getContent().stream()
                 .map(this::toResponse)
                 .toList();
+        return new NumberedPageResponse<>(content, result.getNumber(), result.getSize(),
+                result.getTotalElements(), result.getTotalPages());
     }
 
     @Transactional(readOnly = true)

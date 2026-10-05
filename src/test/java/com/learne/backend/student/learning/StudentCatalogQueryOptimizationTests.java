@@ -66,9 +66,9 @@ class StudentCatalogQueryOptimizationTests {
         mockMvc.perform(get("/api/student/courses")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[?(@.name == 'Free A1')].accessStatus").value(hasItem("FREE")))
-                .andExpect(jsonPath("$[?(@.name == 'Owned Paid')].accessStatus").value(hasItem("OWNED")))
-                .andExpect(jsonPath("$[?(@.name == 'Locked Paid')].accessStatus").value(hasItem("LOCKED")));
+                .andExpect(jsonPath("$.content[?(@.name == 'Free A1')].accessStatus").value(hasItem("FREE")))
+                .andExpect(jsonPath("$.content[?(@.name == 'Owned Paid')].accessStatus").value(hasItem("OWNED")))
+                .andExpect(jsonPath("$.content[?(@.name == 'Locked Paid')].accessStatus").value(hasItem("LOCKED")));
     }
 
     @Test
@@ -90,9 +90,9 @@ class StudentCatalogQueryOptimizationTests {
         mockMvc.perform(get("/api/student/courses")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[?(@.name == 'Mixed Approval Course')].topicCount").value(hasItem(1)))
-                .andExpect(jsonPath("$[?(@.name == 'Mixed Approval Course')].lessonCount").value(hasItem(1)))
-                .andExpect(jsonPath("$[?(@.name == 'Mixed Approval Course')].questionCount").value(hasItem(1)));
+                .andExpect(jsonPath("$.content[?(@.name == 'Mixed Approval Course')].topicCount").value(hasItem(1)))
+                .andExpect(jsonPath("$.content[?(@.name == 'Mixed Approval Course')].lessonCount").value(hasItem(1)))
+                .andExpect(jsonPath("$.content[?(@.name == 'Mixed Approval Course')].questionCount").value(hasItem(1)));
     }
 
     private long createApprovedCourse(String teacherToken, String adminToken, String name, String level,

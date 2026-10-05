@@ -17,6 +17,7 @@ import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
 import com.learne.backend.shared.api.ApiException;
+import com.learne.backend.shared.pagination.NumberedPageResponse;
 import com.learne.backend.student.learning.dto.StudentStatsResponse;
 import com.learne.backend.student.learning.enums.LessonProgressStatus;
 import com.learne.backend.student.learning.repository.CourseEnrollmentRepository;
@@ -29,6 +30,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -75,16 +78,22 @@ public class AdminUserService {
     }
 
     @Transactional(readOnly = true)
-    public List<AdminTeacherResponse> listTeachers() {
-        return userRepository.findByRoleOrderByCreatedAtAsc(UserRole.TEACHER)
-                .stream()
+    public NumberedPageResponse<AdminTeacherResponse> listTeachers(int page, int size) {
+        var result = userRepository.findByRole(UserRole.TEACHER,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "createdAt").and(Sort.by("id"))));
+        List<AdminTeacherResponse> content = result.getContent().stream()
                 .map(user -> AdminTeacherResponse.from(user, teacherProfileRepository.findByUser(user).orElse(null)))
                 .toList();
+        return new NumberedPageResponse<>(content, result.getNumber(), result.getSize(),
+                result.getTotalElements(), result.getTotalPages());
     }
 
     @Transactional(readOnly = true)
-    public List<AdminStudentSummaryResponse> listStudents() {
-        return userRepository.findStudentSummaries(UserRole.STUDENT, LessonProgressStatus.COMPLETED);
+    public NumberedPageResponse<AdminStudentSummaryResponse> listStudents(int page, int size) {
+        var result = userRepository.findStudentSummaries(
+                UserRole.STUDENT, LessonProgressStatus.COMPLETED, PageRequest.of(page, size));
+        return new NumberedPageResponse<>(result.getContent(), result.getNumber(), result.getSize(),
+                result.getTotalElements(), result.getTotalPages());
     }
 
     @Transactional(readOnly = true)

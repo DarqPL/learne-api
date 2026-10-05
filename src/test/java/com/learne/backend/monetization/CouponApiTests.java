@@ -70,8 +70,8 @@ class CouponApiTests {
         mockMvc.perform(get("/api/admin/coupons")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].id").value(couponId));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].id").value(couponId));
 
         mockMvc.perform(get("/api/admin/coupons/%d".formatted(couponId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))

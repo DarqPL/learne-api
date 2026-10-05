@@ -7,7 +7,7 @@ import com.learne.backend.student.learning.dto.SharedStudentCourseDetailResponse
 import com.learne.backend.student.learning.dto.StudentCourseDetailResponse;
 import com.learne.backend.student.learning.dto.StudentCourseSummaryResponse;
 import com.learne.backend.student.learning.dto.StudentDashboardResponse;
-import java.util.List;
+import com.learne.backend.shared.pagination.CursorPageResponse;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -27,9 +27,10 @@ public class StudentLearningReadCacheService {
     }
 
     @Cacheable(cacheNames = CacheNames.STUDENT_CATALOG,
-            key = "T(com.learne.backend.cache.CacheKeySupport).studentCatalog(#student.id, #level, #teacherId, #root.target.catalogVersion())")
-    public List<StudentCourseSummaryResponse> listCourses(User student, String level, Long teacherId) {
-        return studentLearningService.listCourses(student, level, teacherId);
+            key = "T(com.learne.backend.cache.CacheKeySupport).studentCatalogPage(#student.id, #level, #teacherId, #query, #size, #cursor, #root.target.catalogVersion())")
+    public CursorPageResponse<StudentCourseSummaryResponse> listCourses(
+            User student, String level, Long teacherId, String query, int size, String cursor) {
+        return studentLearningService.listCourses(student, level, teacherId, query, size, cursor);
     }
 
     public StudentCourseDetailResponse getCourse(User student, Long courseId) {

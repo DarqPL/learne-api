@@ -3,6 +3,8 @@ package com.learne.backend.teacher.content.service;
 import com.learne.backend.cache.CacheInvalidationService;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.shared.api.ApiException;
+import com.learne.backend.shared.pagination.CursorPageResponse;
+import com.learne.backend.shared.pagination.CursorTokenService;
 import com.learne.backend.teacher.content.dto.CourseRequest;
 import com.learne.backend.teacher.content.dto.CourseResponse;
 import com.learne.backend.teacher.content.dto.LessonRequest;
@@ -43,11 +45,15 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TeacherContentService {
+    private static final int FIRST_PAGE_ASC_CURSOR_ORDER_INDEX = Integer.MIN_VALUE;
+    private static final long FIRST_PAGE_ASC_CURSOR_ID = 0L;
+
     private final CourseRepository courseRepository;
     private final CourseRevisionRepository courseRevisionRepository;
     private final TopicRepository topicRepository;
@@ -57,6 +63,7 @@ public class TeacherContentService {
     private final LessonRevisionRepository lessonRevisionRepository;
     private final QuestionRevisionRepository questionRevisionRepository;
     private final CacheInvalidationService cacheInvalidationService;
+    private final CursorTokenService cursorTokenService;
 
     public TeacherContentService(CourseRepository courseRepository,
                            CourseRevisionRepository courseRevisionRepository,
@@ -66,7 +73,8 @@ public class TeacherContentService {
                              TopicRevisionRepository topicRevisionRepository,
                              LessonRevisionRepository lessonRevisionRepository,
                              QuestionRevisionRepository questionRevisionRepository,
-                             CacheInvalidationService cacheInvalidationService) {
+                             CacheInvalidationService cacheInvalidationService,
+                             CursorTokenService cursorTokenService) {
         this.courseRepository = courseRepository;
         this.courseRevisionRepository = courseRevisionRepository;
         this.topicRepository = topicRepository;
@@ -76,20 +84,48 @@ public class TeacherContentService {
         this.lessonRevisionRepository = lessonRevisionRepository;
         this.questionRevisionRepository = questionRevisionRepository;
         this.cacheInvalidationService = cacheInvalidationService;
+        this.cursorTokenService = cursorTokenService;
     }
 
     @Transactional(readOnly = true)
-    public List<CourseResponse> listCourses(User teacher) {
-        List<Course> courses = courseRepository.findByTeacherOrderByOrderIndexAscIdAsc(teacher);
-        if (courses.isEmpty()) {
-            return List.of();
+    public CursorPageResponse<CourseResponse> listCourses(
+            User teacher, ContentStatus status, String query, int size, String cursor) {
+        String normalizedQuery = query == null || query.isBlank() ? null : query.trim();
+        Map<String, Object> filters = Map.of(
+                "status", status == null ? "" : status.name(),
+                "q", normalizedQuery == null ? "" : normalizedQuery);
+        String queryParameter = normalizedQuery == null ? "" : normalizedQuery;
+        Integer cursorOrderIndex = FIRST_PAGE_ASC_CURSOR_ORDER_INDEX;
+        Long cursorId = FIRST_PAGE_ASC_CURSOR_ID;
+        if (cursor != null && !cursor.isBlank()) {
+            CursorTokenService.DecodedCursor decoded = cursorTokenService.decode(
+                    cursor, "teacher-courses", "orderIndexAscIdAsc", filters);
+            cursorOrderIndex = Integer.valueOf(decoded.sortValues().get("orderIndex"));
+            cursorId = Long.valueOf(decoded.sortValues().get("id"));
+        }
+        List<Course> courses = courseRepository.findTeacherCoursePage(
+                teacher, status, queryParameter, cursorOrderIndex, cursorId, PageRequest.of(0, size + 1));
+        boolean hasNext = courses.size() > size;
+        List<Course> pageCourses = hasNext ? courses.subList(0, size) : courses;
+        if (pageCourses.isEmpty()) {
+            return new CursorPageResponse<>(List.of(), null, false, size);
         }
         Map<Long, CourseRevision> latestRevisions = courseRevisionRepository.findLatestByCourseIds(
-                        courses.stream().map(Course::getId).toList()).stream()
+                        pageCourses.stream().map(Course::getId).toList()).stream()
                 .collect(Collectors.toMap(revision -> revision.getCourse().getId(), Function.identity()));
-        return courses.stream()
+        List<CourseResponse> content = pageCourses.stream()
                 .map(course -> teacherCourseResponse(course, latestRevisions.get(course.getId())))
                 .toList();
+        String nextCursor = null;
+        if (hasNext) {
+            Course last = pageCourses.get(pageCourses.size() - 1);
+            nextCursor = cursorTokenService.encode(
+                    "teacher-courses",
+                    "orderIndexAscIdAsc",
+                    filters,
+                    Map.of("orderIndex", last.getOrderIndex(), "id", last.getId()));
+        }
+        return new CursorPageResponse<>(content, nextCursor, hasNext, size);
     }
 
     @Transactional(readOnly = true)

@@ -5,6 +5,8 @@ import com.learne.backend.admin.user.dto.AdminStudentSummaryResponse;
 import com.learne.backend.student.learning.enums.LessonProgressStatus;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -36,6 +38,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findByRoleOrderByCreatedAtAsc(UserRole role);
 
+    Page<User> findByRole(UserRole role, Pageable pageable);
+
     @Query("select user from User user where user.role = :role order by user.createdAt asc, user.id asc")
     List<User> findUsersByRole(@Param("role") UserRole role);
 
@@ -58,7 +62,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
             where user.role = :role
             order by user.createdAt asc, user.id asc
             """)
-    List<AdminStudentSummaryResponse> findStudentSummaries(
+    Page<AdminStudentSummaryResponse> findStudentSummaries(
             @Param("role") UserRole role,
-            @Param("completedStatus") LessonProgressStatus completedStatus);
+            @Param("completedStatus") LessonProgressStatus completedStatus,
+            Pageable pageable);
 }
