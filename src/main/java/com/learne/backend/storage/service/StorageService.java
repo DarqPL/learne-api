@@ -8,6 +8,8 @@ import org.springframework.web.multipart.MultipartFile;
 public interface StorageService {
     StorageUploadResult uploadTeacherAvatar(MultipartFile file);
 
+    StorageUploadResult uploadStudentAvatar(MultipartFile file);
+
     StorageUploadResult uploadTeacherIntroductionVideo(MultipartFile file);
 
     StorageUploadResult uploadLessonAudio(MultipartFile file);

@@ -36,6 +36,12 @@ class CloudinaryStorageService implements StorageService {
     }
 
     @Override
+    public StorageUploadResult uploadStudentAvatar(MultipartFile file) {
+        validateFile(file, AVATAR_CONTENT_TYPES, properties.getMaxAvatarBytes(), "Ảnh đại diện không hợp lệ.");
+        return upload(file, "learne/student-profiles/avatars", StorageResourceType.IMAGE);
+    }
+
+    @Override
     public StorageUploadResult uploadTeacherIntroductionVideo(MultipartFile file) {
         validateFile(file, VIDEO_CONTENT_TYPES, properties.getMaxVideoBytes(), "Video giới thiệu không hợp lệ.");
         return upload(file, videoFolder(), StorageResourceType.VIDEO);

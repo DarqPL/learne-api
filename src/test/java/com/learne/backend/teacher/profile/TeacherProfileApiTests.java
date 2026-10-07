@@ -501,6 +501,14 @@ class TeacherProfileApiTests {
         }
 
         @Override
+        public StorageUploadResult uploadStudentAvatar(MultipartFile file) {
+            return new StorageUploadResult(
+                    "https://res.cloudinary.com/demo/image/upload/student-avatar.png",
+                    "learne/student-profiles/avatars/student-avatar"
+            );
+        }
+
+        @Override
         public StorageUploadResult uploadTeacherIntroductionVideo(MultipartFile file) {
             return new StorageUploadResult(
                     "https://res.cloudinary.com/demo/video/upload/intro.mp4",

@@ -110,6 +110,11 @@ class TeacherProfileServiceTests {
         }
 
         @Override
+        public StorageUploadResult uploadStudentAvatar(MultipartFile file) {
+            return new StorageUploadResult("https://example.com/student-avatar.png", "student-avatar-public-id");
+        }
+
+        @Override
         public StorageUploadResult uploadTeacherIntroductionVideo(MultipartFile file) {
             return new StorageUploadResult("https://example.com/intro.mp4", "video-public-id");
         }

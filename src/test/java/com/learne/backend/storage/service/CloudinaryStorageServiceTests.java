@@ -30,6 +30,53 @@ class CloudinaryStorageServiceTests {
     }
 
     @Test
+    void uploadStudentAvatarRejectsSpoofedPngContent() {
+        MockMultipartFile file = new MockMultipartFile(
+                "avatar",
+                "avatar.png",
+                "image/png",
+                "not an image".getBytes()
+        );
+
+        assertThatThrownBy(() -> service.uploadStudentAvatar(file))
+                .isInstanceOfSatisfying(ApiException.class, ex -> {
+                    assertThat(ex.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(ex.getMessage()).isEqualTo("Ảnh đại diện không hợp lệ.");
+                });
+    }
+
+    @Test
+    void uploadStudentAvatarRejectsOversizedFile() {
+        CloudinaryProperties properties = new CloudinaryProperties();
+        properties.setMaxAvatarBytes(4);
+        CloudinaryStorageService limitedService = new CloudinaryStorageService(properties);
+        MockMultipartFile file = new MockMultipartFile(
+                "avatar", "avatar.png", "image/png",
+                new byte[] {0x01, 0x02, 0x03, 0x04, 0x05}
+        );
+
+        assertThatThrownBy(() -> limitedService.uploadStudentAvatar(file))
+                .isInstanceOfSatisfying(ApiException.class, ex -> {
+                    assertThat(ex.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(ex.getMessage()).isEqualTo("File vượt quá dung lượng cho phép.");
+                });
+    }
+
+    @Test
+    void uploadStudentAvatarRejectsUnsupportedMimeType() {
+        MockMultipartFile file = new MockMultipartFile(
+                "avatar", "avatar.gif", "image/gif",
+                new byte[] {0x47, 0x49, 0x46, 0x38}
+        );
+
+        assertThatThrownBy(() -> service.uploadStudentAvatar(file))
+                .isInstanceOfSatisfying(ApiException.class, ex -> {
+                    assertThat(ex.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(ex.getMessage()).isEqualTo("Ảnh đại diện không hợp lệ.");
+                });
+    }
+
+    @Test
     void uploadTeacherIntroductionVideoRejectsSpoofedMp4Content() {
         MockMultipartFile file = new MockMultipartFile(
                 "video",
