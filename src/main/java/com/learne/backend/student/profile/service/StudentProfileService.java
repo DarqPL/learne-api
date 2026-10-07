@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -85,16 +87,19 @@ public class StudentProfileService {
                 .orElseGet(() -> findOrCreateDefaultProfile(student));
         String oldPublicId = profile.getAvatarPublicId();
         StorageUploadResult uploadResult = storageService.uploadStudentAvatar(file);
+        boolean rollbackCleanupRegistered = registerUploadedMediaRollbackCleanup(uploadResult.publicId());
         try {
             profile.setAvatarUrl(uploadResult.url());
             profile.setAvatarPublicId(uploadResult.publicId());
             student.setAvatarUrl(uploadResult.url());
             profile.getUser().setAvatarUrl(uploadResult.url());
             StudentProfile savedProfile = studentProfileRepository.save(profile);
-            deleteOldMediaBestEffort(oldPublicId);
+            deleteOldMediaAfterCommit(oldPublicId);
             return toOwnResponse(savedProfile);
         } catch (RuntimeException ex) {
-            deleteOldMediaBestEffort(uploadResult.publicId());
+            if (!rollbackCleanupRegistered) {
+                deleteOldMediaBestEffort(uploadResult.publicId());
+            }
             throw ex;
         }
     }
@@ -109,8 +114,40 @@ public class StudentProfileService {
         student.setAvatarUrl(null);
         profile.getUser().setAvatarUrl(null);
         StudentProfile savedProfile = studentProfileRepository.save(profile);
-        deleteOldMediaBestEffort(oldPublicId);
+        deleteOldMediaAfterCommit(oldPublicId);
         return toOwnResponse(savedProfile);
+    }
+
+    private void deleteOldMediaAfterCommit(String publicId) {
+        if (publicId == null || publicId.isBlank()) {
+            return;
+        }
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    deleteOldMediaBestEffort(publicId);
+                }
+            });
+            return;
+        }
+        deleteOldMediaBestEffort(publicId);
+    }
+
+    private boolean registerUploadedMediaRollbackCleanup(String publicId) {
+        if (publicId == null || publicId.isBlank()
+                || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            return false;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    deleteOldMediaBestEffort(publicId);
+                }
+            }
+        });
+        return true;
     }
 
     private void deleteOldMediaBestEffort(String publicId) {
