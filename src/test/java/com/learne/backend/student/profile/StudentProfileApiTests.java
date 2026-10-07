@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -14,6 +16,9 @@ import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
 import com.learne.backend.shared.api.ApiException;
+import com.learne.backend.storage.dto.StorageResourceType;
+import com.learne.backend.storage.dto.StorageUploadResult;
+import com.learne.backend.storage.service.StorageService;
 import com.learne.backend.student.profile.entity.StudentProfile;
 import com.learne.backend.student.profile.enums.StudentCurrentLevel;
 import com.learne.backend.student.profile.enums.StudentPreferredSkill;
@@ -27,6 +32,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -34,6 +42,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
@@ -58,11 +68,15 @@ class StudentProfileApiTests {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private CapturingStudentStorageService storageService;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
         TestDatabaseCleaner.clean(jdbcTemplate);
+        storageService.clear();
     }
 
     @Test
@@ -207,6 +221,32 @@ class StudentProfileApiTests {
                 .andExpect(jsonPath("$.phoneNumber").doesNotExist());
     }
 
+    @Test
+    void studentCanUploadReplaceAndDeleteAvatar() throws Exception {
+        User student = saveUser("avatar@example.com", UserRole.STUDENT);
+        String token = loginAndGetAccessToken(student.getEmail());
+        MockMultipartFile avatar = new MockMultipartFile(
+                "file", "avatar.png", MediaType.IMAGE_PNG_VALUE, "avatar-bytes".getBytes());
+
+        mockMvc.perform(multipart("/api/student/profile/avatar").file(avatar)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.avatarUrl").value("https://res.cloudinary.com/demo/image/upload/student-avatar-1.png"));
+
+        mockMvc.perform(multipart("/api/student/profile/avatar").file(avatar)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.avatarUrl").value("https://res.cloudinary.com/demo/image/upload/student-avatar-2.png"));
+
+        assertThat(storageService.deletedPublicIds())
+                .contains("learne/student-profiles/avatars/student-avatar-1");
+
+        mockMvc.perform(delete("/api/student/profile/avatar")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.avatarUrl").doesNotExist());
+    }
+
     private User saveUser(String email, UserRole role) {
         User user = new User();
         user.setEmail(email);
@@ -232,5 +272,56 @@ class StudentProfileApiTests {
                 .andReturn();
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
         return body.get("accessToken").asText();
+    }
+
+    @TestConfiguration
+    static class StudentStorageTestConfiguration {
+        @Bean
+        @Primary
+        CapturingStudentStorageService storageService() {
+            return new CapturingStudentStorageService();
+        }
+    }
+
+    static class CapturingStudentStorageService implements StorageService {
+        private final java.util.List<String> deletedPublicIds = new java.util.ArrayList<>();
+        private int studentAvatarUploads;
+
+        @Override
+        public StorageUploadResult uploadTeacherAvatar(MultipartFile file) {
+            return new StorageUploadResult("https://example.com/teacher-avatar.png", "teacher-avatar");
+        }
+
+        @Override
+        public StorageUploadResult uploadStudentAvatar(MultipartFile file) {
+            studentAvatarUploads++;
+            return new StorageUploadResult(
+                    "https://res.cloudinary.com/demo/image/upload/student-avatar-%d.png".formatted(studentAvatarUploads),
+                    "learne/student-profiles/avatars/student-avatar-%d".formatted(studentAvatarUploads));
+        }
+
+        @Override
+        public StorageUploadResult uploadTeacherIntroductionVideo(MultipartFile file) {
+            return new StorageUploadResult("https://example.com/intro.mp4", "intro");
+        }
+
+        @Override
+        public StorageUploadResult uploadLessonAudio(MultipartFile file) {
+            return new StorageUploadResult("https://example.com/audio.mp3", "audio");
+        }
+
+        @Override
+        public void delete(String publicId, StorageResourceType resourceType) {
+            deletedPublicIds.add(publicId);
+        }
+
+        java.util.List<String> deletedPublicIds() {
+            return deletedPublicIds;
+        }
+
+        void clear() {
+            deletedPublicIds.clear();
+            studentAvatarUploads = 0;
+        }
     }
 }

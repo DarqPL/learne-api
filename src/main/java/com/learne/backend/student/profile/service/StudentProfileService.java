@@ -6,6 +6,9 @@ import com.learne.backend.student.profile.dto.PublicStudentProfileResponse;
 import com.learne.backend.student.profile.dto.UpdateStudentProfileRequest;
 import com.learne.backend.student.profile.entity.StudentProfile;
 import com.learne.backend.student.profile.repository.StudentProfileRepository;
+import com.learne.backend.storage.dto.StorageResourceType;
+import com.learne.backend.storage.dto.StorageUploadResult;
+import com.learne.backend.storage.service.StorageService;
 import jakarta.persistence.EntityManager;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -14,20 +17,24 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class StudentProfileService {
     private final StudentProfileRepository studentProfileRepository;
     private final StudentPreferredSkillJsonService preferredSkillJsonService;
     private final EntityManager entityManager;
+    private final StorageService storageService;
     private final TransactionTemplate createProfileTransactionTemplate;
 
     public StudentProfileService(StudentProfileRepository studentProfileRepository,
                                  StudentPreferredSkillJsonService preferredSkillJsonService,
+                                 StorageService storageService,
                                  EntityManager entityManager,
                                  PlatformTransactionManager transactionManager) {
         this.studentProfileRepository = studentProfileRepository;
         this.preferredSkillJsonService = preferredSkillJsonService;
+        this.storageService = storageService;
         this.entityManager = entityManager;
         this.createProfileTransactionTemplate = new TransactionTemplate(transactionManager);
         this.createProfileTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -70,6 +77,51 @@ public class StudentProfileService {
                         HttpStatus.NOT_FOUND, "Student profile not found."));
         return PublicStudentProfileResponse.from(
                 profile, preferredSkillJsonService.fromJson(profile.getPreferredSkillsJson()));
+    }
+
+    @Transactional
+    public StudentProfileResponse updateAvatar(User student, MultipartFile file) {
+        StudentProfile profile = studentProfileRepository.findByUser(student)
+                .orElseGet(() -> findOrCreateDefaultProfile(student));
+        String oldPublicId = profile.getAvatarPublicId();
+        StorageUploadResult uploadResult = storageService.uploadStudentAvatar(file);
+        try {
+            profile.setAvatarUrl(uploadResult.url());
+            profile.setAvatarPublicId(uploadResult.publicId());
+            student.setAvatarUrl(uploadResult.url());
+            profile.getUser().setAvatarUrl(uploadResult.url());
+            StudentProfile savedProfile = studentProfileRepository.save(profile);
+            deleteOldMediaBestEffort(oldPublicId);
+            return toOwnResponse(savedProfile);
+        } catch (RuntimeException ex) {
+            deleteOldMediaBestEffort(uploadResult.publicId());
+            throw ex;
+        }
+    }
+
+    @Transactional
+    public StudentProfileResponse deleteAvatar(User student) {
+        StudentProfile profile = studentProfileRepository.findByUser(student)
+                .orElseGet(() -> findOrCreateDefaultProfile(student));
+        String oldPublicId = profile.getAvatarPublicId();
+        profile.setAvatarUrl(null);
+        profile.setAvatarPublicId(null);
+        student.setAvatarUrl(null);
+        profile.getUser().setAvatarUrl(null);
+        StudentProfile savedProfile = studentProfileRepository.save(profile);
+        deleteOldMediaBestEffort(oldPublicId);
+        return toOwnResponse(savedProfile);
+    }
+
+    private void deleteOldMediaBestEffort(String publicId) {
+        if (publicId == null || publicId.isBlank()) {
+            return;
+        }
+        try {
+            storageService.delete(publicId, StorageResourceType.IMAGE);
+        } catch (RuntimeException ignored) {
+            // The profile state is already persisted; cleanup is best effort.
+        }
     }
 
     private StudentProfileResponse toOwnResponse(StudentProfile profile) {
