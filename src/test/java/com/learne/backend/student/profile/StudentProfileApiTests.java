@@ -164,6 +164,49 @@ class StudentProfileApiTests {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void publicProfileAppliesVisibilityAndSensitiveFieldFlags() throws Exception {
+        User viewer = saveUser("viewer@example.com", UserRole.STUDENT);
+        User target = saveUser("target@example.com", UserRole.STUDENT);
+        String viewerToken = loginAndGetAccessToken(viewer.getEmail());
+
+        mockMvc.perform(get("/api/students/%d/profile".formatted(target.getId())))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/students/%d/profile".formatted(target.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + viewerToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Student profile not found."));
+
+        mockMvc.perform(put("/api/student/profile")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + loginAndGetAccessToken(target.getEmail()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "fullName": "Target Student",
+                                  "phoneNumber": "0901234567",
+                                  "dateOfBirth": "2003-05-10",
+                                  "bio": "Dang hoc giao tiep.",
+                                  "learningGoal": "Dat B1 trong 6 thang",
+                                  "currentLevel": "A2",
+                                  "preferredSkills": ["LISTENING", "SPEAKING"],
+                                  "publicProfileEnabled": true,
+                                  "showEmail": false,
+                                  "showPhoneNumber": false,
+                                  "showDateOfBirth": false
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/students/%d/profile".formatted(target.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + viewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fullName").value("Target Student"))
+                .andExpect(jsonPath("$.bio").value("Dang hoc giao tiep."))
+                .andExpect(jsonPath("$.email").doesNotExist())
+                .andExpect(jsonPath("$.phoneNumber").doesNotExist());
+    }
+
     private User saveUser(String email, UserRole role) {
         User user = new User();
         user.setEmail(email);

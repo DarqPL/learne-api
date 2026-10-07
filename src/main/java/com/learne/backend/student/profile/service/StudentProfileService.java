@@ -2,11 +2,13 @@ package com.learne.backend.student.profile.service;
 
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.student.profile.dto.StudentProfileResponse;
+import com.learne.backend.student.profile.dto.PublicStudentProfileResponse;
 import com.learne.backend.student.profile.dto.UpdateStudentProfileRequest;
 import com.learne.backend.student.profile.entity.StudentProfile;
 import com.learne.backend.student.profile.repository.StudentProfileRepository;
 import jakarta.persistence.EntityManager;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -59,6 +61,15 @@ public class StudentProfileService {
         StudentProfile savedProfile = studentProfileRepository.save(profile);
         entityManager.flush();
         return toOwnResponse(studentProfileRepository.findById(savedProfile.getId()).orElseThrow());
+    }
+
+    @Transactional(readOnly = true)
+    public PublicStudentProfileResponse getPublicProfile(Long studentId) {
+        StudentProfile profile = studentProfileRepository.findVisibleByStudentId(studentId)
+                .orElseThrow(() -> new com.learne.backend.shared.api.ApiException(
+                        HttpStatus.NOT_FOUND, "Student profile not found."));
+        return PublicStudentProfileResponse.from(
+                profile, preferredSkillJsonService.fromJson(profile.getPreferredSkillsJson()));
     }
 
     private StudentProfileResponse toOwnResponse(StudentProfile profile) {
