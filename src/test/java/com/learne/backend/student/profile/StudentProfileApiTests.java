@@ -166,6 +166,62 @@ class StudentProfileApiTests {
     }
 
     @Test
+    void profileUpdateRejectsFutureBirthDate() throws Exception {
+        User student = saveUser("future-dob@example.com", UserRole.STUDENT);
+        String token = loginAndGetAccessToken(student.getEmail());
+
+        mockMvc.perform(put("/api/student/profile")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validUpdateJson("\"dateOfBirth\": \"2099-01-01\"")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void profileUpdateRejectsDailyLearningMinutesOutsideRange() throws Exception {
+        User student = saveUser("minutes@example.com", UserRole.STUDENT);
+        String token = loginAndGetAccessToken(student.getEmail());
+
+        mockMvc.perform(put("/api/student/profile")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validUpdateJson("\"dailyLearningMinutes\": 1441")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void profileUpdateRejectsDuplicatePreferredSkills() throws Exception {
+        User student = saveUser("duplicate-skills@example.com", UserRole.STUDENT);
+        String token = loginAndGetAccessToken(student.getEmail());
+
+        mockMvc.perform(put("/api/student/profile")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validUpdateJson("\"preferredSkills\": [\"LISTENING\", \"LISTENING\"]")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void profileUpdateRejectsMissingPrivacyFlags() throws Exception {
+        User student = saveUser("missing-flags@example.com", UserRole.STUDENT);
+        String token = loginAndGetAccessToken(student.getEmail());
+
+        mockMvc.perform(put("/api/student/profile")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "fullName": "Student",
+                                  "preferredSkills": [],
+                                  "publicProfileEnabled": true,
+                                  "showEmail": true,
+                                  "showPhoneNumber": true
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void ownProfileRequiresStudentRole() throws Exception {
         User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
         String teacherToken = loginAndGetAccessToken(teacher.getEmail());
@@ -222,6 +278,51 @@ class StudentProfileApiTests {
     }
 
     @Test
+    void publicProfileReturnsSensitiveFieldsWhenEnabled() throws Exception {
+        User viewer = saveUser("visible-viewer@example.com", UserRole.STUDENT);
+        User target = saveUser("visible-target@example.com", UserRole.STUDENT);
+        StudentProfile profile = visibleProfile(target);
+        profile.setShowEmail(true);
+        profile.setShowPhoneNumber(true);
+        profile.setShowDateOfBirth(true);
+        studentProfileRepository.save(profile);
+
+        mockMvc.perform(get("/api/students/%d/profile".formatted(target.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + loginAndGetAccessToken(viewer.getEmail())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(target.getEmail()))
+                .andExpect(jsonPath("$.phoneNumber").value("0901234567"))
+                .andExpect(jsonPath("$.dateOfBirth").value("2003-05-10"));
+    }
+
+    @Test
+    void publicProfileHidesInactiveLockedAndNonStudentTargets() throws Exception {
+        User viewer = saveUser("state-viewer@example.com", UserRole.STUDENT);
+        String viewerToken = loginAndGetAccessToken(viewer.getEmail());
+        User inactive = saveUser("inactive@example.com", UserRole.STUDENT);
+        inactive.setActive(false);
+        userRepository.save(inactive);
+        User locked = saveUser("locked@example.com", UserRole.STUDENT);
+        locked.setLocked(true);
+        userRepository.save(locked);
+        User teacher = saveUser("public-teacher@example.com", UserRole.TEACHER);
+
+        visibleProfile(inactive);
+        visibleProfile(locked);
+        visibleProfile(teacher);
+
+        mockMvc.perform(get("/api/students/%d/profile".formatted(inactive.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + viewerToken))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/students/%d/profile".formatted(locked.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + viewerToken))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/students/%d/profile".formatted(teacher.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + viewerToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void studentCanUploadReplaceAndDeleteAvatar() throws Exception {
         User student = saveUser("avatar@example.com", UserRole.STUDENT);
         String token = loginAndGetAccessToken(student.getEmail());
@@ -245,6 +346,59 @@ class StudentProfileApiTests {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.avatarUrl").doesNotExist());
+
+        mockMvc.perform(delete("/api/student/profile/avatar")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.avatarUrl").doesNotExist());
+    }
+
+    @Test
+    void avatarCleanupFailureDoesNotFailSuccessfulMutation() throws Exception {
+        User student = saveUser("avatar-cleanup@example.com", UserRole.STUDENT);
+        String token = loginAndGetAccessToken(student.getEmail());
+        MockMultipartFile avatar = validPngAvatar();
+
+        mockMvc.perform(multipart("/api/student/profile/avatar").file(avatar)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk());
+        storageService.failDeletes = true;
+
+        mockMvc.perform(multipart("/api/student/profile/avatar").file(avatar)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.avatarUrl").value("https://res.cloudinary.com/demo/image/upload/student-avatar-2.png"));
+    }
+
+    private String validUpdateJson(String override) {
+        return """
+                {
+                  "fullName": "Student",
+                  "preferredSkills": [],
+                  "publicProfileEnabled": false,
+                  "showEmail": false,
+                  "showPhoneNumber": false,
+                  "showDateOfBirth": false,
+                  %s
+                }
+                """.formatted(override);
+    }
+
+    private MockMultipartFile validPngAvatar() {
+        return new MockMultipartFile(
+                "file", "avatar.png", MediaType.IMAGE_PNG_VALUE,
+                new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A});
+    }
+
+    private StudentProfile visibleProfile(User target) {
+        StudentProfile profile = new StudentProfile();
+        profile.setUser(target);
+        profile.setPhoneNumber("0901234567");
+        profile.setDateOfBirth(LocalDate.of(2003, 5, 10));
+        profile.setBio("Public bio");
+        profile.setPublicProfileEnabled(true);
+        profile.setPreferredSkillsJson("[]");
+        return studentProfileRepository.save(profile);
     }
 
     private User saveUser(String email, UserRole role) {
@@ -286,6 +440,7 @@ class StudentProfileApiTests {
     static class CapturingStudentStorageService implements StorageService {
         private final java.util.List<String> deletedPublicIds = new java.util.ArrayList<>();
         private int studentAvatarUploads;
+        private boolean failDeletes;
 
         @Override
         public StorageUploadResult uploadTeacherAvatar(MultipartFile file) {
@@ -312,6 +467,9 @@ class StudentProfileApiTests {
 
         @Override
         public void delete(String publicId, StorageResourceType resourceType) {
+            if (failDeletes) {
+                throw new RuntimeException("storage cleanup failed");
+            }
             deletedPublicIds.add(publicId);
         }
 
@@ -322,6 +480,7 @@ class StudentProfileApiTests {
         void clear() {
             deletedPublicIds.clear();
             studentAvatarUploads = 0;
+            failDeletes = false;
         }
     }
 }
