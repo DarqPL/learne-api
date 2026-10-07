@@ -21,8 +21,7 @@ public interface CourseEnrollmentRepository extends JpaRepository<CourseEnrollme
     @Query("""
             select enrollment.id from CourseEnrollment enrollment
             where enrollment.user = :user
-              and (:cursorEnrolledAt is null
-                   or enrollment.enrolledAt < :cursorEnrolledAt
+              and (enrollment.enrolledAt < :cursorEnrolledAt
                    or (enrollment.enrolledAt = :cursorEnrolledAt and enrollment.id < :cursorId))
             order by enrollment.enrolledAt desc, enrollment.id desc
             """)
