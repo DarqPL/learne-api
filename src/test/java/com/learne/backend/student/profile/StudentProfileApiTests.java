@@ -2,7 +2,14 @@ package com.learne.backend.student.profile;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
@@ -20,9 +27,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
@@ -43,6 +54,11 @@ class StudentProfileApiTests {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
@@ -89,6 +105,65 @@ class StudentProfileApiTests {
                 .hasMessage("Student profile data is invalid.");
     }
 
+    @Test
+    void studentCanGetOwnProfileAndDefaultRowIsCreated() throws Exception {
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+
+        mockMvc.perform(get("/api/student/profile")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.studentId").value(student.getId()))
+                .andExpect(jsonPath("$.fullName").value("STUDENT User"))
+                .andExpect(jsonPath("$.email").value("student@example.com"))
+                .andExpect(jsonPath("$.publicProfileEnabled").value(false))
+                .andExpect(jsonPath("$.preferredSkills").doesNotExist());
+
+        assertThat(studentProfileRepository.findByUser(student)).isPresent();
+    }
+
+    @Test
+    void studentCanUpdateOwnProfileWithFullReplacement() throws Exception {
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+
+        mockMvc.perform(put("/api/student/profile")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "fullName": " Nguyen Van A ",
+                                  "phoneNumber": " 0901234567 ",
+                                  "bio": " Dang hoc tieng Anh giao tiep. ",
+                                  "currentLevel": "A2",
+                                  "preferredSkills": ["LISTENING", "SPEAKING"],
+                                  "publicProfileEnabled": true,
+                                  "showEmail": false,
+                                  "showPhoneNumber": false,
+                                  "showDateOfBirth": false
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fullName").value("Nguyen Van A"))
+                .andExpect(jsonPath("$.phoneNumber").value("0901234567"))
+                .andExpect(jsonPath("$.bio").value("Dang hoc tieng Anh giao tiep."))
+                .andExpect(jsonPath("$.currentLevel").value("A2"))
+                .andExpect(jsonPath("$.preferredSkills[0]").value("LISTENING"));
+    }
+
+    @Test
+    void ownProfileRequiresStudentRole() throws Exception {
+        User teacher = saveUser("teacher@example.com", UserRole.TEACHER);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+
+        mockMvc.perform(get("/api/student/profile"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/student/profile")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isForbidden());
+    }
+
     private User saveUser(String email, UserRole role) {
         User user = new User();
         user.setEmail(email);
@@ -99,5 +174,20 @@ class StudentProfileApiTests {
         user.setLocked(false);
         user.setMustChangePassword(false);
         return userRepository.save(user);
+    }
+
+    private String loginAndGetAccessToken(String email) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "%s",
+                                  "password": "Password123"
+                                }
+                                """.formatted(email)))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        return body.get("accessToken").asText();
     }
 }
