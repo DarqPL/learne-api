@@ -21,6 +21,11 @@ import com.learne.backend.monetization.enums.SubscriptionStatus;
 import com.learne.backend.monetization.repository.OrderRepository;
 import com.learne.backend.monetization.repository.SubscriptionRepository;
 import com.learne.backend.testsupport.TestDatabaseCleaner;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointClient;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointRequest;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointResponse;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,6 +37,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -45,12 +51,20 @@ class VipSelectionApiTests {
     @Autowired private MockMvc mockMvc;
     @Autowired private OrderRepository orderRepository;
     @Autowired private SubscriptionRepository subscriptionRepository;
+    @MockitoBean private CourseKnowledgePointClient courseKnowledgePointClient;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
         TestDatabaseCleaner.clean(jdbcTemplate);
+        when(courseKnowledgePointClient.enrichKnowledgePoints(any())).thenAnswer(invocation -> {
+            CourseKnowledgePointRequest request = invocation.getArgument(0);
+            return new CourseKnowledgePointResponse(request.questions().stream()
+                    .map(question -> new CourseKnowledgePointResponse.Item(
+                            question.questionId(), "test_knowledge_point"))
+                    .toList());
+        });
     }
 
     @Test

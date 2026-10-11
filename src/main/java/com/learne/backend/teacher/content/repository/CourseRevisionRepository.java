@@ -50,8 +50,15 @@ public interface CourseRevisionRepository extends JpaRepository<CourseRevision, 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<CourseRevision> findLockedTopByCourseIdAndStatusOrderByRevisionNumberDesc(Long courseId, CourseRevisionStatus status);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<CourseRevision> findTopByCourseIdOrderByRevisionNumberDesc(Long courseId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select cr from CourseRevision cr
+            where cr.course.id = :courseId
+            order by cr.revisionNumber desc
+            """)
+    List<CourseRevision> findLockedLatestByCourseId(@Param("courseId") Long courseId, org.springframework.data.domain.Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select cr from CourseRevision cr where cr.id = :id")

@@ -22,6 +22,9 @@ import com.learne.backend.student.learning.repository.QuestionAnswerRepository;
 import com.learne.backend.student.learning.repository.QuizAttemptRepository;
 import com.learne.backend.student.learning.repository.UserStatsRepository;
 import com.learne.backend.teacher.content.enums.ContentStatus;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointClient;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointRequest;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointResponse;
 import com.learne.backend.teacher.content.repository.CourseRepository;
 import com.learne.backend.teacher.content.repository.LessonRepository;
 import com.learne.backend.teacher.content.repository.QuestionOptionRepository;
@@ -46,8 +49,11 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
@@ -104,11 +110,21 @@ class AdminContentReviewApiTests {
     @Autowired
     private MockMvc mockMvc;
 
+    @MockitoBean
+    private CourseKnowledgePointClient courseKnowledgePointClient;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
         TestDatabaseCleaner.clean(jdbcTemplate);
+        when(courseKnowledgePointClient.enrichKnowledgePoints(any())).thenAnswer(invocation -> {
+            CourseKnowledgePointRequest request = invocation.getArgument(0);
+            return new CourseKnowledgePointResponse(request.questions().stream()
+                    .map(question -> new CourseKnowledgePointResponse.Item(
+                            question.questionId(), "test_knowledge_point"))
+                    .toList());
+        });
     }
 
     @Test

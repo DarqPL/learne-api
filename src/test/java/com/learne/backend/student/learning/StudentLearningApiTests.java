@@ -42,6 +42,11 @@ import com.learne.backend.teacher.content.repository.LessonRepository;
 import com.learne.backend.teacher.content.repository.QuestionOptionRepository;
 import com.learne.backend.teacher.content.repository.QuestionRepository;
 import com.learne.backend.teacher.content.repository.TopicRepository;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointClient;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointRequest;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointResponse;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +58,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
@@ -83,12 +89,20 @@ class StudentLearningApiTests {
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private MockMvc mockMvc;
+    @MockitoBean private CourseKnowledgePointClient courseKnowledgePointClient;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
         TestDatabaseCleaner.clean(jdbcTemplate);
+        when(courseKnowledgePointClient.enrichKnowledgePoints(any())).thenAnswer(invocation -> {
+            CourseKnowledgePointRequest request = invocation.getArgument(0);
+            return new CourseKnowledgePointResponse(request.questions().stream()
+                    .map(question -> new CourseKnowledgePointResponse.Item(
+                            question.questionId(), "test_knowledge_point"))
+                    .toList());
+        });
     }
 
     @Test
@@ -1257,12 +1271,12 @@ class StudentLearningApiTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.scorePercent").value(100))
                 .andExpect(jsonPath("$.passed").value(true))
-                .andExpect(jsonPath("$.earnedXp").value(25))
+                .andExpect(jsonPath("$.earnedXp").value(30))
                 .andExpect(jsonPath("$.xpAwarded").value(true))
                 .andExpect(jsonPath("$.progress.lessonStatus").value("COMPLETED"))
                 .andExpect(jsonPath("$.progress.enrollmentProgressPercent").value(50))
                 .andExpect(jsonPath("$.progress.unlockedNextLessonId").value(secondLessonId))
-                .andExpect(jsonPath("$.stats.totalXp").value(25))
+                .andExpect(jsonPath("$.stats.totalXp").value(30))
                 .andExpect(jsonPath("$.stats.currentStreakDays").value(1))
                 .andExpect(jsonPath("$.stats.longestStreakDays").value(1));
 
@@ -1325,11 +1339,11 @@ class StudentLearningApiTests {
         long secondQuestionId = firstQuestionId(secondLessonId);
 
         submitCorrectAnswer(studentToken, enrollmentId, firstLessonId, firstQuestionId, correctOptionId(firstQuestionId))
-                .andExpect(jsonPath("$.stats.totalXp").value(25))
+                .andExpect(jsonPath("$.stats.totalXp").value(30))
                 .andExpect(jsonPath("$.stats.currentStreakDays").value(1));
 
         submitCorrectAnswer(studentToken, enrollmentId, secondLessonId, secondQuestionId, correctOptionId(secondQuestionId))
-                .andExpect(jsonPath("$.stats.totalXp").value(50))
+                .andExpect(jsonPath("$.stats.totalXp").value(60))
                 .andExpect(jsonPath("$.stats.currentStreakDays").value(1))
                 .andExpect(jsonPath("$.stats.longestStreakDays").value(1));
 
@@ -1358,7 +1372,7 @@ class StudentLearningApiTests {
                 .andExpect(jsonPath("$.xpAwarded").value(false))
                 .andExpect(jsonPath("$.earnedXp").value(0))
                 .andExpect(jsonPath("$.answers[0].earnedXp").value(0))
-                .andExpect(jsonPath("$.stats.totalXp").value(25))
+                .andExpect(jsonPath("$.stats.totalXp").value(30))
                 .andReturn();
         long attemptId = objectMapper.readTree(second.getResponse().getContentAsString()).get("attemptId").asLong();
 

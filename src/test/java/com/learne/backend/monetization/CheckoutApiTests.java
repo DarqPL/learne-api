@@ -14,6 +14,7 @@ import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
 import com.learne.backend.testsupport.TestDatabaseCleaner;
+import com.learne.backend.testsupport.CourseKnowledgePointClientTestConfiguration;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -26,6 +27,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.NestedTestConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -33,6 +35,7 @@ import org.springframework.test.web.servlet.MvcResult;
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 @SpringBootTest
+@Import(CourseKnowledgePointClientTestConfiguration.class)
 class CheckoutApiTests {
     @Autowired private UserRepository userRepository;
     @Autowired private PasswordEncoder passwordEncoder;
@@ -530,6 +533,7 @@ class CheckoutApiTests {
             "app.payments.sepay.account-number=0010000000355",
             "app.payments.sepay.account-name=CONG TY LEARNE"
     })
+    @Import(CourseKnowledgePointClientTestConfiguration.class)
     class SepayEnabledCheckoutTests {
         @Test
         void courseCheckoutIncludesSepayPaymentInstructions() throws Exception {

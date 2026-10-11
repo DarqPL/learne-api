@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,6 +32,9 @@ import com.learne.backend.teacher.content.repository.LessonRepository;
 import com.learne.backend.teacher.content.repository.QuestionOptionRepository;
 import com.learne.backend.teacher.content.repository.QuestionRepository;
 import com.learne.backend.teacher.content.repository.TopicRepository;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointClient;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointRequest;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointResponse;
 import java.io.ByteArrayOutputStream;
 import java.util.Map;
 import java.util.zip.ZipEntry;
@@ -51,6 +56,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.mock.web.MockMultipartFile;
@@ -110,11 +116,21 @@ class TeacherContentApiTests {
     @Autowired
     private MockMvc mockMvc;
 
+    @MockitoBean
+    private CourseKnowledgePointClient courseKnowledgePointClient;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
         TestDatabaseCleaner.clean(jdbcTemplate);
+        when(courseKnowledgePointClient.enrichKnowledgePoints(any())).thenAnswer(invocation -> {
+            CourseKnowledgePointRequest request = invocation.getArgument(0);
+            return new CourseKnowledgePointResponse(request.questions().stream()
+                    .map(question -> new CourseKnowledgePointResponse.Item(
+                            question.questionId(), "test_knowledge_point"))
+                    .toList());
+        });
     }
 
     @Test
@@ -285,7 +301,7 @@ class TeacherContentApiTests {
         String teacherToken = loginAndGetAccessToken(teacher.getEmail());
         long courseId = createCourse(teacherToken);
         long lessonId = createLesson(teacherToken, courseId);
-        createShortAnswerQuestion(teacherToken, lessonId);
+        long questionId = createShortAnswerQuestion(teacherToken, lessonId);
 
         MvcResult exportResult = mockMvc.perform(get("/api/teacher/content/courses/%d/export".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
@@ -2147,12 +2163,26 @@ class TeacherContentApiTests {
 
         long completeCourseId = createCourse(teacherToken);
         long lessonId = createLesson(teacherToken, completeCourseId);
-        createShortAnswerQuestion(teacherToken, lessonId);
+        long questionId = createShortAnswerQuestion(teacherToken, lessonId);
 
         mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(completeCourseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PENDING_REVIEW"));
+
+        Map<String, Object> metadata = jdbcTemplate.queryForMap(
+                """
+                select qr.knowledge_point, qr.difficulty, qr.xp_reward
+                from question_revisions qr
+                join lesson_revisions lr on qr.lesson_revision_id = lr.id
+                join topic_revisions tr on lr.topic_revision_id = tr.id
+                join course_revisions cr on tr.revision_id = cr.id
+                where cr.course_id = ?
+                """,
+                completeCourseId);
+        assertThat(metadata.get("knowledge_point")).isEqualTo("test_knowledge_point");
+        assertThat(metadata.get("difficulty")).isEqualTo("easy");
+        assertThat(metadata.get("xp_reward")).isEqualTo(10);
 
         mockMvc.perform(put("/api/teacher/content/courses/%d".formatted(completeCourseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)

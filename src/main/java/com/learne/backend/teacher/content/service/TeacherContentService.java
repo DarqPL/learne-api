@@ -14,6 +14,7 @@ import com.learne.backend.teacher.content.dto.QuestionRequest;
 import com.learne.backend.teacher.content.dto.QuestionResponse;
 import com.learne.backend.teacher.content.dto.TopicRequest;
 import com.learne.backend.teacher.content.dto.TopicResponse;
+import com.learne.backend.teacher.content.enrichment.CourseReviewEnrichmentService;
 import com.learne.backend.teacher.content.entity.Course;
 import com.learne.backend.teacher.content.entity.CourseRevision;
 import com.learne.backend.teacher.content.entity.Lesson;
@@ -64,6 +65,9 @@ public class TeacherContentService {
     private final QuestionRevisionRepository questionRevisionRepository;
     private final CacheInvalidationService cacheInvalidationService;
     private final CursorTokenService cursorTokenService;
+    private final CourseSubmitFinalizationService courseSubmitFinalizationService;
+    private final CourseSubmitPreparationService courseSubmitPreparationService;
+    private final CourseReviewEnrichmentService enrichmentService;
 
     public TeacherContentService(CourseRepository courseRepository,
                            CourseRevisionRepository courseRevisionRepository,
@@ -74,7 +78,10 @@ public class TeacherContentService {
                              LessonRevisionRepository lessonRevisionRepository,
                              QuestionRevisionRepository questionRevisionRepository,
                              CacheInvalidationService cacheInvalidationService,
-                             CursorTokenService cursorTokenService) {
+                             CursorTokenService cursorTokenService,
+                             CourseSubmitFinalizationService courseSubmitFinalizationService,
+                             CourseSubmitPreparationService courseSubmitPreparationService,
+                             CourseReviewEnrichmentService enrichmentService) {
         this.courseRepository = courseRepository;
         this.courseRevisionRepository = courseRevisionRepository;
         this.topicRepository = topicRepository;
@@ -85,6 +92,9 @@ public class TeacherContentService {
         this.questionRevisionRepository = questionRevisionRepository;
         this.cacheInvalidationService = cacheInvalidationService;
         this.cursorTokenService = cursorTokenService;
+        this.courseSubmitFinalizationService = courseSubmitFinalizationService;
+        this.courseSubmitPreparationService = courseSubmitPreparationService;
+        this.enrichmentService = enrichmentService;
     }
 
     @Transactional(readOnly = true)
@@ -470,34 +480,12 @@ public class TeacherContentService {
         evictContentCaches(teacher);
     }
 
-    @Transactional
     public CourseResponse submitCourse(User teacher, Long courseId) {
-        Course course = findCourse(teacher, courseId);
-        CourseRevision latestRevision = courseRevisionRepository.findTopByCourseIdOrderByRevisionNumberDesc(courseId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course revision not found."));
-        if (!latestRevision.getTeacher().getId().equals(teacher.getId())) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "Course not found.");
-        }
-        if (latestRevision.getStatus() != CourseRevisionStatus.DRAFT
-                && latestRevision.getStatus() != CourseRevisionStatus.REJECTED) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Only draft or rejected content can be submitted for review.");
-        }
-        if (!hasMinimumReviewContent(latestRevision)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Course must have at least one topic, lesson, and question before review.");
-        }
-        courseRevisionRepository.findByCourseAndStatus(course, CourseRevisionStatus.PENDING_REVIEW).stream()
-                .filter(revision -> !revision.getId().equals(latestRevision.getId()))
-                .forEach(revision -> revision.setStatus(CourseRevisionStatus.SUPERSEDED));
-        latestRevision.setStatus(CourseRevisionStatus.PENDING_REVIEW);
-        latestRevision.setSubmittedAt(Instant.now());
-        latestRevision.setRejectionReason(null);
-        if (course.getPublishedAt() == null) {
-            course.setStatus(ContentStatus.PENDING_REVIEW);
-            applyCourseMetadata(course, latestRevision);
-        }
-        CourseResponse response = CourseResponse.from(courseRepository.save(course), latestRevision);
-        evictContentCaches(teacher);
-        return response;
+        CourseReviewEnrichmentService.CourseRevisionSnapshot snapshot =
+                courseSubmitPreparationService.prepare(teacher, courseId);
+        CourseReviewEnrichmentService.EnrichedCourseRevisionSnapshot enrichedSnapshot =
+                enrichmentService.enrichSnapshot(snapshot);
+        return courseSubmitFinalizationService.finalizeSubmit(teacher, courseId, enrichedSnapshot);
     }
 
     private void evictContentCaches(User teacher) {
