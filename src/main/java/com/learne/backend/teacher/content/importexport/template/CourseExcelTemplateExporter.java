@@ -6,10 +6,18 @@ import com.learne.backend.teacher.content.entity.LessonRevision;
 import com.learne.backend.teacher.content.entity.QuestionOptionRevision;
 import com.learne.backend.teacher.content.entity.QuestionRevision;
 import com.learne.backend.teacher.content.entity.TopicRevision;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.ClientAnchor;
 import org.apache.poi.ss.usermodel.Comment;
@@ -23,7 +31,6 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class CourseExcelTemplateExporter {
-    private static final String SAMPLE_ROW_MARKER = "SAMPLE_ROW";
     private static final String[] HEADERS = {
             "course_name", "course_description", "course_type", "course_level", "course_order_index",
             "topic_order", "topic_title", "topic_description",
@@ -36,19 +43,60 @@ public class CourseExcelTemplateExporter {
     };
 
     public byte[] blankTemplate() {
-        try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            createGuideSheet(workbook);
-            Sheet content = createContentSheet(workbook);
-            createSampleRow(content);
-            createMetadataSheet(workbook);
-
-            workbook.write(output);
-            return output.toByteArray();
+        try {
+            Path path = Path.of("course-template.xlsm");
+            if (Files.exists(path)) {
+                return removeCalculationChain(Files.readAllBytes(path));
+            }
+            try (InputStream input = getClass().getResourceAsStream("/course-template.xlsm")) {
+                if (input != null) {
+                    return removeCalculationChain(input.readAllBytes());
+                }
+            }
         } catch (IOException exception) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Không thể tạo file template.");
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Không thể tải file template.");
         }
+        throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Không tìm thấy file template.");
     }
 
+    private byte[] removeCalculationChain(byte[] workbookBytes) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(workbookBytes));
+                ZipOutputStream cleaned = new ZipOutputStream(output)) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                String name = entry.getName();
+                if ("xl/calcChain.xml".equals(name)) {
+                    zip.closeEntry();
+                    continue;
+                }
+
+                byte[] bytes = zip.readAllBytes();
+                if ("[Content_Types].xml".equals(name) || "xl/_rels/workbook.xml.rels".equals(name)) {
+                    bytes = removeCalculationChainReferences(bytes);
+                }
+
+                ZipEntry copy = new ZipEntry(name);
+                cleaned.putNextEntry(copy);
+                cleaned.write(bytes);
+                cleaned.closeEntry();
+                zip.closeEntry();
+            }
+        }
+        return output.toByteArray();
+    }
+
+    private byte[] removeCalculationChainReferences(byte[] bytes) {
+        String xml = new String(bytes, StandardCharsets.UTF_8)
+                .replaceAll("(?s)<Override\\s+[^>]*PartName=\"/xl/calcChain.xml\"[^>]*/>", "")
+                .replaceAll("(?s)<Relationship\\s+[^>]*(calcChain\\.xml|/calcChain)[^>]*/>", "");
+        return xml.getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Exports the existing course revision in the legacy flat XLSX format.
+     * Teacher imports use {@link #blankTemplate()} and the XLSM package contract instead.
+     */
     public byte[] exportCourse(CourseRevision revision) {
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             createGuideSheet(workbook);
@@ -102,10 +150,10 @@ public class CourseExcelTemplateExporter {
         guide.setColumnWidth(0, 9500);
         guide.setColumnWidth(1, 14000);
 
-        writeGuideRow(guide, 0, "Huong dan nhap khoa hoc bang Excel", "Nhap du lieu trong sheet Content.");
-        writeGuideRow(guide, 2, "Quy trinh", "Tai template, sua dong mau hoac them dong moi, roi nen file .xlsx vao ZIP.");
-        writeGuideRow(guide, 3, "ZIP", "Goi import phai co dung 1 file .xlsx. File audio dat trong ZIP va tham chieu bang duong dan nhu audio/greetings-lesson.mp3.");
-        writeGuideRow(guide, 4, "Dong mau", "Dong mau trong Content chi de tham khao va se duoc bo qua khi import neu giu nguyen SAMPLE_ROW.");
+        writeGuideRow(guide, 0, "Huong dan xuat khoa hoc bang Excel", "Du lieu xuat nam trong sheet Content.");
+        writeGuideRow(guide, 2, "Dinh dang", "Day la file XLSX legacy de xem hoac luu tru, khong dung cho quy trinh nhap moi.");
+        writeGuideRow(guide, 3, "Nhap moi", "Tai template course-template.xlsm, sua du lieu, roi dong goi file .xlsm va audio vao goi nen .zip/.rar/.7z.");
+        writeGuideRow(guide, 4, "Dong mau", "Dong mau chi la tai lieu tham khao; quy trinh nhap moi bo qua dong co dau SAMPLE_ROW.");
         writeGuideRow(guide, 6, "course_type", "COMPREHENSIVE hoac SKILL_FOCUSED.");
         writeGuideRow(guide, 7, "skill_type", "READING, LISTENING, SPEAKING, WRITING, VOCABULARY, GRAMMAR.");
         writeGuideRow(guide, 8, "question_type", "MULTIPLE_CHOICE dung option_a..option_d va correct_option. SHORT_ANSWER dung correct_answer.");
@@ -117,39 +165,6 @@ public class CourseExcelTemplateExporter {
         Row row = sheet.createRow(rowIndex);
         row.createCell(0).setCellValue(label);
         row.createCell(1).setCellValue(value);
-    }
-
-    private void createSampleRow(Sheet content) {
-        Row sample = content.createRow(1);
-        sample.createCell(0).setCellValue("English A1 Sample");
-        sample.createCell(1).setCellValue("Khoa hoc mau de thay cach dien template");
-        sample.createCell(2).setCellValue("COMPREHENSIVE");
-        sample.createCell(3).setCellValue("A1");
-        sample.createCell(4).setCellValue(1);
-        sample.createCell(5).setCellValue(1);
-        sample.createCell(6).setCellValue("Greetings");
-        sample.createCell(7).setCellValue("Loi chao co ban");
-        sample.createCell(8).setCellValue(1);
-        sample.createCell(9).setCellValue("Say hello");
-        sample.createCell(10).setCellValue("Luyen tap loi chao");
-        sample.createCell(11).setCellValue("Hello means xin chao. Use it when meeting someone.");
-        sample.createCell(12).setCellValue("READING");
-        sample.createCell(13).setCellValue(10);
-        sample.createCell(14).setCellValue(false);
-        sample.createCell(15).setCellValue("audio/greetings-lesson.mp3");
-        sample.createCell(16).setCellValue(1);
-        sample.createCell(17).setCellValue("MULTIPLE_CHOICE");
-        sample.createCell(18).setCellValue("What does Hello mean?");
-        sample.createCell(19).setCellValue("Hello is a greeting.");
-        sample.createCell(20).setBlank();
-        sample.createCell(21).setCellValue("Xin chao");
-        sample.createCell(22).setCellValue("Tam biet");
-        sample.createCell(23).setCellValue("Cam on");
-        sample.createCell(24).setCellValue("Xin loi");
-        sample.createCell(25).setCellValue("A");
-        sample.createCell(26).setCellValue("easy");
-        sample.createCell(27).setCellValue("greetings");
-        sample.createCell(36).setCellValue(SAMPLE_ROW_MARKER);
     }
 
     private void setContentColumnWidths(Sheet content) {
@@ -168,7 +183,7 @@ public class CourseExcelTemplateExporter {
         addComment(helper, drawing, header.getCell(0), "Ten khoa hoc. Tat ca dong nen dung cung thong tin khoa hoc.");
         addComment(helper, drawing, header.getCell(2), "Vi du: COMPREHENSIVE hoac SKILL_FOCUSED.");
         addComment(helper, drawing, header.getCell(12), "Vi du: READING, LISTENING, SPEAKING, WRITING, VOCABULARY, GRAMMAR.");
-        addComment(helper, drawing, header.getCell(15), "Duong dan file audio trong ZIP, vi du audio/greetings-lesson.mp3.");
+        addComment(helper, drawing, header.getCell(15), "Duong dan file audio trong goi nen, vi du audio/greetings-lesson.mp3.");
         addComment(helper, drawing, header.getCell(17), "MULTIPLE_CHOICE dung option_a..d; SHORT_ANSWER dung correct_answer.");
         addComment(helper, drawing, header.getCell(25), "Dap an dung cho cau hoi trac nghiem: A, B, C hoac D.");
     }

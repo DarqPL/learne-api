@@ -1,7 +1,7 @@
 package com.learne.backend.teacher.content.importexport.security;
 
 import com.learne.backend.shared.api.ApiException;
-import com.learne.backend.teacher.content.importexport.zip.CourseImportPackage;
+import com.learne.backend.teacher.content.importexport.archive.CourseImportPackage;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import org.springframework.http.HttpStatus;

@@ -48,13 +48,13 @@ class TeacherContentController {
         this.courseImportExportService = courseImportExportService;
     }
 
-    @GetMapping(value = "/course-template", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    @GetMapping(value = "/course-template", produces = "application/vnd.ms-excel.sheet.macroEnabled.12")
     ResponseEntity<byte[]> downloadCourseTemplate(Authentication authentication) {
         currentUser(authentication);
         byte[] workbook = courseExcelTemplateExporter.blankTemplate();
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=course-template.xlsx")
-                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=course-template.xlsm")
+                .contentType(MediaType.parseMediaType("application/vnd.ms-excel.sheet.macroEnabled.12"))
                 .body(workbook);
     }
 

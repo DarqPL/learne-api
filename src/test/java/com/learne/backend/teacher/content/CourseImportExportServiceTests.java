@@ -3,12 +3,14 @@ package com.learne.backend.teacher.content;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.storage.dto.StorageResourceType;
 import com.learne.backend.storage.dto.StorageUploadResult;
 import com.learne.backend.storage.service.StorageService;
@@ -27,8 +29,8 @@ import com.learne.backend.teacher.content.importexport.security.ClamAvClient;
 import com.learne.backend.teacher.content.importexport.service.CourseImportExportService;
 import com.learne.backend.teacher.content.importexport.template.CourseExcelTemplateExporter;
 import com.learne.backend.teacher.content.importexport.template.CourseExcelTemplateParser;
-import com.learne.backend.teacher.content.importexport.zip.CourseImportPackage;
-import com.learne.backend.teacher.content.importexport.zip.CourseImportZipReader;
+import com.learne.backend.teacher.content.importexport.archive.CourseImportArchiveReader;
+import com.learne.backend.teacher.content.importexport.archive.CourseImportPackage;
 import com.learne.backend.teacher.content.repository.CourseRepository;
 import com.learne.backend.teacher.content.repository.CourseRevisionRepository;
 import java.util.List;
@@ -46,8 +48,54 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @ExtendWith(MockitoExtension.class)
 class CourseImportExportServiceTests {
     @Test
+    void importCourseRejectsMissingReferencedAudio() {
+        CourseImportArchiveReader zipReader = mock(CourseImportArchiveReader.class);
+        CourseExcelTemplateParser templateParser = mock(CourseExcelTemplateParser.class);
+        CourseExcelTemplateExporter templateExporter = mock(CourseExcelTemplateExporter.class);
+        AudioFileValidator audioFileValidator = mock(AudioFileValidator.class);
+        ClamAvClient clamAvClient = mock(ClamAvClient.class);
+        StorageService storageService = mock(StorageService.class);
+        CourseRepository courseRepository = mock(CourseRepository.class);
+        CourseRevisionRepository courseRevisionRepository = mock(CourseRevisionRepository.class);
+        CourseImportExportService service = new CourseImportExportService(zipReader, templateParser, templateExporter,
+                audioFileValidator, clamAvClient, storageService, courseRepository, courseRevisionRepository);
+        CourseImportPackage importPackage = new CourseImportPackage(new byte[] {1}, Map.of());
+        when(zipReader.read(any(), eq("course.rar"))).thenReturn(importPackage);
+        when(templateParser.parse(importPackage.workbook())).thenReturn(courseImportModelWithAudio());
+
+        assertThatThrownBy(() -> service.importCourse(new User(), new MockMultipartFile(
+                "file", "course.rar", "application/vnd.rar", new byte[] {1})))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("audio/lesson.mp3");
+    }
+
+    @Test
+    void importCourseRejectsUnusedAudioFileInZip() {
+        CourseImportArchiveReader zipReader = mock(CourseImportArchiveReader.class);
+        CourseExcelTemplateParser templateParser = mock(CourseExcelTemplateParser.class);
+        CourseExcelTemplateExporter templateExporter = mock(CourseExcelTemplateExporter.class);
+        AudioFileValidator audioFileValidator = mock(AudioFileValidator.class);
+        ClamAvClient clamAvClient = mock(ClamAvClient.class);
+        StorageService storageService = mock(StorageService.class);
+        CourseRepository courseRepository = mock(CourseRepository.class);
+        CourseRevisionRepository courseRevisionRepository = mock(CourseRevisionRepository.class);
+        CourseImportExportService service = new CourseImportExportService(zipReader, templateParser, templateExporter,
+                audioFileValidator, clamAvClient, storageService, courseRepository, courseRevisionRepository);
+        CourseImportPackage importPackage = new CourseImportPackage(new byte[] {1},
+                Map.of("audio/unused.mp3", new CourseImportPackage.ImportFile(
+                        "audio/unused.mp3", "audio/mpeg", new byte[] {1})));
+        when(zipReader.read(any(), any())).thenReturn(importPackage);
+        when(templateParser.parse(importPackage.workbook())).thenReturn(courseImportModel(null, null));
+
+        assertThatThrownBy(() -> service.importCourse(new User(), new MockMultipartFile(
+                "file", "course.zip", "application/zip", new byte[] {1})))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("không được tham chiếu");
+    }
+
+    @Test
     void importCourseDeletesUploadedAudioWhenPersistenceFailsAfterUpload() {
-        CourseImportZipReader zipReader = mock(CourseImportZipReader.class);
+        CourseImportArchiveReader zipReader = mock(CourseImportArchiveReader.class);
         CourseExcelTemplateParser templateParser = mock(CourseExcelTemplateParser.class);
         CourseExcelTemplateExporter templateExporter = mock(CourseExcelTemplateExporter.class);
         AudioFileValidator audioFileValidator = mock(AudioFileValidator.class);
@@ -63,7 +111,7 @@ class CourseImportExportServiceTests {
                 new byte[] {1},
                 Map.of("audio/lesson.mp3", new CourseImportPackage.ImportFile(
                         "audio/lesson.mp3", "audio/mpeg", new byte[] {1, 2, 3})));
-        when(zipReader.read(any())).thenReturn(importPackage);
+        when(zipReader.read(any(), any())).thenReturn(importPackage);
         when(templateParser.parse(importPackage.workbook())).thenReturn(courseImportModelWithAudio());
         when(storageService.uploadLessonAudio(any())).thenReturn(new StorageUploadResult("https://cdn/audio.mp3", "audio-public-id"));
         when(courseRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0, Course.class));
@@ -77,8 +125,41 @@ class CourseImportExportServiceTests {
     }
 
     @Test
+    void importNewCoursePersistsVisibleDraftContentOnCourse() {
+        CourseImportArchiveReader zipReader = mock(CourseImportArchiveReader.class);
+        CourseExcelTemplateParser templateParser = mock(CourseExcelTemplateParser.class);
+        CourseExcelTemplateExporter templateExporter = mock(CourseExcelTemplateExporter.class);
+        AudioFileValidator audioFileValidator = mock(AudioFileValidator.class);
+        ClamAvClient clamAvClient = mock(ClamAvClient.class);
+        StorageService storageService = mock(StorageService.class);
+        CourseRepository courseRepository = mock(CourseRepository.class);
+        CourseRevisionRepository courseRevisionRepository = mock(CourseRevisionRepository.class);
+        CourseImportExportService service = new CourseImportExportService(zipReader, templateParser, templateExporter,
+                audioFileValidator, clamAvClient, storageService, courseRepository, courseRevisionRepository);
+        ArgumentCaptor<Course> courseCaptor = ArgumentCaptor.forClass(Course.class);
+        CourseImportPackage importPackage = new CourseImportPackage(new byte[] {1}, Map.of());
+
+        when(zipReader.read(any(), any())).thenReturn(importPackage);
+        when(templateParser.parse(importPackage.workbook())).thenReturn(courseImportModel(null, null));
+        when(courseRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0, Course.class));
+        when(courseRevisionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.importCourse(new User(), new MockMultipartFile("file", "course.zip", "application/zip", new byte[] {1}));
+
+        verify(courseRepository).save(courseCaptor.capture());
+        Course savedCourse = courseCaptor.getValue();
+        assertThat(savedCourse.getTopics()).hasSize(1);
+        assertThat(savedCourse.getTopics().getFirst().getName()).isEqualTo("Greetings");
+        assertThat(savedCourse.getTopics().getFirst().getLessons()).hasSize(1);
+        assertThat(savedCourse.getTopics().getFirst().getLessons().getFirst().getTitle()).isEqualTo("Hello");
+        assertThat(savedCourse.getTopics().getFirst().getLessons().getFirst().getQuestions()).hasSize(1);
+        assertThat(savedCourse.getTopics().getFirst().getLessons().getFirst().getQuestions().getFirst().getQuestionText())
+                .isEqualTo("Say hello");
+    }
+
+    @Test
     void importCourseRegistersRollbackCleanupForUploadedAudio() {
-        CourseImportZipReader zipReader = mock(CourseImportZipReader.class);
+        CourseImportArchiveReader zipReader = mock(CourseImportArchiveReader.class);
         CourseExcelTemplateParser templateParser = mock(CourseExcelTemplateParser.class);
         CourseExcelTemplateExporter templateExporter = mock(CourseExcelTemplateExporter.class);
         AudioFileValidator audioFileValidator = mock(AudioFileValidator.class);
@@ -93,7 +174,7 @@ class CourseImportExportServiceTests {
                 new byte[] {1},
                 Map.of("audio/lesson.mp3", new CourseImportPackage.ImportFile(
                         "audio/lesson.mp3", "audio/mpeg", new byte[] {1, 2, 3})));
-        when(zipReader.read(any())).thenReturn(importPackage);
+        when(zipReader.read(any(), any())).thenReturn(importPackage);
         when(templateParser.parse(importPackage.workbook())).thenReturn(courseImportModelWithAudio());
         when(storageService.uploadLessonAudio(any())).thenReturn(new StorageUploadResult("https://cdn/audio.mp3", "audio-public-id"));
         when(courseRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0, Course.class));
@@ -115,7 +196,7 @@ class CourseImportExportServiceTests {
 
     @Test
     void reimportApprovedCourseCopiesPricingMetadataToNewDraftRevision() {
-        CourseImportZipReader zipReader = mock(CourseImportZipReader.class);
+        CourseImportArchiveReader zipReader = mock(CourseImportArchiveReader.class);
         CourseExcelTemplateParser templateParser = mock(CourseExcelTemplateParser.class);
         CourseExcelTemplateExporter templateExporter = mock(CourseExcelTemplateExporter.class);
         AudioFileValidator audioFileValidator = mock(AudioFileValidator.class);
@@ -144,7 +225,7 @@ class CourseImportExportServiceTests {
         CourseImportModel model = courseImportModel(42L, null);
         ArgumentCaptor<CourseRevision> revisionCaptor = ArgumentCaptor.forClass(CourseRevision.class);
 
-        when(zipReader.read(any())).thenReturn(importPackage);
+        when(zipReader.read(any(), any())).thenReturn(importPackage);
         when(templateParser.parse(importPackage.workbook())).thenReturn(model);
         when(courseRepository.findByIdAndTeacher(42L, teacher)).thenReturn(Optional.of(course));
         when(courseRevisionRepository.findTopByCourseOrderByRevisionNumberDesc(course)).thenReturn(Optional.of(sourceRevision));
@@ -160,7 +241,7 @@ class CourseImportExportServiceTests {
 
     @Test
     void reimportPendingCourseSupersedesSourceRevision() {
-        CourseImportZipReader zipReader = mock(CourseImportZipReader.class);
+        CourseImportArchiveReader zipReader = mock(CourseImportArchiveReader.class);
         CourseExcelTemplateParser templateParser = mock(CourseExcelTemplateParser.class);
         CourseExcelTemplateExporter templateExporter = mock(CourseExcelTemplateExporter.class);
         AudioFileValidator audioFileValidator = mock(AudioFileValidator.class);
@@ -184,7 +265,7 @@ class CourseImportExportServiceTests {
         CourseImportModel model = courseImportModel(42L, null);
         ArgumentCaptor<CourseRevision> revisionCaptor = ArgumentCaptor.forClass(CourseRevision.class);
 
-        when(zipReader.read(any())).thenReturn(importPackage);
+        when(zipReader.read(any(), any())).thenReturn(importPackage);
         when(templateParser.parse(importPackage.workbook())).thenReturn(model);
         when(courseRepository.findByIdAndTeacher(42L, teacher)).thenReturn(Optional.of(course));
         when(courseRevisionRepository.findTopByCourseOrderByRevisionNumberDesc(course)).thenReturn(Optional.of(sourceRevision));

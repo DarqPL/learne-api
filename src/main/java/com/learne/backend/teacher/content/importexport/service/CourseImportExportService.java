@@ -7,9 +7,13 @@ import com.learne.backend.storage.dto.StorageUploadResult;
 import com.learne.backend.storage.service.StorageService;
 import com.learne.backend.teacher.content.entity.Course;
 import com.learne.backend.teacher.content.entity.CourseRevision;
+import com.learne.backend.teacher.content.entity.Lesson;
 import com.learne.backend.teacher.content.entity.LessonRevision;
+import com.learne.backend.teacher.content.entity.Question;
+import com.learne.backend.teacher.content.entity.QuestionOption;
 import com.learne.backend.teacher.content.entity.QuestionOptionRevision;
 import com.learne.backend.teacher.content.entity.QuestionRevision;
+import com.learne.backend.teacher.content.entity.Topic;
 import com.learne.backend.teacher.content.entity.TopicRevision;
 import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.enums.CoursePricingType;
@@ -27,17 +31,19 @@ import com.learne.backend.teacher.content.importexport.security.AudioFileValidat
 import com.learne.backend.teacher.content.importexport.security.ClamAvClient;
 import com.learne.backend.teacher.content.importexport.template.CourseExcelTemplateExporter;
 import com.learne.backend.teacher.content.importexport.template.CourseExcelTemplateParser;
-import com.learne.backend.teacher.content.importexport.zip.CourseImportPackage;
-import com.learne.backend.teacher.content.importexport.zip.CourseImportZipReader;
+import com.learne.backend.teacher.content.importexport.archive.CourseImportArchiveReader;
+import com.learne.backend.teacher.content.importexport.archive.CourseImportPackage;
 import com.learne.backend.teacher.content.repository.CourseRepository;
 import com.learne.backend.teacher.content.repository.CourseRevisionRepository;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -51,7 +57,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class CourseImportExportService {
     private static final Logger log = LoggerFactory.getLogger(CourseImportExportService.class);
 
-    private final CourseImportZipReader zipReader;
+    private final CourseImportArchiveReader archiveReader;
     private final CourseExcelTemplateParser templateParser;
     private final CourseExcelTemplateExporter templateExporter;
     private final AudioFileValidator audioFileValidator;
@@ -60,15 +66,15 @@ public class CourseImportExportService {
     private final CourseRepository courseRepository;
     private final CourseRevisionRepository courseRevisionRepository;
 
-    public CourseImportExportService(CourseImportZipReader zipReader,
-                                      CourseExcelTemplateParser templateParser,
+    public CourseImportExportService(CourseImportArchiveReader archiveReader,
+                                       CourseExcelTemplateParser templateParser,
                                       CourseExcelTemplateExporter templateExporter,
                                       AudioFileValidator audioFileValidator,
                                       ClamAvClient clamAvClient,
                                       StorageService storageService,
                                      CourseRepository courseRepository,
                                      CourseRevisionRepository courseRevisionRepository) {
-        this.zipReader = zipReader;
+        this.archiveReader = archiveReader;
         this.templateParser = templateParser;
         this.templateExporter = templateExporter;
         this.audioFileValidator = audioFileValidator;
@@ -80,12 +86,13 @@ public class CourseImportExportService {
 
     @Transactional
     public CourseImportResponse importCourse(User teacher, MultipartFile file) {
-        CourseImportPackage importPackage = zipReader.read(bytes(file));
+        CourseImportPackage importPackage = archiveReader.read(bytes(file), file.getOriginalFilename());
         CourseImportModel model = templateParser.parse(importPackage.workbook());
         if (model.courseId() != null) {
             return reimportExistingCourse(teacher, importPackage, model);
         }
         validateNewCourseModel(model);
+        validateAudioReferences(importPackage, model);
         List<String> uploadedAudioPublicIds = new ArrayList<>();
         registerRollbackAudioCleanup(uploadedAudioPublicIds);
 
@@ -98,6 +105,7 @@ public class CourseImportExportService {
             course.setLevel(model.level().trim());
             course.setOrderIndex(valueOrZero(model.orderIndex()));
             course.setStatus(ContentStatus.DRAFT);
+            populateCourse(importPackage, model, course, teacher, uploadedAudioPublicIds);
             Course savedCourse = courseRepository.save(course);
 
             CourseRevision revision = new CourseRevision();
@@ -107,8 +115,7 @@ public class CourseImportExportService {
             revision.setStatus(CourseRevisionStatus.DRAFT);
             applyRevisionMetadata(revision, model);
             applyRevisionPricingMetadata(revision, savedCourse);
-            populateRevision(importPackage, model, revision, teacher, uploadedAudioPublicIds,
-                    Map.of(), Map.of(), Map.of(), Map.of());
+            populateRevisionFromCourse(savedCourse, revision);
 
             CourseRevision savedRevision = courseRevisionRepository.save(revision);
             return new CourseImportResponse(savedCourse.getId(), savedRevision.getId(), CourseRevisionStatus.DRAFT.name(), List.of());
@@ -139,6 +146,7 @@ public class CourseImportExportService {
                 ? newDraftRevisionFrom(course, teacher)
                 : sourceRevision;
         validateExistingCourseModel(model, sourceRevision);
+        validateAudioReferences(importPackage, model);
 
         List<String> uploadedAudioPublicIds = new ArrayList<>();
         registerRollbackAudioCleanup(uploadedAudioPublicIds);
@@ -250,9 +258,134 @@ public class CourseImportExportService {
         }
     }
 
+    private void populateCourse(CourseImportPackage importPackage, CourseImportModel model, Course course,
+            User teacher, List<String> uploadedAudioPublicIds) {
+        for (TopicImportModel topicModel : model.topics()) {
+            Topic topic = new Topic();
+            topic.setCourse(course);
+            topic.setName(topicModel.title().trim());
+            topic.setDescription(topicModel.description());
+            topic.setOrderIndex(topicModel.orderIndex());
+            course.getTopics().add(topic);
+
+            for (LessonImportModel lessonModel : topicModel.lessons()) {
+                Lesson lesson = new Lesson();
+                lesson.setTopic(topic);
+                lesson.setTeacher(teacher);
+                lesson.setTitle(lessonModel.title().trim());
+                lesson.setDescription(lessonModel.description());
+                lesson.setContent(lessonModel.content());
+                lesson.setSkillType(enumValue(SkillType.class, lessonModel.skillType(), "skill_type"));
+                lesson.setOrderIndex(lessonModel.orderIndex());
+                lesson.setXpReward(valueOrZero(lessonModel.xpReward()));
+                lesson.setPlacementTest(lessonModel.placementTest());
+                lesson.setStatus(ContentStatus.DRAFT);
+                applyAudio(importPackage, lessonModel, lesson, uploadedAudioPublicIds);
+                topic.getLessons().add(lesson);
+
+                for (QuestionImportModel questionModel : lessonModel.questions()) {
+                    Question question = new Question();
+                    question.setLesson(lesson);
+                    question.setTeacher(teacher);
+                    question.setType(enumValue(QuestionType.class, questionModel.type(), "question_type"));
+                    question.setQuestionText(questionModel.questionText().trim());
+                    question.setExplanation(questionModel.explanation());
+                    question.setCorrectAnswer(questionModel.correctAnswer());
+                    question.setKnowledgePoint(questionModel.knowledgePoint());
+                    question.setOrderIndex(questionModel.orderIndex());
+                    question.setDifficulty(questionModel.difficulty());
+                    question.setXpReward(valueOrZero(questionModel.xpReward()));
+                    question.setStatus(ContentStatus.DRAFT);
+                    lesson.getQuestions().add(question);
+
+                    for (OptionImportModel optionModel : questionModel.options()) {
+                        QuestionOption option = new QuestionOption();
+                        option.setQuestion(question);
+                        option.setOptionText(optionModel.text());
+                        option.setCorrect(optionModel.correct());
+                        option.setOrderIndex(optionModel.orderIndex());
+                        question.getOptions().add(option);
+                    }
+                }
+            }
+        }
+    }
+
+    private void populateRevisionFromCourse(Course course, CourseRevision revision) {
+        for (Topic topic : course.getTopics()) {
+            TopicRevision topicRevision = new TopicRevision();
+            topicRevision.setCourseRevision(revision);
+            topicRevision.setSourceTopic(topic);
+            topicRevision.setName(topic.getName());
+            topicRevision.setDescription(topic.getDescription());
+            topicRevision.setOrderIndex(topic.getOrderIndex());
+            revision.getTopics().add(topicRevision);
+
+            for (Lesson lesson : topic.getLessons()) {
+                LessonRevision lessonRevision = new LessonRevision();
+                lessonRevision.setTopicRevision(topicRevision);
+                lessonRevision.setSourceLesson(lesson);
+                lessonRevision.setTeacher(lesson.getTeacher());
+                lessonRevision.setTitle(lesson.getTitle());
+                lessonRevision.setDescription(lesson.getDescription());
+                lessonRevision.setContent(lesson.getContent());
+                lessonRevision.setAudioUrl(lesson.getAudioUrl());
+                lessonRevision.setAudioPublicId(lesson.getAudioPublicId());
+                lessonRevision.setSkillType(lesson.getSkillType());
+                lessonRevision.setOrderIndex(lesson.getOrderIndex());
+                lessonRevision.setXpReward(lesson.getXpReward());
+                lessonRevision.setPlacementTest(lesson.isPlacementTest());
+                topicRevision.getLessons().add(lessonRevision);
+
+                for (Question question : lesson.getQuestions()) {
+                    QuestionRevision questionRevision = new QuestionRevision();
+                    questionRevision.setLessonRevision(lessonRevision);
+                    questionRevision.setSourceQuestion(question);
+                    questionRevision.setTeacher(question.getTeacher());
+                    questionRevision.setType(question.getType());
+                    questionRevision.setQuestionText(question.getQuestionText());
+                    questionRevision.setExplanation(question.getExplanation());
+                    questionRevision.setCorrectAnswer(question.getCorrectAnswer());
+                    questionRevision.setKnowledgePoint(question.getKnowledgePoint());
+                    questionRevision.setOrderIndex(question.getOrderIndex());
+                    questionRevision.setDifficulty(question.getDifficulty());
+                    questionRevision.setXpReward(question.getXpReward());
+                    lessonRevision.getQuestions().add(questionRevision);
+
+                    for (QuestionOption option : question.getOptions()) {
+                        QuestionOptionRevision optionRevision = new QuestionOptionRevision();
+                        optionRevision.setQuestionRevision(questionRevision);
+                        optionRevision.setSourceOption(option);
+                        optionRevision.setOptionText(option.getOptionText());
+                        optionRevision.setCorrect(option.isCorrect());
+                        optionRevision.setOrderIndex(option.getOrderIndex());
+                        questionRevision.getOptions().add(optionRevision);
+                    }
+                }
+            }
+        }
+    }
+
     private void applyAudio(CourseImportPackage importPackage, LessonImportModel lessonModel, LessonRevision lesson,
             List<String> uploadedAudioPublicIds) {
         applyAudio(importPackage, lessonModel, lesson, uploadedAudioPublicIds, Map.of());
+    }
+
+    private void applyAudio(CourseImportPackage importPackage, LessonImportModel lessonModel, Lesson lesson,
+            List<String> uploadedAudioPublicIds) {
+        if (!hasText(lessonModel.audioFile())) {
+            return;
+        }
+
+        CourseImportPackage.ImportFile audio = audioFile(importPackage, lessonModel.audioFile());
+        audioFileValidator.validate(audio);
+        clamAvClient.assertClean(audio.path(), audio.bytes());
+        StorageUploadResult uploadResult = storageService.uploadLessonAudio(new ImportMultipartFile(audio));
+        if (hasText(uploadResult.publicId())) {
+            uploadedAudioPublicIds.add(uploadResult.publicId());
+        }
+        lesson.setAudioUrl(uploadResult.url());
+        lesson.setAudioPublicId(uploadResult.publicId());
     }
 
     private void applyAudio(CourseImportPackage importPackage, LessonImportModel lessonModel, LessonRevision lesson,
@@ -303,6 +436,30 @@ public class CourseImportExportService {
 
     private void validateNewCourseModel(CourseImportModel model) {
         validateCourseModel(model);
+    }
+
+    private void validateAudioReferences(CourseImportPackage importPackage, CourseImportModel model) {
+        Set<String> referenced = new HashSet<>();
+        for (TopicImportModel topic : model.topics()) {
+            for (LessonImportModel lesson : topic.lessons()) {
+                if (!hasText(lesson.audioFile())) {
+                    continue;
+                }
+                String path = lesson.audioFile().trim();
+                if (!path.startsWith("audio/")) {
+                    throw badRequest("File audio phải nằm trong thư mục audio/: " + path);
+                }
+                if (!importPackage.audioFiles().containsKey(path)) {
+                    throw badRequest("Không tìm thấy file audio được tham chiếu: " + path);
+                }
+                referenced.add(path);
+            }
+        }
+        for (String path : importPackage.audioFiles().keySet()) {
+            if (!referenced.contains(path)) {
+                throw badRequest("File audio không được tham chiếu trong Excel: " + path);
+            }
+        }
     }
 
     private void validateExistingCourseModel(CourseImportModel model, CourseRevision revision) {
@@ -520,12 +677,12 @@ public class CourseImportExportService {
 
     private byte[] bytes(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw badRequest("File ZIP không hợp lệ");
+            throw badRequest("Gói nhập không hợp lệ");
         }
         try {
             return file.getBytes();
         } catch (IOException exception) {
-            throw badRequest("File ZIP không hợp lệ");
+            throw badRequest("Gói nhập không hợp lệ");
         }
     }
 
