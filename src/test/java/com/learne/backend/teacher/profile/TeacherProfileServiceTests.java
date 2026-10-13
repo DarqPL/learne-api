@@ -8,6 +8,7 @@ import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRole;
 import com.learne.backend.storage.dto.StorageResourceType;
 import com.learne.backend.storage.dto.StorageUploadResult;
+import com.learne.backend.storage.dto.StorageDownloadResult;
 import com.learne.backend.storage.service.StorageService;
 import com.learne.backend.teacher.profile.dto.TeacherProfileResponse;
 import com.learne.backend.teacher.profile.dto.UpdateTeacherProfileRequest;
@@ -122,6 +123,11 @@ class TeacherProfileServiceTests {
         @Override
         public StorageUploadResult uploadLessonAudio(MultipartFile file) {
             return new StorageUploadResult("https://example.com/audio.mp3", "audio-public-id");
+        }
+
+        @Override
+        public StorageDownloadResult downloadLessonAudio(String publicId, String fallbackUrl) {
+            return new StorageDownloadResult("audio/mpeg", new byte[0]);
         }
 
         @Override

@@ -1,4 +1,4 @@
-package com.learne.backend.teacher.content.importexport.zip;
+package com.learne.backend.teacher.content.importexport.archive;
 
 import java.util.Map;
 

@@ -18,6 +18,8 @@ public record LessonResponse(
         int orderIndex,
         int xpReward,
         boolean placementTest,
+        String audioUrl,
+        String audioPublicId,
         ContentStatus status,
         String rejectionReason,
         List<QuestionResponse> questions
@@ -32,6 +34,8 @@ public record LessonResponse(
                 lesson.getOrderIndex(),
                 lesson.getXpReward(),
                 lesson.isPlacementTest(),
+                lesson.getAudioUrl(),
+                lesson.getAudioPublicId(),
                 lesson.getStatus(),
                 lesson.getRejectionReason(),
                 lesson.getQuestions().stream()
@@ -55,6 +59,8 @@ public record LessonResponse(
                 lesson.getOrderIndex(),
                 lesson.getXpReward(),
                 lesson.isPlacementTest(),
+                lesson.getAudioUrl(),
+                lesson.getAudioPublicId(),
                 status,
                 null,
                 lesson.getQuestions().stream()

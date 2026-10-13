@@ -23,6 +23,9 @@ import com.learne.backend.student.learning.ai.AiLearningPathClient;
 import com.learne.backend.student.learning.ai.AiLearningPathRequest;
 import com.learne.backend.student.learning.ai.AiLearningPathResponse;
 import com.learne.backend.testsupport.TestDatabaseCleaner;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointClient;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointRequest;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointResponse;
 import com.learne.backend.student.learning.enums.LearningPathStatus;
 import com.learne.backend.student.learning.repository.CourseEnrollmentRepository;
 import com.learne.backend.student.learning.repository.LearningActivityRepository;
@@ -79,12 +82,20 @@ class StudentLearningPathApiTests {
     @Autowired private MockMvc mockMvc;
 
     @MockitoBean private AiLearningPathClient aiLearningPathClient;
+    @MockitoBean private CourseKnowledgePointClient courseKnowledgePointClient;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
         TestDatabaseCleaner.clean(jdbcTemplate);
+        when(courseKnowledgePointClient.enrichKnowledgePoints(any())).thenAnswer(invocation -> {
+            CourseKnowledgePointRequest request = invocation.getArgument(0);
+            return new CourseKnowledgePointResponse(request.questions().stream()
+                    .map(question -> new CourseKnowledgePointResponse.Item(
+                            question.questionId(), "test_knowledge_point"))
+                    .toList());
+        });
     }
 
     @Test

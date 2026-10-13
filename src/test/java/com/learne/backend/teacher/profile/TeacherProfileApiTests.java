@@ -16,6 +16,7 @@ import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
 import com.learne.backend.storage.dto.StorageResourceType;
 import com.learne.backend.storage.dto.StorageUploadResult;
+import com.learne.backend.storage.dto.StorageDownloadResult;
 import com.learne.backend.storage.service.StorageService;
 import com.learne.backend.testsupport.TestDatabaseCleaner;
 import com.learne.backend.teacher.profile.entity.TeacherProfile;
@@ -522,6 +523,11 @@ class TeacherProfileApiTests {
                     "https://res.cloudinary.com/demo/video/upload/audio.mp3",
                     "learne/course-audio/audio"
             );
+        }
+
+        @Override
+        public StorageDownloadResult downloadLessonAudio(String publicId, String fallbackUrl) {
+            return new StorageDownloadResult("audio/mpeg", new byte[0]);
         }
 
         @Override

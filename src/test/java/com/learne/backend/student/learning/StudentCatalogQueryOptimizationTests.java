@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,6 +18,9 @@ import com.learne.backend.monetization.enums.CourseEntitlementSource;
 import com.learne.backend.monetization.repository.CourseEntitlementRepository;
 import com.learne.backend.teacher.content.repository.CourseRepository;
 import com.learne.backend.testsupport.TestDatabaseCleaner;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointClient;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointRequest;
+import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointResponse;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,6 +33,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -42,12 +48,20 @@ class StudentCatalogQueryOptimizationTests {
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private CacheManager cacheManager;
     @Autowired private MockMvc mockMvc;
+    @MockitoBean private CourseKnowledgePointClient courseKnowledgePointClient;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
         TestDatabaseCleaner.clean(jdbcTemplate, cacheManager);
+        when(courseKnowledgePointClient.enrichKnowledgePoints(any())).thenAnswer(invocation -> {
+            CourseKnowledgePointRequest request = invocation.getArgument(0);
+            return new CourseKnowledgePointResponse(request.questions().stream()
+                    .map(question -> new CourseKnowledgePointResponse.Item(
+                            question.questionId(), "test_knowledge_point"))
+                    .toList());
+        });
     }
 
     @Test

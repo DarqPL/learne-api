@@ -6,8 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.learne.backend.teacher.content.importexport.security.AudioFileValidator;
 import com.learne.backend.teacher.content.importexport.security.TcpClamAvClient;
-import com.learne.backend.teacher.content.importexport.zip.CourseImportPackage;
-import com.learne.backend.teacher.content.importexport.zip.CourseImportZipReader;
+import com.learne.backend.teacher.content.importexport.archive.CourseImportArchiveReader;
+import com.learne.backend.teacher.content.importexport.archive.CourseImportPackage;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -27,7 +27,7 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 class CourseImportSecurityTests {
     @Autowired
-    private CourseImportZipReader zipReader;
+    private CourseImportArchiveReader zipReader;
 
     @Autowired
     private AudioFileValidator audioFileValidator;
@@ -36,40 +36,40 @@ class CourseImportSecurityTests {
     void zipReaderRejectsZipSlipPath() throws Exception {
         byte[] zip = zipWithEntry("../evil.txt", "bad".getBytes(StandardCharsets.UTF_8));
 
-        assertThatThrownBy(() -> zipReader.read(zip))
-                .hasMessageContaining("Đường dẫn trong file ZIP không hợp lệ");
+        assertThatThrownBy(() -> zipReader.read(zip, "course.zip"))
+                .hasMessageContaining("Đường dẫn trong gói nhập không hợp lệ");
     }
 
     @Test
     void zipReaderRejectsRootAbsolutePath() throws Exception {
         byte[] zip = zipWithEntry("/evil.xlsx", "bad".getBytes(StandardCharsets.UTF_8));
 
-        assertThatThrownBy(() -> zipReader.read(zip))
-                .hasMessageContaining("Đường dẫn trong file ZIP không hợp lệ");
+        assertThatThrownBy(() -> zipReader.read(zip, "course.zip"))
+                .hasMessageContaining("Đường dẫn trong gói nhập không hợp lệ");
     }
 
     @Test
     void zipReaderRejectsDriveLetterAbsolutePath() throws Exception {
         byte[] zip = zipWithEntry("C:/evil.xlsx", "bad".getBytes(StandardCharsets.UTF_8));
 
-        assertThatThrownBy(() -> zipReader.read(zip))
-                .hasMessageContaining("Đường dẫn trong file ZIP không hợp lệ");
+        assertThatThrownBy(() -> zipReader.read(zip, "course.zip"))
+                .hasMessageContaining("Đường dẫn trong gói nhập không hợp lệ");
     }
 
     @Test
     void zipReaderRejectsTraversalSegment() throws Exception {
         byte[] zip = zipWithEntry("audio/../evil.xlsx", "bad".getBytes(StandardCharsets.UTF_8));
 
-        assertThatThrownBy(() -> zipReader.read(zip))
-                .hasMessageContaining("Đường dẫn trong file ZIP không hợp lệ");
+        assertThatThrownBy(() -> zipReader.read(zip, "course.zip"))
+                .hasMessageContaining("Đường dẫn trong gói nhập không hợp lệ");
     }
 
     @Test
     void zipReaderCountsDirectoryEntriesTowardEntryLimit() throws Exception {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(output)) {
-            for (int i = 0; i < 50; i++) {
-                zip.putNextEntry(new ZipEntry("folder-%02d/".formatted(i)));
+            for (int i = 0; i < 300; i++) {
+                zip.putNextEntry(new ZipEntry("folder-%03d/".formatted(i)));
                 zip.closeEntry();
             }
             zip.putNextEntry(new ZipEntry("course.xlsx"));
@@ -77,7 +77,7 @@ class CourseImportSecurityTests {
             zip.closeEntry();
         }
 
-        assertThatThrownBy(() -> zipReader.read(output.toByteArray()))
+        assertThatThrownBy(() -> zipReader.read(output.toByteArray(), "course.zip"))
                 .hasMessageContaining("Gói nhập vượt quá số lượng file cho phép");
     }
 

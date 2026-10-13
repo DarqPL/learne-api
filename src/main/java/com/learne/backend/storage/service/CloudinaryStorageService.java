@@ -5,28 +5,41 @@ import com.cloudinary.utils.ObjectUtils;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.storage.config.CloudinaryProperties;
 import com.learne.backend.storage.dto.StorageResourceType;
+import com.learne.backend.storage.dto.StorageDownloadResult;
 import com.learne.backend.storage.dto.StorageUploadResult;
+import com.learne.backend.teacher.content.importexport.security.AudioFileValidator;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
+import java.net.URI;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLConnection;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
 class CloudinaryStorageService implements StorageService {
     private static final int MAX_SIGNATURE_BYTES = 12;
-    private static final long MAX_AUDIO_BYTES = 20L * 1024L * 1024L;
+    private static final int DOWNLOAD_TIMEOUT_MILLIS = 8_000;
     private static final Set<String> AVATAR_CONTENT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
     private static final Set<String> VIDEO_CONTENT_TYPES = Set.of("video/mp4", "video/webm", "video/quicktime");
-    private static final Set<String> AUDIO_CONTENT_TYPES = Set.of(
-            "audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/ogg");
 
     private final CloudinaryProperties properties;
+    private final ConnectionFactory connectionFactory;
 
+    @Autowired
     CloudinaryStorageService(CloudinaryProperties properties) {
+        this(properties, URL::openConnection);
+    }
+
+    CloudinaryStorageService(CloudinaryProperties properties, ConnectionFactory connectionFactory) {
         this.properties = properties;
+        this.connectionFactory = connectionFactory;
     }
 
     @Override
@@ -49,8 +62,58 @@ class CloudinaryStorageService implements StorageService {
 
     @Override
     public StorageUploadResult uploadLessonAudio(MultipartFile file) {
-        validateFile(file, AUDIO_CONTENT_TYPES, MAX_AUDIO_BYTES, "File audio không hợp lệ.");
+        validateFile(file, AudioFileValidator.ALLOWED_TYPES, AudioFileValidator.MAX_AUDIO_BYTES, "File audio không hợp lệ.");
         return upload(file, courseAudioFolder(), StorageResourceType.VIDEO);
+    }
+
+    @Override
+    public StorageDownloadResult downloadLessonAudio(String publicId, String fallbackUrl) {
+        ensureConfigured();
+        String url = fallbackUrl;
+        if (isBlank(url) && !isBlank(publicId)) {
+            url = cloudinary().url()
+                    .resourceType(StorageResourceType.VIDEO.cloudinaryValue())
+                    .secure(true)
+                    .generate(publicId);
+        }
+        if (isBlank(url)) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "Không tìm thấy URL audio bài học.");
+        }
+        if (!isApprovedCloudinaryUrl(url)) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "Không thể tải audio bài học từ Cloudinary.");
+        }
+
+        try {
+            URLConnection connection = connectionFactory.open(URI.create(url).toURL());
+            connection.setConnectTimeout(DOWNLOAD_TIMEOUT_MILLIS);
+            connection.setReadTimeout(DOWNLOAD_TIMEOUT_MILLIS);
+            if (connection instanceof HttpURLConnection httpConnection) {
+                httpConnection.setInstanceFollowRedirects(false);
+                int responseCode = httpConnection.getResponseCode();
+                if (responseCode >= 300 && responseCode < 400) {
+                    throw new ApiException(HttpStatus.BAD_GATEWAY,
+                            "Không thể tải audio bài học từ Cloudinary.");
+                }
+            }
+            try (InputStream input = connection.getInputStream()) {
+                byte[] bytes = readBounded(input);
+                if (bytes.length > AudioFileValidator.MAX_AUDIO_BYTES) {
+                    throw new ApiException(HttpStatus.BAD_GATEWAY, "Audio bài học vượt quá dung lượng cho phép.");
+                }
+                String contentType = URLConnection.guessContentTypeFromName(url);
+                if (contentType == null) {
+                    contentType = AudioFileValidator.detectContentType(bytes);
+                }
+                if (!AudioFileValidator.isValidAudio(contentType, bytes)) {
+                    throw new ApiException(HttpStatus.BAD_GATEWAY, "Không thể tải audio bài học từ Cloudinary.");
+                }
+                return new StorageDownloadResult(contentType, bytes);
+            }
+        } catch (ApiException ex) {
+            throw ex;
+        } catch (IllegalArgumentException | IOException ex) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "Không thể tải audio bài học từ Cloudinary.");
+        }
     }
 
     @Override
@@ -125,6 +188,49 @@ class CloudinaryStorageService implements StorageService {
         return matchesAt(bytes, 0, expected);
     }
 
+    private byte[] readBounded(InputStream input) throws IOException {
+        long deadline = System.nanoTime() + DOWNLOAD_TIMEOUT_MILLIS * 1_000_000L;
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        while (output.size() <= AudioFileValidator.MAX_AUDIO_BYTES) {
+            if (System.nanoTime() >= deadline) {
+                throw new IOException("Audio download deadline exceeded.");
+            }
+            int read = input.read(buffer);
+            if (read < 0) {
+                return output.toByteArray();
+            }
+            output.write(buffer, 0, read);
+            if (output.size() > AudioFileValidator.MAX_AUDIO_BYTES) {
+                return output.toByteArray();
+            }
+        }
+        return output.toByteArray();
+    }
+
+    private boolean isApprovedCloudinaryUrl(String value) {
+        try {
+            URI uri = URI.create(value);
+            String host = uri.getHost();
+            String cloudName = properties.getCloudName();
+            if (isBlank(cloudName)) {
+                return false;
+            }
+            String configuredHost = cloudName + ".res.cloudinary.com";
+            String configuredPathPrefix = "/" + cloudName + "/";
+            String path = uri.getPath();
+            return "https".equalsIgnoreCase(uri.getScheme())
+                    && host != null
+                    && ((configuredHost.equalsIgnoreCase(host))
+                    || ("res.cloudinary.com".equalsIgnoreCase(host)
+                    && path != null
+                    && (path.equalsIgnoreCase("/" + cloudName)
+                    || path.regionMatches(true, 0, configuredPathPrefix, 0, configuredPathPrefix.length()))));
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
+    }
+
     private boolean matchesAt(byte[] bytes, int offset, int... expected) {
         if (bytes.length < offset + expected.length) {
             return false;
@@ -174,5 +280,10 @@ class CloudinaryStorageService implements StorageService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    @FunctionalInterface
+    interface ConnectionFactory {
+        URLConnection open(URL url) throws IOException;
     }
 }
