@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.mockito.ArgumentMatchers.any;
@@ -36,8 +37,10 @@ import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointClient;
 import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointRequest;
 import com.learne.backend.teacher.content.enrichment.CourseKnowledgePointResponse;
 import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
 import java.util.Map;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -221,7 +224,6 @@ class TeacherContentApiTests {
     }
 
     @Test
-    @Disabled("Existing-course hidden-ID reimport is out of scope for the XLSM import redesign.")
     void teacherCanExportEditAndReimportCourseAsSourceOfTruth() throws Exception {
         User teacher = saveUser("reimport-teacher@example.com", UserRole.TEACHER);
         String teacherToken = loginAndGetAccessToken(teacher.getEmail());
@@ -249,10 +251,10 @@ class TeacherContentApiTests {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION,
-                        org.hamcrest.Matchers.containsString("course-" + courseId + ".xlsx")))
+                        org.hamcrest.Matchers.containsString("course-" + courseId + "-export.zip")))
                 .andReturn();
 
-        byte[] editedWorkbook = replaceExportedQuestion(exportResult.getResponse().getContentAsByteArray(),
+        byte[] editedWorkbook = replaceExportedQuestion(exportedWorkbook(exportResult.getResponse().getContentAsByteArray()),
                 "Choose the replacement greeting.", "Hi", "Banana");
         MockMultipartFile reimport = new MockMultipartFile(
                 "file",
@@ -292,7 +294,7 @@ class TeacherContentApiTests {
         assertThat(removedQuestionCount).isZero();
         assertThat(newQuestionCount).isEqualTo(1);
         assertThat(totalQuestionCount).isEqualTo(1);
-        assertThat(liveQuestionCount).isZero();
+        assertThat(liveQuestionCount).isEqualTo(1);
     }
 
     @Test
@@ -309,14 +311,40 @@ class TeacherContentApiTests {
                 .andReturn();
 
         try (Workbook workbook = new XSSFWorkbook(
-                new java.io.ByteArrayInputStream(exportResult.getResponse().getContentAsByteArray()))) {
+                new java.io.ByteArrayInputStream(exportedWorkbook(exportResult.getResponse().getContentAsByteArray())))) {
             Row row = workbook.getSheet("Content").getRow(1);
 
-            assertThat(row.getCell(6).getStringCellValue()).isEqualTo("Topic");
-            assertThat(row.getCell(9).getStringCellValue()).isEqualTo("Lesson");
-            assertThat(row.getCell(18).getStringCellValue()).isEqualTo("Write the greeting.");
-            assertThat(row.getCell(20).getStringCellValue()).isEqualTo("Hello");
-            assertThat(row.getCell(27).getStringCellValue()).isEqualTo("greetings");
+            assertThat(row.getCell(0).getStringCellValue()).isEqualTo("Topic");
+            assertThat(row.getCell(2).getStringCellValue()).isEqualTo("Lesson");
+            assertThat(row.getCell(8).getStringCellValue()).isEqualTo("Write the greeting.");
+            assertThat(row.getCell(10).getStringCellValue()).isEqualTo("Hello");
+            assertThat(row.getCell(21)).isNull();
+            assertThat(row.getCell(22)).isNull();
+        }
+    }
+
+    @Test
+    void exportCourseReturnsZipPackageWithExactlyOneWorkbookEntry() throws Exception {
+        User teacher = saveUser("zip-export-teacher@example.com", UserRole.TEACHER);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        long courseId = createCourse(teacherToken);
+        long lessonId = createLesson(teacherToken, courseId);
+        createShortAnswerQuestion(teacherToken, lessonId);
+
+        byte[] response = mockMvc.perform(get("/api/teacher/content/courses/{courseId}/export", courseId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION,
+                        org.hamcrest.Matchers.containsString("course-" + courseId + "-export.zip")))
+                .andExpect(content().contentType("application/zip"))
+                .andReturn().getResponse().getContentAsByteArray();
+
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(response))) {
+            ZipEntry entry = zip.getNextEntry();
+            assertThat(entry).isNotNull();
+            assertThat(entry.getName()).isEqualTo("course-" + courseId + ".xlsm");
+            assertThat(zip.readAllBytes()).isNotEmpty();
+            assertThat(zip.getNextEntry()).isNull();
         }
     }
 
@@ -355,10 +383,10 @@ class TeacherContentApiTests {
                 .andReturn();
 
         try (Workbook workbook = new XSSFWorkbook(
-                new java.io.ByteArrayInputStream(exportResult.getResponse().getContentAsByteArray()))) {
-            Row row = workbook.getSheet("Content").getRow(1);
+                new java.io.ByteArrayInputStream(exportedWorkbook(exportResult.getResponse().getContentAsByteArray())))) {
+            Row row = workbook.getSheet("Course").getRow(0);
 
-            assertThat(row.getCell(0).getStringCellValue()).isEqualTo("Latest Pending Export Name");
+            assertThat(row.getCell(1).getStringCellValue()).isEqualTo("Latest Pending Export Name");
         }
     }
 
@@ -2384,6 +2412,14 @@ class TeacherContentApiTests {
         return zipWorkbook(validCourseImportWorkbook());
     }
 
+    private byte[] exportedWorkbook(byte[] exportPackage) throws Exception {
+        try (ZipInputStream zip = new ZipInputStream(new java.io.ByteArrayInputStream(exportPackage))) {
+            ZipEntry entry = zip.getNextEntry();
+            assertThat(entry).isNotNull();
+            return zip.readAllBytes();
+        }
+    }
+
     private byte[] zipWorkbook(byte[] workbookBytes) throws Exception {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(output)) {
@@ -2406,19 +2442,23 @@ class TeacherContentApiTests {
                     copyCell(source, replacement.createCell(index));
                 }
             }
+            replacement.createCell(7).setCellValue("MULTIPLE_CHOICE");
+            replacement.createCell(8).setCellValue(questionText);
+            replacement.createCell(9).setCellValue("Replacement explanation.");
+            replacement.createCell(10).setBlank();
+            replacement.createCell(11).setCellValue(optionA);
+            replacement.createCell(12).setCellValue(optionB);
+            replacement.createCell(13).setBlank();
+            replacement.createCell(14).setBlank();
+            replacement.createCell(15).setCellValue("A");
             replacement.createCell(16).setCellValue(1);
-            replacement.createCell(17).setCellValue("MULTIPLE_CHOICE");
-            replacement.createCell(18).setCellValue(questionText);
-            replacement.createCell(19).setCellValue("Replacement explanation.");
-            replacement.createCell(20).setBlank();
-            replacement.createCell(21).setCellValue(optionA);
-            replacement.createCell(22).setCellValue(optionB);
-            replacement.createCell(23).setBlank();
-            replacement.createCell(24).setBlank();
-            replacement.createCell(25).setCellValue("a");
-            replacement.createCell(26).setCellValue("easy");
-            replacement.createCell(27).setCellValue("replacement_greetings");
-            for (int hiddenColumn = 31; hiddenColumn <= 34; hiddenColumn++) {
+            replacement.createCell(17).setCellValue(0);
+            replacement.createCell(18).setCellValue(false);
+            replacement.createCell(19).setCellValue(1);
+            replacement.createCell(20).setCellValue(0);
+            replacement.createCell(21).setCellValue("easy");
+            replacement.createCell(22).setCellValue("replacement_greetings");
+            for (int hiddenColumn = 31; hiddenColumn <= 35; hiddenColumn++) {
                 replacement.createCell(hiddenColumn).setBlank();
             }
 

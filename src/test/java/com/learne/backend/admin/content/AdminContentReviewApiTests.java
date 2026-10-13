@@ -31,7 +31,9 @@ import com.learne.backend.teacher.content.repository.QuestionOptionRepository;
 import com.learne.backend.teacher.content.repository.QuestionRepository;
 import com.learne.backend.teacher.content.repository.TopicRepository;
 import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -455,7 +457,7 @@ class AdminContentReviewApiTests {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk())
                 .andReturn();
-        importWorkbook(teacherToken, replaceExportedQuestion(exportResult.getResponse().getContentAsByteArray()))
+         importWorkbook(teacherToken, replaceExportedQuestion(exportedWorkbook(exportResult.getResponse().getContentAsByteArray())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.courseId").value(courseId))
                 .andExpect(jsonPath("$.status").value("DRAFT"));
@@ -496,7 +498,7 @@ class AdminContentReviewApiTests {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk())
                 .andReturn();
-        importWorkbook(teacherToken, replaceExportedQuestion(exportResult.getResponse().getContentAsByteArray()))
+         importWorkbook(teacherToken, replaceExportedQuestion(exportedWorkbook(exportResult.getResponse().getContentAsByteArray())))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
@@ -539,7 +541,7 @@ class AdminContentReviewApiTests {
                 .andExpect(status().isOk())
                 .andReturn();
         byte[] editedWorkbook = replaceCourseMetadata(
-                replaceExportedQuestion(exportResult.getResponse().getContentAsByteArray()),
+                 replaceExportedQuestion(exportedWorkbook(exportResult.getResponse().getContentAsByteArray())),
                 "Edited English A1", "Edited course description.");
         importWorkbook(teacherToken, editedWorkbook)
                 .andExpect(status().isOk())
@@ -598,7 +600,7 @@ class AdminContentReviewApiTests {
                 .andExpect(status().isOk())
                 .andReturn();
         importWorkbook(teacherToken, replaceCourseMetadata(
-                        replaceExportedQuestion(exportResult.getResponse().getContentAsByteArray()),
+                         replaceExportedQuestion(exportedWorkbook(exportResult.getResponse().getContentAsByteArray())),
                         "Approved Revision 2", "Revision 2 description."))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("DRAFT"));
@@ -659,7 +661,7 @@ class AdminContentReviewApiTests {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk())
                 .andReturn();
-        importWorkbook(teacherToken, replaceExportedQuestion(exportResult.getResponse().getContentAsByteArray()))
+         importWorkbook(teacherToken, replaceExportedQuestion(exportedWorkbook(exportResult.getResponse().getContentAsByteArray())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("DRAFT"));
         mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
@@ -718,7 +720,7 @@ class AdminContentReviewApiTests {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk())
                 .andReturn();
-        importWorkbook(teacherToken, removeThirdOption(exportResult.getResponse().getContentAsByteArray()))
+         importWorkbook(teacherToken, removeThirdOption(exportedWorkbook(exportResult.getResponse().getContentAsByteArray())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("DRAFT"));
         mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
@@ -978,6 +980,16 @@ class AdminContentReviewApiTests {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         workbook.write(output);
         return output.toByteArray();
+    }
+
+    private byte[] exportedWorkbook(byte[] exportPackage) throws Exception {
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(exportPackage))) {
+            ZipEntry entry = zip.getNextEntry();
+            if (entry == null) {
+                throw new AssertionError("Export package has no workbook entry");
+            }
+            return zip.readAllBytes();
+        }
     }
 
     private byte[] zipWorkbook(byte[] workbook) throws Exception {

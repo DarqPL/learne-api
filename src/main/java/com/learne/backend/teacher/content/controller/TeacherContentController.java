@@ -63,13 +63,13 @@ class TeacherContentController {
         return courseImportExportService.importCourse(currentUser(authentication), file);
     }
 
-    @GetMapping(value = "/courses/{courseId}/export", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    @GetMapping(value = "/courses/{courseId}/export", produces = "application/zip")
     ResponseEntity<byte[]> exportCourse(@PathVariable Long courseId, Authentication authentication) {
-        byte[] workbook = courseImportExportService.exportCourse(currentUser(authentication), courseId);
+        byte[] packageBytes = courseImportExportService.exportCourse(currentUser(authentication), courseId);
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=course-" + courseId + ".xlsx")
-                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-                .body(workbook);
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=course-" + courseId + "-export.zip")
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .body(packageBytes);
     }
 
     @GetMapping("/courses")

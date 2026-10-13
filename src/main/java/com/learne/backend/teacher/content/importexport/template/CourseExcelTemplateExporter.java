@@ -14,30 +14,36 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.ClientAnchor;
-import org.apache.poi.ss.usermodel.Comment;
-import org.apache.poi.ss.usermodel.CreationHelper;
-import org.apache.poi.ss.usermodel.Drawing;
+import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.SpreadsheetVersion;
+import org.apache.poi.ss.util.AreaReference;
+import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFTable;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTCalcPr;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTDefinedName;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.STCalcMode;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 @Component
 public class CourseExcelTemplateExporter {
     private static final String[] HEADERS = {
-            "course_name", "course_description", "course_type", "course_level", "course_order_index",
-            "topic_order", "topic_title", "topic_description",
-            "lesson_order", "lesson_title", "lesson_description", "lesson_content", "skill_type", "xp_reward",
-            "placement_test", "audio_file",
-            "question_order", "question_type", "question_text", "explanation", "correct_answer",
-            "option_a", "option_b", "option_c", "option_d", "correct_option", "difficulty", "knowledge_point",
+            "topic_title", "topic_description", "lesson_title", "lesson_description", "lesson_content",
+            "skill_type", "audio_file", "question_type", "question_text", "explanation", "correct_answer",
+            "option_a", "option_b", "option_c", "option_d", "correct_option", "unused_16", "unused_17",
+            "unused_18", "unused_19", "unused_20", "unused_21", "unused_22", "unused_23", "unused_24",
+            "unused_25", "unused_26", "unused_27",
             "_course_id", "_topic_id", "_lesson_id", "_question_id", "_option_a_id", "_option_b_id",
             "_option_c_id", "_option_d_id", "_row_fingerprint"
     };
@@ -93,172 +99,311 @@ public class CourseExcelTemplateExporter {
         return xml.getBytes(StandardCharsets.UTF_8);
     }
 
-    /**
-     * Exports the existing course revision in the legacy flat XLSX format.
-     * Teacher imports use {@link #blankTemplate()} and the XLSM package contract instead.
-     */
+    /** Exports a revision by filling the canonical macro-enabled workbook template. */
     public byte[] exportCourse(CourseRevision revision) {
-        try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            createGuideSheet(workbook);
-            Sheet content = createContentSheet(workbook);
-            createMetadataSheet(workbook);
+        return exportCourse(revision, Map.of());
+    }
+
+    public byte[] exportCourse(CourseRevision revision, Map<Long, String> lessonAudioPaths) {
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(blankTemplate()));
+                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            Sheet content = workbook.getSheet("Content");
+            CellStyle[] dataStyles = dataStyles(content.getRow(1));
+            String fingerprintFormula = formula(content.getRow(1), 36);
+            Sheet topicsSheet = workbook.getSheet("Topics");
+            Sheet lessonsSheet = workbook.getSheet("Lessons");
+            ensureLessonAudioHeader(lessonsSheet);
+            Sheet lessonLists = workbook.getSheet("_LessonLists");
+            CellStyle[] topicStyles = dataStyles(topicsSheet.getRow(2));
+            CellStyle[] lessonStyles = dataStyles(lessonsSheet.getRow(3));
+            CellStyle[] lessonListStyles = dataStyles(lessonLists.getRow(1));
+            clearContentRows(content);
+            clearDataRows(topicsSheet);
+            clearDataRows(lessonsSheet);
+            clearDataRows(lessonLists);
+            writeCourseSheet(workbook.getSheet("Course"), revision);
 
             int rowIndex = 1;
+            int topicRowIndex = 1;
+            int lessonRowIndex = 1;
             List<TopicRevision> topics = revision.getTopics().stream()
                     .sorted(Comparator.comparingInt(TopicRevision::getOrderIndex).thenComparing(TopicRevision::getId))
                     .toList();
             for (TopicRevision topic : topics) {
+                Row topicRow = topicsSheet.createRow(topicRowIndex++);
+                writeTopicRow(topicRow, topic);
+                applyStyles(topicRow, topicStyles);
                 List<LessonRevision> lessons = topic.getLessons().stream()
                         .sorted(Comparator.comparingInt(LessonRevision::getOrderIndex).thenComparing(LessonRevision::getId))
                         .toList();
                 for (LessonRevision lesson : lessons) {
+                    Row lessonRow = lessonsSheet.createRow(lessonRowIndex++);
+                    writeLessonRow(lessonRow, topic, lesson, lessonAudioPaths);
+                    applyStyles(lessonRow, lessonStyles);
                     List<QuestionRevision> questions = lesson.getQuestions().stream()
                             .sorted(Comparator.comparingInt(QuestionRevision::getOrderIndex).thenComparing(QuestionRevision::getId))
                             .toList();
                     for (QuestionRevision question : questions) {
                         Row row = content.createRow(rowIndex++);
-                        writeRow(row, revision, topic, lesson, question);
+                        writeRow(row, revision, topic, lesson, question, lessonAudioPaths);
+                        writeFingerprint(row, fingerprintFormula);
+                        applyStyles(row, dataStyles);
                     }
                 }
             }
+            updateContentTables(content, rowIndex - 1);
+            updateTables(topicsSheet, topicRowIndex - 1, 3);
+            updateTables(lessonsSheet, lessonRowIndex - 1, 7);
+            refreshLessonLists(workbook, lessonLists, lessonListStyles, topics);
+            configureRecalculation(workbook);
 
             workbook.write(output);
-            return output.toByteArray();
+            return removeCalculationChain(output.toByteArray());
         } catch (IOException exception) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Không thể xuất khóa học.");
         }
     }
 
-    private Sheet createContentSheet(XSSFWorkbook workbook) {
-        Sheet content = workbook.createSheet("Content");
-        content.createFreezePane(0, 1);
-        Row header = content.createRow(0);
-        for (int i = 0; i < HEADERS.length; i++) {
-            Cell cell = header.createCell(i);
-            cell.setCellValue(HEADERS[i]);
-            if (HEADERS[i].startsWith("_")) {
-                content.setColumnHidden(i, true);
+    private void clearContentRows(Sheet content) {
+        for (int rowIndex = content.getLastRowNum(); rowIndex > 0; rowIndex--) {
+            Row row = content.getRow(rowIndex);
+            if (row != null) {
+                content.removeRow(row);
             }
         }
-        setContentColumnWidths(content);
-        addContentHeaderComments(workbook, content, header);
-        return content;
     }
 
-    private void createGuideSheet(XSSFWorkbook workbook) {
-        Sheet guide = workbook.createSheet("HuongDan");
-        guide.setColumnWidth(0, 9500);
-        guide.setColumnWidth(1, 14000);
-
-        writeGuideRow(guide, 0, "Huong dan xuat khoa hoc bang Excel", "Du lieu xuat nam trong sheet Content.");
-        writeGuideRow(guide, 2, "Dinh dang", "Day la file XLSX legacy de xem hoac luu tru, khong dung cho quy trinh nhap moi.");
-        writeGuideRow(guide, 3, "Nhap moi", "Tai template course-template.xlsm, sua du lieu, roi dong goi file .xlsm va audio vao goi nen .zip/.rar/.7z.");
-        writeGuideRow(guide, 4, "Dong mau", "Dong mau chi la tai lieu tham khao; quy trinh nhap moi bo qua dong co dau SAMPLE_ROW.");
-        writeGuideRow(guide, 6, "course_type", "COMPREHENSIVE hoac SKILL_FOCUSED.");
-        writeGuideRow(guide, 7, "skill_type", "READING, LISTENING, SPEAKING, WRITING, VOCABULARY, GRAMMAR.");
-        writeGuideRow(guide, 8, "question_type", "MULTIPLE_CHOICE dung option_a..option_d va correct_option. SHORT_ANSWER dung correct_answer.");
-        writeGuideRow(guide, 9, "placement_test", "TRUE hoac FALSE.");
-        writeGuideRow(guide, 10, "Thu tu", "Dung topic_order, lesson_order, question_order de sap xep noi dung.");
-    }
-
-    private void writeGuideRow(Sheet sheet, int rowIndex, String label, String value) {
-        Row row = sheet.createRow(rowIndex);
-        row.createCell(0).setCellValue(label);
-        row.createCell(1).setCellValue(value);
-    }
-
-    private void setContentColumnWidths(Sheet content) {
-        for (int i = 0; i < HEADERS.length; i++) {
-            content.setColumnWidth(i, HEADERS[i].startsWith("_") ? 3000 : 5200);
+    private void ensureLessonAudioHeader(Sheet lessons) {
+        Row header = null;
+        for (int rowIndex = 0; rowIndex <= lessons.getLastRowNum(); rowIndex++) {
+            Row candidate = lessons.getRow(rowIndex);
+            if (candidate == null) {
+                continue;
+            }
+            for (Cell cell : candidate) {
+                if ("lesson_title".equals(cell.toString()) || "lesson_content".equals(cell.toString())) {
+                    header = candidate;
+                    break;
+                }
+            }
+            if (header != null) {
+                break;
+            }
         }
-        content.setColumnWidth(1, 9000);
-        content.setColumnWidth(11, 12000);
-        content.setColumnWidth(18, 9000);
-        content.setColumnWidth(19, 9000);
+        if (header == null) {
+            header = lessons.getRow(2);
+            if (header == null) {
+                header = lessons.createRow(2);
+            }
+        }
+        set(header, 6, "audio_file");
     }
 
-    private void addContentHeaderComments(XSSFWorkbook workbook, Sheet content, Row header) {
-        CreationHelper helper = workbook.getCreationHelper();
-        Drawing<?> drawing = content.createDrawingPatriarch();
-        addComment(helper, drawing, header.getCell(0), "Ten khoa hoc. Tat ca dong nen dung cung thong tin khoa hoc.");
-        addComment(helper, drawing, header.getCell(2), "Vi du: COMPREHENSIVE hoac SKILL_FOCUSED.");
-        addComment(helper, drawing, header.getCell(12), "Vi du: READING, LISTENING, SPEAKING, WRITING, VOCABULARY, GRAMMAR.");
-        addComment(helper, drawing, header.getCell(15), "Duong dan file audio trong goi nen, vi du audio/greetings-lesson.mp3.");
-        addComment(helper, drawing, header.getCell(17), "MULTIPLE_CHOICE dung option_a..d; SHORT_ANSWER dung correct_answer.");
-        addComment(helper, drawing, header.getCell(25), "Dap an dung cho cau hoi trac nghiem: A, B, C hoac D.");
+    private void clearDataRows(Sheet sheet) {
+        for (int rowIndex = sheet.getLastRowNum(); rowIndex > 0; rowIndex--) {
+            Row row = sheet.getRow(rowIndex);
+            if (row != null) {
+                sheet.removeRow(row);
+            }
+        }
     }
 
-    private void addComment(CreationHelper helper, Drawing<?> drawing, Cell cell, String text) {
-        ClientAnchor anchor = helper.createClientAnchor();
-        anchor.setCol1(cell.getColumnIndex());
-        anchor.setCol2(cell.getColumnIndex() + 3);
-        anchor.setRow1(cell.getRowIndex());
-        anchor.setRow2(cell.getRowIndex() + 4);
-        Comment comment = drawing.createCellComment(anchor);
-        comment.setString(helper.createRichTextString(text));
-        cell.setCellComment(comment);
+    private void refreshLessonLists(XSSFWorkbook workbook, Sheet sheet, CellStyle[] styles,
+            List<TopicRevision> topics) {
+        for (org.apache.poi.ss.usermodel.Name name : List.copyOf(workbook.getAllNames())) {
+            if (name.getNameName().startsWith("LessonChoices_")) {
+                workbook.removeName(name);
+            }
+        }
+        for (int topicIndex = 0; topicIndex < topics.size(); topicIndex++) {
+            TopicRevision topic = topics.get(topicIndex);
+            int rowIndex = topicIndex + 1;
+            Row row = sheet.createRow(rowIndex);
+            List<LessonRevision> lessons = topic.getLessons().stream()
+                    .sorted(Comparator.comparingInt(LessonRevision::getOrderIndex).thenComparing(LessonRevision::getId))
+                    .toList();
+            for (int lessonIndex = 0; lessonIndex < lessons.size(); lessonIndex++) {
+                set(row, lessonIndex, lessons.get(lessonIndex).getTitle());
+            }
+            applyStyles(row, styles);
+            if (!lessons.isEmpty()) {
+                int excelRow = rowIndex + 1;
+                String start = CellReference.convertNumToColString(0);
+                String end = CellReference.convertNumToColString(lessons.size() - 1);
+                String formula = "_LessonLists!$" + start + "$" + excelRow
+                        + (lessons.size() == 1 ? "" : ":$" + end + "$" + excelRow);
+                setDefinedName(workbook, "LessonChoices_" + excelRow, formula);
+            }
+        }
     }
 
-    private void createMetadataSheet(XSSFWorkbook workbook) {
-        Sheet metadata = workbook.createSheet("_metadata");
-        metadata.createRow(0).createCell(0).setCellValue("_template_version");
-        metadata.getRow(0).createCell(1).setCellValue("v1");
-        metadata.createRow(1).createCell(0).setCellValue("_template_type");
-        metadata.getRow(1).createCell(1).setCellValue("flat_course_content");
-        workbook.setSheetHidden(workbook.getSheetIndex(metadata), true);
+    private void setDefinedName(XSSFWorkbook workbook, String name, String formula) {
+        org.apache.poi.xssf.usermodel.XSSFName definedName = workbook.getName(name);
+        if (definedName == null) {
+            definedName = workbook.createName();
+            definedName.setNameName(name);
+        }
+        definedName.setRefersToFormula(formula);
+        for (CTDefinedName candidate : workbook.getCTWorkbook().getDefinedNames().getDefinedNameArray()) {
+            if (name.equals(candidate.getName())) {
+                candidate.setHidden(true);
+            }
+        }
+    }
+
+    private void configureRecalculation(XSSFWorkbook workbook) {
+        CTCalcPr calculation = workbook.getCTWorkbook().isSetCalcPr()
+                ? workbook.getCTWorkbook().getCalcPr() : workbook.getCTWorkbook().addNewCalcPr();
+        calculation.setCalcMode(STCalcMode.AUTO);
+        calculation.setFullCalcOnLoad(true);
+        calculation.setForceFullCalc(true);
+        workbook.setForceFormulaRecalculation(true);
+    }
+
+    private void writeCourseSheet(Sheet sheet, CourseRevision revision) {
+        Map<String, Integer> rows = new HashMap<>();
+        for (int rowIndex = 0; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row != null && row.getCell(0) != null) {
+                rows.put(row.getCell(0).getStringCellValue(), rowIndex);
+            }
+        }
+        set(sheet.getRow(rows.get("course_name")), 1, revision.getName());
+        set(sheet.getRow(rows.get("course_description")), 1, revision.getDescription());
+        set(sheet.getRow(rows.get("course_type")), 1, revision.getType());
+        set(sheet.getRow(rows.get("course_level")), 1, revision.getLevel());
+    }
+
+    private void writeTopicRow(Row row, TopicRevision topic) {
+        set(row, 0, key("T", topic.getId(), topic.getOrderIndex()));
+        set(row, 1, topic.getName());
+        set(row, 2, topic.getDescription());
+    }
+
+    private void writeLessonRow(Row row, TopicRevision topic, LessonRevision lesson,
+            Map<Long, String> lessonAudioPaths) {
+        set(row, 0, key("L", lesson.getId(), lesson.getOrderIndex()));
+        set(row, 1, key("T", topic.getId(), topic.getOrderIndex()));
+        set(row, 2, lesson.getTitle());
+        set(row, 3, lesson.getDescription());
+        set(row, 4, lesson.getContent());
+        set(row, 5, topic.getName());
+        String audioPath = lessonAudioPaths.containsKey(lesson.getId())
+                ? lessonAudioPaths.get(lesson.getId()) : lesson.getAudioUrl();
+        set(row, 6, audioPath);
+    }
+
+    private String key(String prefix, Long id, int order) {
+        return prefix + (id == null ? order : id);
+    }
+
+    private CellStyle[] dataStyles(Row row) {
+        CellStyle[] styles = new CellStyle[HEADERS.length];
+        for (int column = 0; column < styles.length; column++) {
+            Cell cell = row == null ? null : row.getCell(column);
+            styles[column] = cell == null ? null : cell.getCellStyle();
+        }
+        return styles;
+    }
+
+    private void applyStyles(Row row, CellStyle[] styles) {
+        for (int column = 0; column < styles.length; column++) {
+            if (styles[column] != null) {
+                row.getCell(column, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK).setCellStyle(styles[column]);
+            }
+        }
+    }
+
+    private String formula(Row row, int column) {
+        Cell cell = row == null ? null : row.getCell(column);
+        return cell != null && cell.getCellType() == org.apache.poi.ss.usermodel.CellType.FORMULA
+                ? cell.getCellFormula() : null;
+    }
+
+    private void writeFingerprint(Row row, String formula) {
+        Cell cell = row.getCell(36, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+        if (formula != null) {
+            cell.setCellFormula(formula);
+        } else {
+            cell.setBlank();
+        }
+    }
+
+    private void updateContentTables(Sheet content, int lastRow) {
+        if (!(content instanceof XSSFSheet xssfContent)) {
+            return;
+        }
+        updateTables(xssfContent, lastRow, HEADERS.length);
+    }
+
+    private void updateTables(Sheet sheet, int lastRow, int columns) {
+        if (!(sheet instanceof XSSFSheet xssfSheet)) {
+            return;
+        }
+        updateTables(xssfSheet, lastRow, columns);
+    }
+
+    private void updateTables(XSSFSheet sheet, int lastRow, int columns) {
+        AreaReference area = new AreaReference(new CellReference(0, 0),
+                new CellReference(Math.max(0, lastRow), columns - 1), SpreadsheetVersion.EXCEL2007);
+        for (XSSFTable table : sheet.getTables()) {
+            table.setArea(area);
+        }
     }
 
     private void writeRow(Row row, CourseRevision revision, TopicRevision topic, LessonRevision lesson,
-            QuestionRevision question) {
-        row.createCell(0).setCellValue(revision.getName());
-        row.createCell(1).setCellValue(nullToBlank(revision.getDescription()));
-        row.createCell(2).setCellValue(revision.getType().name());
-        row.createCell(3).setCellValue(revision.getLevel());
-        row.createCell(4).setCellValue(revision.getOrderIndex());
-        row.createCell(5).setCellValue(topic.getOrderIndex());
-        row.createCell(6).setCellValue(topic.getName());
-        row.createCell(7).setCellValue(nullToBlank(topic.getDescription()));
-        row.createCell(8).setCellValue(lesson.getOrderIndex());
-        row.createCell(9).setCellValue(lesson.getTitle());
-        row.createCell(10).setCellValue(nullToBlank(lesson.getDescription()));
-        row.createCell(11).setCellValue(nullToBlank(lesson.getContent()));
-        row.createCell(12).setCellValue(lesson.getSkillType().name());
-        row.createCell(13).setCellValue(lesson.getXpReward());
-        row.createCell(14).setCellValue(lesson.isPlacementTest());
-        row.createCell(15).setBlank();
-        row.createCell(16).setCellValue(question.getOrderIndex());
-        row.createCell(17).setCellValue(question.getType().name());
-        row.createCell(18).setCellValue(question.getQuestionText());
-        row.createCell(19).setCellValue(nullToBlank(question.getExplanation()));
-        row.createCell(20).setCellValue(nullToBlank(question.getCorrectAnswer()));
-        writeOptions(row, question.getOptions());
-        row.createCell(26).setCellValue(nullToBlank(question.getDifficulty()));
-        row.createCell(27).setCellValue(nullToBlank(question.getKnowledgePoint()));
-        row.createCell(28).setCellValue(revision.getCourse().getId());
-        row.createCell(29).setCellValue(topic.getId());
-        row.createCell(30).setCellValue(lesson.getId());
-        row.createCell(31).setCellValue(question.getId());
-        row.createCell(36).setBlank();
+            QuestionRevision question, Map<Long, String> lessonAudioPaths) {
+        set(row, 0, topic.getName());
+        set(row, 1, topic.getDescription());
+        set(row, 2, lesson.getTitle());
+        set(row, 3, lesson.getDescription());
+        set(row, 4, lesson.getContent());
+        set(row, 5, lesson.getSkillType());
+        String audioPath = lessonAudioPaths.containsKey(lesson.getId())
+                ? lessonAudioPaths.get(lesson.getId()) : lesson.getAudioUrl();
+        set(row, 6, audioPath);
+        set(row, 7, question.getType());
+        set(row, 8, question.getQuestionText());
+        set(row, 9, question.getExplanation());
+         set(row, 10, question.getCorrectAnswer());
+         writeOptions(row, question.getOptions());
+        set(row, 28, revision.getCourse() == null ? null : revision.getCourse().getId());
+        set(row, 29, topic.getId());
+        set(row, 30, lesson.getId());
+        set(row, 31, question.getId());
     }
 
     private void writeOptions(Row row, List<QuestionOptionRevision> options) {
+        if (options.size() > 4) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Câu hỏi vượt quá số lượng tối đa 4 lựa chọn.");
+        }
         List<QuestionOptionRevision> sortedOptions = options.stream()
                 .sorted(Comparator.comparingInt(QuestionOptionRevision::getOrderIndex).thenComparing(QuestionOptionRevision::getId))
-                .limit(4)
                 .toList();
         String correctOption = null;
         for (int i = 0; i < sortedOptions.size(); i++) {
             QuestionOptionRevision option = sortedOptions.get(i);
-            row.createCell(21 + i).setCellValue(option.getOptionText());
-            row.createCell(32 + i).setCellValue(option.getId());
+            set(row, 11 + i, option.getOptionText());
+            set(row, 32 + i, option.getId());
             if (option.isCorrect()) {
                 correctOption = String.valueOf((char) ('A' + i));
             }
         }
-        row.createCell(25).setCellValue(nullToBlank(correctOption));
+        set(row, 15, correctOption);
     }
 
-    private String nullToBlank(String value) {
-        return value == null ? "" : value;
+    private void set(Row row, int column, Object value) {
+        Cell cell = row.getCell(column, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+        if (value == null) {
+            cell.setBlank();
+        } else if (value instanceof Number number) {
+            cell.setCellValue(number.doubleValue());
+        } else if (value instanceof Boolean bool) {
+            cell.setCellValue(bool);
+        } else if (value instanceof Enum<?> enumeration) {
+            cell.setCellValue(enumeration.name());
+        } else {
+            cell.setCellValue(value.toString());
+        }
     }
 }

@@ -1,6 +1,7 @@
 package com.learne.backend.teacher.content.importexport.archive;
 
 import com.learne.backend.shared.api.ApiException;
+import com.learne.backend.teacher.content.importexport.security.AudioFileValidator;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -35,7 +36,6 @@ public class CourseImportArchiveReader {
     private static final long MAX_UPLOAD_BYTES = 100L * 1024L * 1024L;
     private static final long MAX_TOTAL_UNCOMPRESSED_BYTES = 150L * 1024L * 1024L;
     private static final long MAX_WORKBOOK_BYTES = 20L * 1024L * 1024L;
-    private static final long MAX_AUDIO_BYTES = 20L * 1024L * 1024L;
     private static final int MAX_AUDIO_FILES = 100;
     private static final String INVALID_ARCHIVE_PATH = "Đường dẫn trong gói nhập không hợp lệ";
     private static final String SUPPORTED_ARCHIVES = ".zip, .rar, .7z";
@@ -378,7 +378,7 @@ public class CourseImportArchiveReader {
                 return new EntryLimit(MAX_WORKBOOK_BYTES, "File template vượt quá dung lượng cho phép");
             }
             if (path.startsWith("audio/")) {
-                return new EntryLimit(MAX_AUDIO_BYTES, "File audio vượt quá dung lượng cho phép");
+                return new EntryLimit(AudioFileValidator.MAX_AUDIO_BYTES, "File audio vượt quá dung lượng cho phép");
             }
             return null;
         }
@@ -400,7 +400,7 @@ public class CourseImportArchiveReader {
                 if (audioFiles.size() >= MAX_AUDIO_FILES) {
                     throw badRequest("Gói nhập vượt quá số lượng file audio cho phép");
                 }
-                if (bytes.length > MAX_AUDIO_BYTES) {
+                if (bytes.length > AudioFileValidator.MAX_AUDIO_BYTES) {
                     throw badRequest("File audio vượt quá dung lượng cho phép");
                 }
                 audioFiles.put(path, new CourseImportPackage.ImportFile(path, contentType(path), bytes));

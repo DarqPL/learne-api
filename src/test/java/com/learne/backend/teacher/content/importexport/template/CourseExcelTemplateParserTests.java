@@ -44,6 +44,89 @@ class CourseExcelTemplateParserTests {
     }
 
     @Test
+    void parsesRevisionScopedIdsFromContentRows() throws Exception {
+        CourseImportModel model = parser.parse(workbookWithRevisionIds());
+
+        assertThat(model.courseId()).isEqualTo(101L);
+        assertThat(model.topics().getFirst().topicId()).isEqualTo(201L);
+        assertThat(model.topics().getFirst().lessons().getFirst().lessonId()).isEqualTo(301L);
+        assertThat(model.topics().getFirst().lessons().getFirst().questions().getFirst().questionId())
+                .isEqualTo(401L);
+        assertThat(model.topics().getFirst().lessons().getFirst().questions().getFirst().options())
+                .extracting(option -> option.optionId())
+                .containsExactly(501L, 502L);
+    }
+
+    @Test
+    void parsesNewExportRowWithBlankHiddenIdsAlongsideExistingRows() throws Exception {
+        CourseImportModel model = parser.parse(workbookWithNewRowWithoutIds());
+
+        assertThat(model.topics()).anySatisfy(topic -> {
+            assertThat(topic.title()).isEqualTo("New topic");
+            assertThat(topic.topicId()).isNull();
+            assertThat(topic.lessons().getFirst().lessonId()).isNull();
+            assertThat(topic.lessons().getFirst().questions().getFirst().questionId()).isNull();
+        });
+    }
+
+    @Test
+    void retainsFirstPopulatedCourseIdWhenNewRowPrecedesExistingRows() throws Exception {
+        assertThatThrownBy(() -> parser.parse(workbookWithLeadingNewRowWithoutIds()))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("_course_id");
+    }
+
+    @Test
+    void rejectsBlankCourseIdOnNewRowInExportStyleWorkbook() throws Exception {
+        assertThatThrownBy(() -> parser.parse(workbookWithBlankCourseIdNewRow()))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("_course_id");
+    }
+
+    @Test
+    void rejectsConflictingPopulatedCourseIds() throws Exception {
+        assertThatThrownBy(() -> parser.parse(workbookWithConflictingCourseIds()))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("_course_id");
+    }
+
+    @Test
+    void parsesExportedLessonAndQuestionMetadataWhenOptionalColumnsArePresent() throws Exception {
+        CourseImportModel model = parser.parse(workbookWithExportMetadata());
+
+        var lesson = model.topics().getFirst().lessons().getFirst();
+        var question = lesson.questions().getFirst();
+        assertThat(lesson.orderIndex()).isEqualTo(3);
+        assertThat(lesson.xpReward()).isEqualTo(25);
+        assertThat(lesson.placementTest()).isTrue();
+        assertThat(question.orderIndex()).isEqualTo(4);
+        assertThat(question.xpReward()).isEqualTo(7);
+        assertThat(question.difficulty()).isEqualTo("easy");
+        assertThat(question.knowledgePoint()).isEqualTo("greetings");
+    }
+
+    @Test
+    void rejectsTopicIdAddedAfterAnUnidentifiedRowForTheSameTopic() throws Exception {
+        assertThatThrownBy(() -> parser.parse(workbookWithInconsistentIds("101", null, "201", null, null)))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("_topic_id");
+    }
+
+    @Test
+    void rejectsLessonIdAddedAfterAnUnidentifiedRowForTheSameLesson() throws Exception {
+        assertThatThrownBy(() -> parser.parse(workbookWithInconsistentIds("101", "201", "201", null, "301")))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("_lesson_id");
+    }
+
+    @Test
+    void rejectsZeroRevisionId() throws Exception {
+        assertThatThrownBy(() -> parser.parse(workbookWithInconsistentIds("0", null, null, null, null)))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("_course_id");
+    }
+
+    @Test
     void rejectsMismatchedLessonContentForSameLesson() throws Exception {
         assertThatThrownBy(() -> parser.parse(workbookWithSecondQuestionLessonContent("Different content")))
                 .isInstanceOf(ApiException.class)
@@ -81,6 +164,27 @@ class CourseExcelTemplateParserTests {
         assertThatThrownBy(() -> parser.parse(workbookWithShortAnswerCorrectOption("A")))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("correct_option");
+    }
+
+    @Test
+    void rejectsNonChoiceQuestionWithOptionTextOrOptionId() throws Exception {
+        assertThatThrownBy(() -> parser.parse(workbookWithShortAnswerOptionPayload()))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("option_a");
+    }
+
+    @Test
+    void rejectsExportStyleContentWithIncompleteRequiredHiddenIdHeaders() throws Exception {
+        assertThatThrownBy(() -> parser.parse(workbookWithIncompleteExportIdHeaders()))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("_topic_id");
+    }
+
+    @Test
+    void rejectsConflictingTopicDescriptionAcrossRepeatedTopicRows() throws Exception {
+        assertThatThrownBy(() -> parser.parse(workbookWithConflictingTopicDescription()))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("topic_description");
     }
 
     @Test
@@ -175,6 +279,134 @@ class CourseExcelTemplateParserTests {
         }
     }
 
+    private byte[] workbookWithRevisionIds() throws Exception {
+        byte[] workbook = validWorkbook();
+        try (XSSFWorkbook input = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook));
+                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            Sheet content = input.getSheet("Content");
+            String[] ids = {"_course_id", "_topic_id", "_lesson_id", "_question_id", "_option_a_id",
+                    "_option_b_id", "_option_c_id", "_option_d_id"};
+            for (int i = 0; i < ids.length; i++) {
+                content.getRow(0).createCell(19 + i).setCellValue(ids[i]);
+            }
+            for (int rowIndex : new int[] {2, 3}) {
+                Row row = content.getRow(rowIndex);
+                row.createCell(19).setCellValue("101");
+                row.createCell(20).setCellValue("201");
+                row.createCell(21).setCellValue("301");
+                row.createCell(22).setCellValue(rowIndex == 2 ? "401" : "402");
+                if (rowIndex == 2) {
+                    row.createCell(23).setCellValue("501");
+                    row.createCell(24).setCellValue("502");
+                }
+            }
+            input.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] workbookWithNewRowWithoutIds() throws Exception {
+        byte[] workbook = workbookWithRevisionIds();
+        try (XSSFWorkbook input = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook));
+                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            Sheet content = input.getSheet("Content");
+            row(content, 4, "New topic", "New description", "New lesson", "New lesson description",
+                    "New lesson content", "READING", "", "SHORT_ANSWER", "New question", "", "Answer", "", "", "", "", "");
+            content.getRow(4).createCell(19).setCellValue("101");
+            input.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] workbookWithBlankCourseIdNewRow() throws Exception {
+        byte[] workbook = workbookWithNewRowWithoutIds();
+        try (XSSFWorkbook input = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook));
+                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            input.getSheet("Content").getRow(4).getCell(19).setBlank();
+            input.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] workbookWithLeadingNewRowWithoutIds() throws Exception {
+        byte[] workbook = workbookWithRevisionIds();
+        try (XSSFWorkbook input = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook));
+                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            row(input.getSheet("Content"), 1, "Leading new topic", "New description", "Leading lesson",
+                    "New lesson description", "New lesson content", "READING", "", "SHORT_ANSWER",
+                    "New question", "", "Answer", "", "", "", "", "");
+            input.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] workbookWithConflictingCourseIds() throws Exception {
+        byte[] workbook = workbookWithRevisionIds();
+        try (XSSFWorkbook input = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook));
+                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            input.getSheet("Content").getRow(3).getCell(19).setCellValue("999");
+            input.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] workbookWithExportMetadata() throws Exception {
+        byte[] workbook = validWorkbook();
+        try (XSSFWorkbook input = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook));
+                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            Sheet content = input.getSheet("Content");
+            String[] headers = {"lesson_order", "lesson_xp_reward", "lesson_placement_test", "question_order",
+                    "question_xp_reward", "difficulty", "knowledge_point"};
+            for (int i = 0; i < headers.length; i++) {
+                content.getRow(0).createCell(18 + i).setCellValue(headers[i]);
+            }
+            Row row = content.getRow(2);
+            row.createCell(18).setCellValue(3);
+            row.createCell(19).setCellValue(25);
+            row.createCell(20).setCellValue(true);
+            row.createCell(21).setCellValue(4);
+            row.createCell(22).setCellValue(7);
+            row.createCell(23).setCellValue("easy");
+            row.createCell(24).setCellValue("greetings");
+            input.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] workbookWithInconsistentIds(String courseId, String firstTopicId, String secondTopicId,
+            String firstLessonId, String secondLessonId) throws Exception {
+        byte[] workbook = validWorkbook();
+        try (XSSFWorkbook input = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook));
+                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            Sheet content = input.getSheet("Content");
+            String[] ids = {"_course_id", "_topic_id", "_lesson_id", "_question_id", "_option_a_id",
+                    "_option_b_id", "_option_c_id", "_option_d_id"};
+            for (int i = 0; i < ids.length; i++) {
+                content.getRow(0).createCell(19 + i).setCellValue(ids[i]);
+            }
+            Row first = content.getRow(2);
+            Row second = content.getRow(3);
+            if (courseId != null) {
+                first.createCell(19).setCellValue(courseId);
+                second.createCell(19).setCellValue(courseId);
+            }
+            if (firstTopicId != null) {
+                first.createCell(20).setCellValue(firstTopicId);
+            }
+            if (secondTopicId != null) {
+                second.createCell(20).setCellValue(secondTopicId);
+            }
+            if (firstLessonId != null) {
+                first.createCell(21).setCellValue(firstLessonId);
+            }
+            if (secondLessonId != null) {
+                second.createCell(21).setCellValue(secondLessonId);
+            }
+            input.write(output);
+            return output.toByteArray();
+        }
+    }
+
     private byte[] workbookWithUnreferencedLesson() throws Exception {
         byte[] workbook = validWorkbook();
         try (XSSFWorkbook input = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook));
@@ -201,6 +433,45 @@ class CourseExcelTemplateParserTests {
         try (XSSFWorkbook input = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook));
                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             input.getSheet("Content").getRow(3).createCell(15).setCellValue(correctOption);
+            input.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] workbookWithShortAnswerOptionPayload() throws Exception {
+        byte[] workbook = validWorkbook();
+        try (XSSFWorkbook input = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook));
+                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            Row row = input.getSheet("Content").getRow(3);
+            row.createCell(11).setCellValue("Not allowed");
+            row.createCell(18).setCellValue("501");
+            row.createCell(19).setCellValue("401");
+            input.getSheet("Content").getRow(0).createCell(18).setCellValue("_option_a_id");
+            input.getSheet("Content").getRow(0).createCell(19).setCellValue("_question_id");
+            input.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] workbookWithIncompleteExportIdHeaders() throws Exception {
+        byte[] workbook = validWorkbook();
+        try (XSSFWorkbook input = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook));
+                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            Sheet content = input.getSheet("Content");
+            content.getRow(0).createCell(18).setCellValue("_course_id");
+            content.getRow(0).createCell(20).setCellValue("_lesson_id");
+            content.getRow(0).createCell(21).setCellValue("_question_id");
+            content.getRow(2).createCell(18).setCellValue("101");
+            input.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] workbookWithConflictingTopicDescription() throws Exception {
+        byte[] workbook = validWorkbook();
+        try (XSSFWorkbook input = new XSSFWorkbook(new java.io.ByteArrayInputStream(workbook));
+                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            input.getSheet("Content").getRow(3).getCell(1).setCellValue("Different topic description");
             input.write(output);
             return output.toByteArray();
         }

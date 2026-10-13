@@ -3,6 +3,7 @@ package com.learne.backend.teacher.content.importexport.service;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.storage.dto.StorageResourceType;
+import com.learne.backend.storage.dto.StorageDownloadResult;
 import com.learne.backend.storage.dto.StorageUploadResult;
 import com.learne.backend.storage.service.StorageService;
 import com.learne.backend.teacher.content.entity.Course;
@@ -31,6 +32,8 @@ import com.learne.backend.teacher.content.importexport.security.AudioFileValidat
 import com.learne.backend.teacher.content.importexport.security.ClamAvClient;
 import com.learne.backend.teacher.content.importexport.template.CourseExcelTemplateExporter;
 import com.learne.backend.teacher.content.importexport.template.CourseExcelTemplateParser;
+import com.learne.backend.teacher.content.importexport.template.CourseExportPackageBuilder;
+import com.learne.backend.teacher.content.importexport.template.ExportedAudioFile;
 import com.learne.backend.teacher.content.importexport.archive.CourseImportArchiveReader;
 import com.learne.backend.teacher.content.importexport.archive.CourseImportPackage;
 import com.learne.backend.teacher.content.repository.CourseRepository;
@@ -44,6 +47,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -60,6 +64,7 @@ public class CourseImportExportService {
     private final CourseImportArchiveReader archiveReader;
     private final CourseExcelTemplateParser templateParser;
     private final CourseExcelTemplateExporter templateExporter;
+    private final CourseExportPackageBuilder exportPackageBuilder;
     private final AudioFileValidator audioFileValidator;
     private final ClamAvClient clamAvClient;
     private final StorageService storageService;
@@ -68,8 +73,9 @@ public class CourseImportExportService {
 
     public CourseImportExportService(CourseImportArchiveReader archiveReader,
                                        CourseExcelTemplateParser templateParser,
-                                      CourseExcelTemplateExporter templateExporter,
-                                      AudioFileValidator audioFileValidator,
+                                       CourseExcelTemplateExporter templateExporter,
+                                       CourseExportPackageBuilder exportPackageBuilder,
+                                       AudioFileValidator audioFileValidator,
                                       ClamAvClient clamAvClient,
                                       StorageService storageService,
                                      CourseRepository courseRepository,
@@ -77,6 +83,7 @@ public class CourseImportExportService {
         this.archiveReader = archiveReader;
         this.templateParser = templateParser;
         this.templateExporter = templateExporter;
+        this.exportPackageBuilder = exportPackageBuilder;
         this.audioFileValidator = audioFileValidator;
         this.clamAvClient = clamAvClient;
         this.storageService = storageService;
@@ -132,7 +139,106 @@ public class CourseImportExportService {
                 .orElseThrow(() -> notFound("Không tìm thấy khóa học."));
         CourseRevision revision = latestUpdatableSourceRevision(course)
                 .orElseThrow(() -> notFound("Không tìm thấy phiên bản khóa học."));
-        return templateExporter.exportCourse(revision);
+        validateExportableRevision(course, revision);
+        Map<Long, String> audioPaths = new HashMap<>();
+        List<ExportedAudioFile> audioFiles = collectAudio(revision, audioPaths);
+        byte[] workbook = templateExporter.exportCourse(revision, audioPaths);
+        return exportPackageBuilder.build(courseId, workbook, audioFiles);
+    }
+
+    private void validateExportableRevision(Course course, CourseRevision revision) {
+        if (revision.getTopics().isEmpty()) {
+            throw badRequest("Khóa học phải có ít nhất một chủ đề: " + course.getName());
+        }
+        for (TopicRevision topic : revision.getTopics()) {
+            if (topic.getLessons().isEmpty()) {
+                throw badRequest("Chủ đề phải có ít nhất một bài học: " + topic.getName());
+            }
+            for (LessonRevision lesson : topic.getLessons()) {
+                if (lesson.getQuestions().isEmpty()) {
+                    throw badRequest("Bài học phải có ít nhất một câu hỏi: " + lesson.getTitle());
+                }
+                for (QuestionRevision question : lesson.getQuestions()) {
+                    if (question.getOptions().size() > 4) {
+                        throw badRequest("Câu hỏi vượt quá số lượng tối đa 4 lựa chọn: "
+                                + question.getQuestionText());
+                    }
+                }
+            }
+        }
+    }
+
+    private List<ExportedAudioFile> collectAudio(CourseRevision revision, Map<Long, String> audioPaths) {
+        List<ExportedAudioFile> files = new ArrayList<>();
+        Set<String> usedPaths = new HashSet<>();
+        for (TopicRevision topic : revision.getTopics()) {
+            for (LessonRevision lesson : topic.getLessons()) {
+                if (!hasText(lesson.getAudioPublicId()) && !hasText(lesson.getAudioUrl())) {
+                    continue;
+                }
+                if (lesson.getId() == null) {
+                    throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Bài học có audio nhưng thiếu ID: " + lesson.getTitle());
+                }
+                StorageDownloadResult download;
+                try {
+                    download = storageService.downloadLessonAudio(lesson.getAudioPublicId(), lesson.getAudioUrl());
+                } catch (ApiException exception) {
+                    throw audioDownloadFailure(lesson, HttpStatus.BAD_GATEWAY, exception.getMessage());
+                } catch (RuntimeException exception) {
+                    throw audioDownloadFailure(lesson, HttpStatus.BAD_GATEWAY, exception.getMessage());
+                }
+                if (download == null) {
+                    throw audioDownloadFailure(lesson, HttpStatus.BAD_GATEWAY, "Không nhận được dữ liệu audio.");
+                }
+                CourseImportPackage.ImportFile file = new CourseImportPackage.ImportFile(
+                        "audio", download.contentType(), download.bytes());
+                try {
+                    audioFileValidator.validate(file);
+                } catch (ApiException exception) {
+                    throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Dữ liệu audio đã lưu không hợp lệ cho bài học " + lesson.getId()
+                                    + " (" + lesson.getTitle() + "): " + exception.getMessage());
+                }
+                String path = uniqueAudioPath(lesson, download.contentType(), usedPaths);
+                audioPaths.put(lesson.getId(), path);
+                files.add(new ExportedAudioFile(path, download.contentType(), download.bytes()));
+            }
+        }
+        return files;
+    }
+
+    private ApiException audioDownloadFailure(LessonRevision lesson, HttpStatus status, String detail) {
+        String suffix = hasText(detail) ? ": " + detail : ".";
+        return new ApiException(status,
+                "Không thể tải audio bài học " + lesson.getId() + " (" + lesson.getTitle() + ")" + suffix);
+    }
+
+    private String uniqueAudioPath(LessonRevision lesson, String contentType, Set<String> usedPaths) {
+        String extension = switch (contentType) {
+            case "audio/mpeg" -> "mp3";
+            case "audio/wav", "audio/x-wav" -> "wav";
+            case "audio/mp4" -> "m4a";
+            case "audio/ogg" -> "ogg";
+            default -> "bin";
+        };
+        String slug = lesson.getTitle() == null ? "audio"
+                : lesson.getTitle().toLowerCase(Locale.ROOT)
+                        .replaceAll("[^a-z0-9]+", "-")
+                        .replaceAll("^-+|-+$", "");
+        if (slug.isBlank()) {
+            slug = "audio";
+        }
+        if (slug.length() > 40) {
+            slug = slug.substring(0, 40).replaceAll("-+$", "");
+        }
+        String base = "audio/lesson-" + lesson.getId() + "-" + slug;
+        String path = base + "." + extension;
+        int suffix = 2;
+        while (!usedPaths.add(path)) {
+            path = base + "-" + suffix++ + "." + extension;
+        }
+        return path;
     }
 
     private CourseImportResponse reimportExistingCourse(User teacher, CourseImportPackage importPackage,
@@ -471,9 +577,14 @@ public class CourseImportExportService {
         Map<Long, LessonRevision> lessons = lessonsById(revision);
         Map<Long, QuestionRevision> questions = questionsById(revision);
         Map<Long, QuestionOptionRevision> options = optionsById(revision);
+        Set<Long> importedTopicIds = new HashSet<>();
+        Set<Long> importedLessonIds = new HashSet<>();
+        Set<Long> importedQuestionIds = new HashSet<>();
+        Set<Long> importedOptionIds = new HashSet<>();
         for (TopicImportModel topic : model.topics()) {
             TopicRevision existingTopic = null;
             if (topic.topicId() != null) {
+                validateUniqueId(importedTopicIds, topic.topicId(), "ID chủ đề bị trùng trong file.");
                 existingTopic = topics.get(topic.topicId());
             }
             if (topic.topicId() != null && existingTopic == null) {
@@ -482,6 +593,7 @@ public class CourseImportExportService {
             for (LessonImportModel lesson : topic.lessons()) {
                 LessonRevision existingLesson = null;
                 if (lesson.lessonId() != null) {
+                    validateUniqueId(importedLessonIds, lesson.lessonId(), "ID bài học bị trùng trong file.");
                     if (topic.topicId() == null) {
                         throw badRequest("ID bài học yêu cầu ID chủ đề trong file.");
                     }
@@ -497,6 +609,7 @@ public class CourseImportExportService {
                 for (QuestionImportModel question : lesson.questions()) {
                     QuestionRevision existingQuestion = null;
                     if (question.questionId() != null) {
+                        validateUniqueId(importedQuestionIds, question.questionId(), "ID câu hỏi bị trùng trong file.");
                         if (lesson.lessonId() == null) {
                             throw badRequest("ID câu hỏi yêu cầu ID bài học trong file.");
                         }
@@ -512,6 +625,7 @@ public class CourseImportExportService {
                     for (OptionImportModel option : question.options()) {
                         QuestionOptionRevision existingOption = null;
                         if (option.optionId() != null) {
+                            validateUniqueId(importedOptionIds, option.optionId(), "ID đáp án bị trùng trong file.");
                             if (question.questionId() == null) {
                                 throw badRequest("ID đáp án yêu cầu ID câu hỏi trong file.");
                             }
@@ -527,6 +641,12 @@ public class CourseImportExportService {
                     }
                 }
             }
+        }
+    }
+
+    private void validateUniqueId(Set<Long> importedIds, Long id, String message) {
+        if (!importedIds.add(id)) {
+            throw badRequest(message);
         }
     }
 
