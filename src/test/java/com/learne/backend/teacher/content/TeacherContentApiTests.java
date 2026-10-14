@@ -1044,6 +1044,45 @@ class TeacherContentApiTests {
     }
 
     @Test
+    void teacherSeesPendingRevisionContentAfterSubmit() throws Exception {
+        User teacher = saveUser("pending-view-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("pending-view-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long courseId = createCourse(teacherToken);
+        approveCourseThroughAdmin(teacherToken, adminToken, courseId);
+
+        MvcResult editResult = mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode editBody = objectMapper.readTree(editResult.getResponse().getContentAsString());
+        long topicRevisionId = editBody.get("topics").get(0).get("id").asLong();
+
+        mockMvc.perform(put("/api/teacher/content/topics/%d".formatted(topicRevisionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Pending draft topic",
+                                  "description": "Pending draft topic description",
+                                  "orderIndex": 4
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.latestRevisionStatus").value("PENDING_REVIEW"));
+
+        mockMvc.perform(get("/api/teacher/content/courses/%d".formatted(courseId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topics[0].name").value("Pending draft topic"));
+    }
+
+    @Test
     void teacherCanCreateAndDeleteNestedContentInsideApprovedCourseDraftRevision() throws Exception {
         User teacher = saveUser("nested-create-delete-draft-teacher@example.com", UserRole.TEACHER);
         User admin = saveUser("nested-create-delete-draft-admin@example.com", UserRole.ADMIN);

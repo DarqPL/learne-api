@@ -501,7 +501,8 @@ public class TeacherContentService {
 
     private CourseResponse teacherCourseResponse(Course course, CourseRevision latestRevision) {
         boolean publishedCourse = course.getPublishedAt() != null || course.getStatus() == ContentStatus.APPROVED;
-        if (publishedCourse && latestRevision != null && isEditableRevision(latestRevision)) {
+        if (publishedCourse && latestRevision != null && (isEditableRevision(latestRevision)
+                || latestRevision.getStatus() == CourseRevisionStatus.PENDING_REVIEW)) {
             return CourseResponse.fromRevisionBackedCourse(course, latestRevision);
         }
         return CourseResponse.from(course, latestRevision);
