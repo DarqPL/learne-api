@@ -1,195 +1,99 @@
 package com.learne.backend.auth.session.service;
 
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
-import com.learne.backend.shared.api.ApiException;
-import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
+import com.learne.backend.ratelimit.RateLimitException;
+import com.learne.backend.ratelimit.RateLimitProperties;
+import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.ObjectProvider;
 
 class LoginAttemptServiceTests {
+    @SuppressWarnings("unchecked")
+    private final ObjectProvider<RedisLoginAttemptStore> provider = mock(ObjectProvider.class);
+    private final RedisLoginAttemptStore store = mock(RedisLoginAttemptStore.class);
 
-    @Test
-    void recordFailureRejectsAttemptsAfterTheFifthFailureAtomically() {
-        MutableClock clock = new MutableClock(Instant.parse("2026-09-18T00:00:00Z"));
-        LoginAttemptService service = new LoginAttemptService(clock);
-
-        for (int attempt = 0; attempt < 5; attempt++) {
-            assertThatCode(() -> service.recordFailure("Student@Example.com")).doesNotThrowAnyException();
-        }
-
-        assertThatThrownBy(() -> service.assertCanAttempt("student@example.com"))
-                .isInstanceOf(ApiException.class)
-                .satisfies(error -> {
-                    ApiException apiException = (ApiException) error;
-                    org.assertj.core.api.Assertions.assertThat(apiException.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
-                    org.assertj.core.api.Assertions.assertThat(apiException.getMessage()).isEqualTo("Too many failed login attempts. Please try again later.");
-                });
-
-        assertThatThrownBy(() -> service.recordFailure("student@example.com"))
-                .isInstanceOf(ApiException.class)
-                .satisfies(error -> {
-                    ApiException apiException = (ApiException) error;
-                    org.assertj.core.api.Assertions.assertThat(apiException.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
-                    org.assertj.core.api.Assertions.assertThat(apiException.getMessage()).isEqualTo("Too many failed login attempts. Please try again later.");
-                });
+    private LoginAttemptService service(boolean enabled) {
+        var props = new RateLimitProperties(enabled, null, null, enabled ? null : "", null, null, null);
+        return new LoginAttemptService(props, provider);
     }
 
     @Test
-    void failedAttemptsBelowThresholdExpireFromMemory() {
-        MutableClock clock = new MutableClock(Instant.parse("2026-09-18T00:00:00Z"));
-        LoginAttemptService service = new LoginAttemptService(clock);
-
-        for (int attempt = 0; attempt < 4; attempt++) {
-            service.recordFailure("student@example.com");
-        }
-
-        clock.advance(Duration.ofMinutes(16));
-
-        for (int index = 0; index < 10_000; index++) {
-            service.recordFailure("stale-cleanup-" + index + "@example.com");
-        }
-
-        for (int attempt = 0; attempt < 4; attempt++) {
-            service.recordFailure("student@example.com");
-        }
-
-        assertThatCode(() -> service.assertCanAttempt("student@example.com")).doesNotThrowAnyException();
+    void enabledDelegatesAllOperationsUsingRootNormalizedEmail() {
+        when(provider.getObject()).thenReturn(store);
+        var service = service(true);
+        Locale previous = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+            service.assertCanAttempt(" I@Example.COM ");
+            service.recordFailure(" I@Example.COM ");
+            service.clear(" I@Example.COM ");
+        } finally { Locale.setDefault(previous); }
+        var order = inOrder(store);
+        order.verify(store).assertCanAttempt("i@example.com");
+        order.verify(store).recordFailure("i@example.com");
+        order.verify(store).clear("i@example.com");
+        verifyNoMoreInteractions(store);
     }
 
     @Test
-    void expiredFailedAttemptsBelowThresholdResetBeforeNextFailure() {
-        MutableClock clock = new MutableClock(Instant.parse("2026-09-18T00:00:00Z"));
-        LoginAttemptService service = new LoginAttemptService(clock);
-
-        for (int attempt = 0; attempt < 4; attempt++) {
-            service.recordFailure("student@example.com");
+    void disabledBypassesBeforeProviderOrIdentifierProcessing() {
+        var service = service(false);
+        for (int i = 0; i < 7; i++) {
+            service.assertCanAttempt(null);
+            service.recordFailure(null);
+            service.clear(null);
         }
-
-        clock.advance(Duration.ofMinutes(16));
-
-        service.recordFailure("student@example.com");
-
-        assertThatCode(() -> service.assertCanAttempt("student@example.com")).doesNotThrowAnyException();
+        verifyNoInteractions(provider, store);
     }
 
     @Test
-    void cleanupDoesNotRemoveActiveLockedEntriesWhenSizeCapIsReached() {
-        MutableClock clock = new MutableClock(Instant.parse("2026-09-18T00:00:00Z"));
-        LoginAttemptService service = new LoginAttemptService(clock);
-
-        for (int index = 0; index < 10_000; index++) {
-            lockAccount(service, "locked-" + index + "@example.com");
-        }
-
-        service.recordFailure("new-student@example.com");
-
-        for (int index = 0; index < 10_000; index++) {
-            String lockedEmail = "locked-" + index + "@example.com";
-            assertThatThrownBy(() -> service.assertCanAttempt(lockedEmail))
-                    .isInstanceOf(ApiException.class)
-                    .satisfies(error -> {
-                        ApiException apiException = (ApiException) error;
-                        org.assertj.core.api.Assertions.assertThat(apiException.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
-                    });
-        }
-    }
-
-    @Test
-    void cleanupDoesNotRemoveEntryThatBecomesLockedAfterCleanupCheck() {
-        MutableClock clock = new MutableClock(Instant.parse("2026-09-18T00:00:00Z"));
-        String racyEmail = "racy-student@example.com";
-        RacyCleanupMap attemptsByEmail = new RacyCleanupMap(racyEmail);
-        LoginAttemptService service = new LoginAttemptService(clock, attemptsByEmail);
-        attemptsByEmail.setService(service);
-
-        for (int index = 0; index < 9_998; index++) {
-            lockAccount(service, "locked-" + index + "@example.com");
-        }
-        for (int attempt = 0; attempt < 4; attempt++) {
-            service.recordFailure(racyEmail);
-        }
-
-        service.recordFailure("new-student@example.com");
-
-        assertThatThrownBy(() -> service.assertCanAttempt(racyEmail))
-                .isInstanceOf(ApiException.class)
-                .satisfies(error -> {
-                    ApiException apiException = (ApiException) error;
-                    org.assertj.core.api.Assertions.assertThat(apiException.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
-                });
-    }
-
-    private static void lockAccount(LoginAttemptService service, String email) {
-        for (int attempt = 0; attempt < 5; attempt++) {
-            service.recordFailure(email);
-        }
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private static final class RacyCleanupMap extends ConcurrentHashMap {
-        private final String racyEmail;
-        private final AtomicReference<LoginAttemptService> service = new AtomicReference<>();
-        private boolean transitionedToActiveLock;
-
-        private RacyCleanupMap(String racyEmail) {
-            this.racyEmail = racyEmail;
-        }
-
-        private void setService(LoginAttemptService service) {
-            this.service.set(service);
-        }
-
-        @Override
-        public Object remove(Object key) {
-            transitionToActiveLockIfRacy(key);
-            return super.remove(key);
-        }
-
-        @Override
-        public boolean remove(Object key, Object value) {
-            transitionToActiveLockIfRacy(key);
-            return super.remove(key, value);
-        }
-
-        private void transitionToActiveLockIfRacy(Object key) {
-            if (!transitionedToActiveLock && racyEmail.equals(key)) {
-                transitionedToActiveLock = true;
-                service.get().recordFailure(racyEmail);
+    void propagatesBothRejectionAndUnavailableFromEveryOperation() {
+        when(provider.getObject()).thenReturn(store);
+        var service = service(true);
+        for (var error : new RateLimitException[] {RateLimitException.rejected(1234), RateLimitException.unavailable()}) {
+            doThrow(error).when(store).assertCanAttempt("a@example.com");
+            doThrow(error).when(store).recordFailure("a@example.com");
+            doThrow(error).when(store).clear("a@example.com");
+            for (Consumer<String> operation : java.util.List.<Consumer<String>>of(
+                    service::assertCanAttempt, service::recordFailure, service::clear)) {
+                assertThatThrownBy(() -> operation.accept("a@example.com")).isSameAs(error);
             }
         }
     }
 
-    private static final class MutableClock extends Clock {
-        private Instant instant;
-
-        private MutableClock(Instant instant) {
-            this.instant = instant;
+    @Test
+    void normalizedEmailLockSerializesCallbacksAndReleasesAfterException() throws Exception {
+        var service = service(false);
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var secondStarted = new CountDownLatch(1);
+        try (var workers = Executors.newFixedThreadPool(2)) {
+            var first = workers.submit(() -> service.withEmailLock(" Student@Example.COM ", () -> {
+                entered.countDown();
+                try { assertThat(release.await(5, TimeUnit.SECONDS)).isTrue(); }
+                catch (InterruptedException error) { throw new AssertionError(error); }
+                throw new IllegalStateException("callback");
+            }));
+            try {
+                assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+                var second = workers.submit(() -> {
+                    secondStarted.countDown();
+                    return service.withEmailLock("student@example.com", () -> "released");
+                });
+                assertThat(secondStarted.await(5, TimeUnit.SECONDS)).isTrue();
+                assertThatThrownBy(() -> second.get(150, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+                release.countDown();
+                assertThatThrownBy(() -> first.get(5, TimeUnit.SECONDS)).hasCauseInstanceOf(IllegalStateException.class);
+                assertThat(second.get(5, TimeUnit.SECONDS)).isEqualTo("released");
+            } finally { release.countDown(); }
         }
-
-        void advance(Duration duration) {
-            instant = instant.plus(duration);
-        }
-
-        @Override
-        public ZoneOffset getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public Clock withZone(java.time.ZoneId zone) {
-            return this;
-        }
-
-        @Override
-        public Instant instant() {
-            return instant;
-        }
+        verifyNoInteractions(provider, store);
     }
 }

@@ -1,6 +1,8 @@
 package com.learne.backend.config;
 
+import com.learne.backend.auth.registration.security.RegistrationRateLimitFilter;
 import com.learne.backend.auth.session.security.JwtAuthenticationFilter;
+import com.learne.backend.auth.session.security.LoginRateLimitFilter;
 import com.learne.backend.auth.session.security.TrustedOriginFilter;
 import com.learne.backend.auth.session.service.AuthProperties;
 import com.learne.backend.monetization.service.PlanCatalogProperties;
@@ -9,6 +11,7 @@ import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -37,6 +40,8 @@ public class SecurityConfig {
             HttpSecurity http,
             TrustedOriginFilter trustedOriginFilter,
             JwtAuthenticationFilter jwtAuthenticationFilter,
+            LoginRateLimitFilter loginRateLimitFilter,
+            RegistrationRateLimitFilter registrationRateLimitFilter,
             CorsConfigurationSource corsConfigurationSource
     ) throws Exception {
         return http
@@ -68,7 +73,23 @@ public class SecurityConfig {
                 )
                 .addFilterBefore(trustedOriginFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(loginRateLimitFilter, JwtAuthenticationFilter.class)
+                .addFilterBefore(registrationRateLimitFilter, JwtAuthenticationFilter.class)
                 .build();
+    }
+
+    @Bean
+    FilterRegistrationBean<LoginRateLimitFilter> loginRateLimitFilterRegistration(LoginRateLimitFilter filter) {
+        var registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
+    FilterRegistrationBean<RegistrationRateLimitFilter> registrationRateLimitFilterRegistration(RegistrationRateLimitFilter filter) {
+        var registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     @Bean

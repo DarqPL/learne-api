@@ -11,8 +11,11 @@ import com.learne.backend.domain.auth.PasswordPolicy;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.domain.auth.UserRole;
+import com.learne.backend.ratelimit.RateLimitDimension;
+import com.learne.backend.ratelimit.RateLimitService;
 import com.learne.backend.shared.api.ApiException;
 import java.time.OffsetDateTime;
+import java.util.Locale;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -30,6 +33,7 @@ public class StudentRegistrationService {
     private final OtpGenerator otpGenerator;
     private final RegistrationMailService registrationMailService;
     private final CacheInvalidationService cacheInvalidationService;
+    private final RateLimitService rateLimitService;
 
     public StudentRegistrationService(
             RegistrationOtpRepository registrationOtpRepository,
@@ -38,7 +42,8 @@ public class StudentRegistrationService {
             PasswordPolicy passwordPolicy,
             OtpGenerator otpGenerator,
             RegistrationMailService registrationMailService,
-            CacheInvalidationService cacheInvalidationService
+            CacheInvalidationService cacheInvalidationService,
+            RateLimitService rateLimitService
     ) {
         this.registrationOtpRepository = registrationOtpRepository;
         this.userRepository = userRepository;
@@ -47,6 +52,7 @@ public class StudentRegistrationService {
         this.otpGenerator = otpGenerator;
         this.registrationMailService = registrationMailService;
         this.cacheInvalidationService = cacheInvalidationService;
+        this.rateLimitService = rateLimitService;
     }
 
     @Transactional
@@ -57,7 +63,12 @@ public class StudentRegistrationService {
             throw new ApiException(HttpStatus.CONFLICT, "Email is already registered.");
         }
 
-        registrationOtpRepository.findByEmail(email).ifPresent(registrationOtpRepository::delete);
+        rateLimitService.requireAllowed("register-send-email", RateLimitDimension.EMAIL, email);
+        registrationOtpRepository.findByEmail(email).ifPresent(existing -> {
+            registrationOtpRepository.delete(existing);
+            // Complete the delete before the identity insert reuses the unique email.
+            registrationOtpRepository.flush();
+        });
 
         String otp = otpGenerator.generate();
         RegistrationOtp pending = new RegistrationOtp();
@@ -125,6 +136,7 @@ public class StudentRegistrationService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Current OTP is still valid. Please wait until it expires before requesting a new one.");
         }
 
+        rateLimitService.requireAllowed("register-send-email", RateLimitDimension.EMAIL, email);
         String otp = otpGenerator.generate();
         pending.setOtpHash(passwordEncoder.encode(otp));
         pending.setExpiresAt(OffsetDateTime.now().plusMinutes(5));
@@ -134,6 +146,6 @@ public class StudentRegistrationService {
     }
 
     private String normalizeEmail(String email) {
-        return email.trim().toLowerCase();
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 }

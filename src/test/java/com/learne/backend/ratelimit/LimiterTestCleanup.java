@@ -9,10 +9,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /** Test-only bounded acknowledgement of the production transport's asynchronous close. */
-final class LimiterTestCleanup {
+public final class LimiterTestCleanup {
     private LimiterTestCleanup() { }
 
-    static void closeAndAwait(LimiterRedisConnection transport) throws InterruptedException {
+    public static void closeAndAwait(LimiterRedisConnection transport) throws InterruptedException {
         var connector = ReflectionTestUtils.getField(transport, "connector");
         var resources = (DefaultClientResources) ReflectionTestUtils.getField(connector, "resources");
         var current = (AtomicReference<?>) ReflectionTestUtils.getField(transport, "current");

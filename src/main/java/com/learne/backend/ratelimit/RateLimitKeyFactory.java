@@ -22,13 +22,25 @@ public final class RateLimitKeyFactory {
         }
         try {
             String canonical = canonicalIdentifier(dimension, identifier);
+            String digest = hmacCanonicalIdentifier(dimension, canonical);
+            return properties.namespace() + ":" + properties.environment() + ":rl:v1:" + policyId + ":"
+                    + policy.revision() + ":" + dimension.wire() + ":" + digest;
+        } catch (IllegalArgumentException exception) {
+            throw RateLimitException.unavailable();
+        }
+    }
+
+    /** Hash an already-canonical identifier; caller-specific length/format rules stay with the caller. */
+    public String hmacCanonicalIdentifier(RateLimitDimension dimension, String canonical) {
+        if (dimension == null || canonical == null || canonical.isEmpty() || canonical.indexOf('\0') >= 0) {
+            throw RateLimitException.unavailable();
+        }
+        try {
             // A fresh Mac per call avoids mutable shared crypto state; disabled blank secrets stay lazy.
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(properties.hmacSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] message = ("rl-identifier-v1\0" + dimension.wire() + '\0' + canonical).getBytes(StandardCharsets.UTF_8);
-            String digest = HexFormat.of().formatHex(mac.doFinal(message));
-            return properties.namespace() + ":" + properties.environment() + ":rl:v1:" + policyId + ":"
-                    + policy.revision() + ":" + dimension.wire() + ":" + digest;
+            return HexFormat.of().formatHex(mac.doFinal(message));
         } catch (GeneralSecurityException | IllegalArgumentException exception) {
             throw RateLimitException.unavailable();
         }
@@ -40,7 +52,7 @@ public final class RateLimitKeyFactory {
             case EMAIL -> {
                 if (identifier.indexOf('\0') >= 0) throw RateLimitException.unavailable();
                 String email = identifier.trim().toLowerCase(Locale.ROOT);
-                if (email.isEmpty() || email.getBytes(StandardCharsets.UTF_8).length > 254) {
+                if (email.isEmpty()) {
                     throw RateLimitException.unavailable();
                 }
                 yield email;

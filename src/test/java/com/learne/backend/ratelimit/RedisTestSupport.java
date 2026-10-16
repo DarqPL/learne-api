@@ -7,7 +7,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.DockerImageName;
 
-abstract class RedisTestSupport {
+public abstract class RedisTestSupport {
 
     private static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse(
             "redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499"))
@@ -27,13 +27,13 @@ abstract class RedisTestSupport {
     }
 
     @BeforeAll
-    static void startRedis() {
+    protected static void startRedis() {
         REDIS.start();
         redisClient = newRedisClient();
     }
 
     @AfterAll
-    static void closeRedis() {
+    protected static void closeRedis() {
         try {
             if (redisClient != null) {
                 redisClient.shutdown();

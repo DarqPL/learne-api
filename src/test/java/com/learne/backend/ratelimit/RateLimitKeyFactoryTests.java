@@ -54,7 +54,7 @@ class RateLimitKeyFactoryTests {
 
     @Test
     void invalidCallersHaveOnlyGenericUnavailableErrors() {
-        for (String input : List.of("", " ", "sensitive\0email", "é".repeat(128))) {
+        for (String input : List.of("", " ", "sensitive\0email")) {
             unavailable(() -> key(RateLimitDimension.EMAIL, input));
         }
         for (String input : List.of("0", "-1", "+1", "1.0", " 1", "9223372036854775808", "sensitive-user")) {
@@ -106,5 +106,35 @@ class RateLimitKeyFactoryTests {
             assertThat(error.getMessage()).isEqualTo("Rate limiting unavailable");
             assertThat(error.getCause()).isNull();
         });
+    }
+
+    @Test
+    void canonicalHmacAndTokenBucketRetainGoldenDomainWithoutEmailByteLimit() {
+        assertThat(factory.hmacCanonicalIdentifier(RateLimitDimension.EMAIL, "alice@example.com"))
+                .isEqualTo("55be01d4a4edae89079d10e964ed5ffbbc959d6a833d5c9eefea317dc37b6bc0");
+        assertThat(factory.hmacCanonicalIdentifier(RateLimitDimension.EMAIL, "é".repeat(128)))
+                .matches("[0-9a-f]{64}");
+        assertThat(key(RateLimitDimension.EMAIL, "é".repeat(128)))
+                .endsWith(factory.hmacCanonicalIdentifier(RateLimitDimension.EMAIL, "é".repeat(128)));
+        assertThat(factory.hmacCanonicalIdentifier(RateLimitDimension.EMAIL, " Alice@Example.COM "))
+                .isNotEqualTo(factory.hmacCanonicalIdentifier(RateLimitDimension.EMAIL, "alice@example.com"));
+    }
+
+    @Test
+    void unicodeEmailBeyond254Utf8BytesUsesSameCanonicalHmacWithoutDoubleHashing() {
+        String email = "É".repeat(60) + "@" + "é".repeat(60) + "." + "é".repeat(10);
+        assertThat(email.getBytes(java.nio.charset.StandardCharsets.UTF_8).length).isGreaterThan(254);
+        String canonical = email.toLowerCase(java.util.Locale.ROOT);
+        assertThat(key(RateLimitDimension.EMAIL, " " + email + " "))
+                .isEqualTo(key(RateLimitDimension.EMAIL, canonical))
+                .endsWith(factory.hmacCanonicalIdentifier(RateLimitDimension.EMAIL, canonical));
+    }
+
+    @Test
+    void canonicalHmacRejectsInvalidInputsWithoutLeakingThem() {
+        for (String input : java.util.Arrays.asList(null, "", "private\0email")) {
+            unavailable(() -> factory.hmacCanonicalIdentifier(RateLimitDimension.EMAIL, input));
+        }
+        unavailable(() -> factory.hmacCanonicalIdentifier(null, "private"));
     }
 }

@@ -77,6 +77,14 @@ class RateLimitPropertiesTests {
             assertThat(bound.enabled()).isTrue();
             assertThat(bound.hmacSecret()).isEqualTo(RateLimitProperties.LOCAL_TEST_SECRET);
             assertThat(bound.trustedProxies()).isEmpty();
+            assertThat(bound.policies()).containsEntry("login-ip",
+                    new RateLimitPolicy(RateLimitDimension.IP, "r1", 15, 60, Duration.ofMinutes(1)));
+            assertThat(bound.policies()).containsEntry("register-send-ip",
+                    new RateLimitPolicy(RateLimitDimension.IP, "r1", 10, 30, Duration.ofMinutes(10)))
+                    .containsEntry("register-send-email",
+                            new RateLimitPolicy(RateLimitDimension.EMAIL, "r1", 1, 1, Duration.ofMinutes(1)))
+                    .containsEntry("register-verify-ip",
+                            new RateLimitPolicy(RateLimitDimension.IP, "r1", 10, 60, Duration.ofMinutes(1)));
             assertThat(context.getEnvironment().getProperty("server.forward-headers-strategy")).isEqualTo("none");
         });
         mainProperties.withInitializer(context -> context.getEnvironment().getPropertySources()

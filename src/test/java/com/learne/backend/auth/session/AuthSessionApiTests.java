@@ -12,6 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learne.backend.auth.session.security.LoginRateLimitFilter;
+import com.learne.backend.auth.registration.security.RegistrationRateLimitFilter;
 import com.learne.backend.domain.auth.RefreshToken;
 import com.learne.backend.domain.auth.RefreshTokenRepository;
 import com.learne.backend.domain.auth.User;
@@ -24,11 +26,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -56,6 +60,49 @@ class AuthSessionApiTests {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private SecurityFilterChain securityFilterChain;
+
+    @Autowired
+    private FilterRegistrationBean<LoginRateLimitFilter> loginRateLimitFilterRegistration;
+
+    @Autowired
+    private FilterRegistrationBean<RegistrationRateLimitFilter> registrationRateLimitFilterRegistration;
+
+    @Test
+    void loginIpGuardIsRegisteredOnceBeforeJwtAuthentication() {
+        var filters = securityFilterChain.getFilters().stream().map(filter -> filter.getClass().getSimpleName()).toList();
+        assertThat(filters).containsOnlyOnce("LoginRateLimitFilter");
+        assertThat(filters.indexOf("LoginRateLimitFilter")).isLessThan(filters.indexOf("JwtAuthenticationFilter"));
+        assertThat(loginRateLimitFilterRegistration.isEnabled()).isFalse();
+        assertThat(securityFilterChain.getFilters()).containsOnlyOnce(loginRateLimitFilterRegistration.getFilter());
+    }
+
+    @Test
+    void registrationIpGuardIsRegisteredOnceBeforeJwtWithServletRegistrationDisabled() {
+        var filters = securityFilterChain.getFilters();
+        var names = filters.stream().map(filter -> filter.getClass().getSimpleName()).toList();
+        assertThat(names).containsOnlyOnce("RegistrationRateLimitFilter");
+        assertThat(names.indexOf("RegistrationRateLimitFilter")).isLessThan(names.indexOf("JwtAuthenticationFilter"));
+        assertThat(registrationRateLimitFilterRegistration.isEnabled()).isFalse();
+        assertThat(filters).containsOnlyOnce(registrationRateLimitFilterRegistration.getFilter());
+    }
+
+    @Test
+    void loginStoresCanonicalPeerIpAndIgnoresUntrustedForwardedHeader() throws Exception {
+        saveUser("canonical-ip@example.com", "Password123", UserRole.STUDENT, true, false, false);
+        mockMvc.perform(post("/api/auth/login")
+                        .with(request -> { request.setRemoteAddr("2001:0db8:0:0:0:0:0:1"); return request; })
+                        .header("X-Forwarded-For", "192.0.2.99")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"canonical-ip@example.com","password":"Password123"}
+                                """))
+                .andExpect(status().isOk());
+        assertThat(refreshTokenRepository.findAll()).singleElement()
+                .satisfies(token -> assertThat(token.getIpAddress()).isEqualTo("2001:db8::1"));
+    }
 
     @BeforeEach
     void setUp() {
@@ -117,81 +164,19 @@ class AuthSessionApiTests {
     }
 
     @Test
-    void loginRejectsAttemptsAfterFiveFailedPasswordsForNormalizedEmail() throws Exception {
-        saveUser("limited-login@example.com", "Password123", UserRole.STUDENT, true, false, false);
-
-        for (int attempt = 0; attempt < 5; attempt++) {
-            mockMvc.perform(post("/api/auth/login")
-                            .contentType(MediaType.APPLICATION_JSON)
+    void disabledProtectionAllowsCorrectLoginAfterMoreThanFiveFailuresWithoutRedis() throws Exception {
+        saveUser("bypass-login@example.com", "Password123", UserRole.STUDENT, true, false, false);
+        for (int attempt = 0; attempt < 6; attempt++) {
+            mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                             .content("""
-                                    {
-                                      "email": "Limited-Login@Example.com",
-                                      "password": "WrongPassword123"
-                                    }
+                                    {"email":"bypass-login@example.com","password":"WrongPassword123"}
                                     """))
-                    .andExpect(status().isUnauthorized())
-                    .andExpect(jsonPath("$.message").value("Invalid email or password."));
+                    .andExpect(status().isUnauthorized());
         }
-
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "email": "limited-login@example.com",
-                                  "password": "Password123"
-                                }
-                                """))
-                .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.message").value("Too many failed login attempts. Please try again later."));
-
         assertThat(refreshTokenRepository.findAll()).isEmpty();
-    }
-
-    @Test
-    void successfulLoginClearsFailedAttemptCount() throws Exception {
-        saveUser("cleared-login@example.com", "Password123", UserRole.STUDENT, true, false, false);
-
-        for (int attempt = 0; attempt < 4; attempt++) {
-            mockMvc.perform(post("/api/auth/login")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("""
-                                    {
-                                      "email": "cleared-login@example.com",
-                                      "password": "WrongPassword123"
-                                    }
-                                    """))
-                    .andExpect(status().isUnauthorized());
-        }
-
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {
-                                  "email": "cleared-login@example.com",
-                                  "password": "Password123"
-                                }
-                                """))
-                .andExpect(status().isOk());
-
-        for (int attempt = 0; attempt < 4; attempt++) {
-            mockMvc.perform(post("/api/auth/login")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("""
-                                    {
-                                      "email": "cleared-login@example.com",
-                                      "password": "WrongPassword123"
-                                    }
-                                    """))
-                    .andExpect(status().isUnauthorized());
-        }
-
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "email": "cleared-login@example.com",
-                                  "password": "Password123"
-                                }
+                                {"email":"bypass-login@example.com","password":"Password123"}
                                 """))
                 .andExpect(status().isOk());
     }

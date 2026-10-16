@@ -7,6 +7,7 @@ import com.learne.backend.domain.auth.PasswordPolicy;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.shared.api.ApiException;
+import java.util.Locale;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -40,7 +41,7 @@ public class AuthSessionService {
 
     @Transactional(noRollbackFor = ApiException.class)
     public LoginResult login(String email, String password, String ipAddress, String userAgent) {
-        String normalizedEmail = email.toLowerCase().trim();
+        String normalizedEmail = email.toLowerCase(Locale.ROOT).trim();
         return loginAttemptService.withEmailLock(normalizedEmail, () -> loginWithEmailLock(normalizedEmail, password, ipAddress, userAgent));
     }
 
