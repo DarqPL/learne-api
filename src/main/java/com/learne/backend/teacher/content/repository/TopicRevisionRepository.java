@@ -7,6 +7,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface TopicRevisionRepository extends JpaRepository<TopicRevision, Long> {
+    @Query("select t.courseRevision.course.id from TopicRevision t where t.id = :id and t.courseRevision.teacher.id = :teacherId")
+    Optional<Long> findCourseIdByTopicIdAndTeacherId(@Param("id") Long id, @Param("teacherId") Long teacherId);
+
     @Query("""
             select tr from TopicRevision tr
             join tr.courseRevision cr

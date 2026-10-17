@@ -86,6 +86,10 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Course> findLockedByIdAndTeacher(Long id, User teacher);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c from Course c where c.id = :id")
+    Optional<Course> findLockedById(@Param("id") Long id);
+
     @Query("""
             select distinct c from Course c
             left join fetch c.topics t

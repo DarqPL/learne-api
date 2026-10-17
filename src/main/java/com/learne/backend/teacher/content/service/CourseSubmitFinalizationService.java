@@ -23,28 +23,34 @@ public class CourseSubmitFinalizationService {
     private final CourseRevisionRepository courseRevisionRepository;
     private final CacheInvalidationService cacheInvalidationService;
     private final CourseReviewEnrichmentService enrichmentService;
+    private final CourseWriteLockService locks;
 
     public CourseSubmitFinalizationService(
             CourseRepository courseRepository,
             CourseRevisionRepository courseRevisionRepository,
             CacheInvalidationService cacheInvalidationService,
-            CourseReviewEnrichmentService enrichmentService) {
+            CourseReviewEnrichmentService enrichmentService,
+            CourseWriteLockService locks) {
         this.courseRepository = courseRepository;
         this.courseRevisionRepository = courseRevisionRepository;
         this.cacheInvalidationService = cacheInvalidationService;
         this.enrichmentService = enrichmentService;
+        this.locks = locks;
     }
 
     @Transactional
     public CourseResponse finalizeSubmit(
             User teacher, Long courseId,
             CourseReviewEnrichmentService.EnrichedCourseRevisionSnapshot enrichedSnapshot) {
-        Course course = courseRepository.findByIdAndTeacher(courseId, teacher)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
+        Course course = locks.teacherCourse(courseId, teacher);
         CourseRevision latestRevision = courseRevisionRepository.findLockedLatestByCourseId(courseId, PageRequest.of(0, 1)).stream().findFirst()
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course revision not found."));
         if (!latestRevision.getTeacher().getId().equals(teacher.getId())) {
             throw new ApiException(HttpStatus.NOT_FOUND, "Course not found.");
+        }
+        if (!latestRevision.getId().equals(enrichedSnapshot.snapshot().revisionId())
+                || latestRevision.getRevisionNumber() != enrichedSnapshot.snapshot().revisionNumber()) {
+            throw new ApiException(HttpStatus.CONFLICT, "Course content changed. Please submit again.");
         }
         if (latestRevision.getStatus() != CourseRevisionStatus.DRAFT
                 && latestRevision.getStatus() != CourseRevisionStatus.REJECTED) {

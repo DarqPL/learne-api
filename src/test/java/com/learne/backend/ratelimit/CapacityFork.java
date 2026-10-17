@@ -101,7 +101,7 @@ final class CapacityFork implements AutoCloseable {
     }
 
     private void awaitProcess(CapacityCleanup cleanup, Duration timeout) {
-        if (!cleanup.await(n -> process.waitFor(n, TimeUnit.NANOSECONDS), timeout))
+        if (!cleanup.awaitProcess(process, timeout))
             throw new AssertionError("Worker termination timed out: " + process.pid());
     }
 
