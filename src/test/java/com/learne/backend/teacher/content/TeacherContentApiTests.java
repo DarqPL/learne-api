@@ -137,6 +137,111 @@ class TeacherContentApiTests {
     }
 
     @Test
+    void revisionOnlyAudioRejectsCourseAndLessonJsonEditsWithoutChangingDatabase() throws Exception {
+        String token = loginAndGetAccessToken(saveUser("guard-edit@example.com", UserRole.TEACHER).getEmail());
+        long courseId = createCourse(token);
+        long lessonId = createLesson(token, courseId);
+        createShortAnswerQuestion(token, lessonId);
+        jdbcTemplate.update("update lesson_revisions set source_lesson_id = null, audio_url = 'revision-url', audio_public_id = 'revision-id'");
+        var before = contentDatabaseSnapshot();
+        mockMvc.perform(put("/api/teacher/content/courses/{id}", courseId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Changed","description":"Changed","type":"GRAMMAR","level":"A2","orderIndex":9}
+                                """))
+                .andExpect(status().isConflict());
+        assertThat(contentDatabaseSnapshot()).isEqualTo(before);
+        mockMvc.perform(put("/api/teacher/content/lessons/{id}", lessonId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(guardLessonJson()))
+                .andExpect(status().isConflict());
+        assertThat(contentDatabaseSnapshot()).isEqualTo(before);
+    }
+
+    @Test
+    void deletingSubtreeRejectsUnrelatedAudioSurvivorWithoutChangingDatabase() throws Exception {
+        String token = loginAndGetAccessToken(saveUser("guard-delete@example.com", UserRole.TEACHER).getEmail());
+        long courseId = createCourse(token);
+        long deletedLessonId = createLesson(token, courseId);
+        long survivorId = createLesson(token, courseId);
+        jdbcTemplate.update("update lesson_revisions set audio_url = 'different', audio_public_id = 'different'");
+        long topicId = jdbcTemplate.queryForObject("select topic_id from lessons where id = ?", Long.class, deletedLessonId);
+        var before = contentDatabaseSnapshot();
+        for (String path : java.util.List.of("lessons/" + deletedLessonId, "topics/" + topicId)) {
+            mockMvc.perform(delete("/api/teacher/content/" + path)
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                    .andExpect(status().isConflict());
+            assertThat(contentDatabaseSnapshot()).isEqualTo(before);
+        }
+        assertThat(jdbcTemplate.queryForObject("select count(*) from lessons where id = ?", Integer.class, survivorId)).isOne();
+    }
+
+    @Test
+    void compatibleLiveAudioSurvivesJsonEditsAndIntentionalSubtreeDeletion() throws Exception {
+        String token = loginAndGetAccessToken(saveUser("guard-compatible@example.com", UserRole.TEACHER).getEmail());
+        long courseId = createCourse(token);
+        long lessonId = createLesson(token, courseId);
+        jdbcTemplate.update("update lessons set audio_url = 'same-url', audio_public_id = 'same-id' where id = ?", lessonId);
+        jdbcTemplate.update("update lesson_revisions set audio_url = 'same-url', audio_public_id = 'same-id' where source_lesson_id = ?", lessonId);
+        updateCourseMetadata(token, courseId, "Compatible edit");
+        mockMvc.perform(put("/api/teacher/content/lessons/{id}", lessonId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(guardLessonJson()))
+                .andExpect(status().isOk());
+        assertThat(jdbcTemplate.queryForMap("select audio_url, audio_public_id from lesson_revisions where source_lesson_id = ?", lessonId))
+                .containsEntry("audio_url", "same-url").containsEntry("audio_public_id", "same-id");
+        jdbcTemplate.update("update lesson_revisions set audio_url = 'intentionally-deleted' where source_lesson_id = ?", lessonId);
+        mockMvc.perform(delete("/api/teacher/content/lessons/{id}", lessonId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk());
+        long topicLessonId = createLesson(token, courseId);
+        long topicId = jdbcTemplate.queryForObject("select topic_id from lessons where id = ?", Long.class, topicLessonId);
+        jdbcTemplate.update("update lesson_revisions set audio_public_id = 'intentionally-deleted' where source_lesson_id = ?", topicLessonId);
+        mockMvc.perform(delete("/api/teacher/content/topics/{id}", topicId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk());
+        createLesson(token, courseId);
+        jdbcTemplate.update("update lesson_revisions set source_lesson_id = null, audio_url = 'revision-only'");
+        mockMvc.perform(delete("/api/teacher/content/courses/{id}", courseId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk());
+        assertThat(jdbcTemplate.queryForObject("select count(*) from courses where id = ?", Integer.class, courseId)).isZero();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"APPROVED", "SUPERSEDED", "REJECTED", "DRAFT"})
+    void historicalAudioMismatchDoesNotBlockLatestEditableRebuild(String historicalStatus) throws Exception {
+        String token = loginAndGetAccessToken(saveUser("guard-history@example.com", UserRole.TEACHER).getEmail());
+        String adminToken = loginAndGetAccessToken(saveUser("guard-history-admin@example.com", UserRole.ADMIN).getEmail());
+        long courseId = createCourse(token);
+        approveCourseThroughAdmin(token, adminToken, courseId);
+        long historicalId = latestRevisionId(courseId);
+        mockMvc.perform(post("/api/teacher/content/courses/{id}/edit-revision", courseId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk());
+        jdbcTemplate.update("update courses set status = 'DRAFT', published_at = null where id = ?", courseId);
+        jdbcTemplate.update("update course_revisions set status = ? where id = ?", historicalStatus, historicalId);
+        jdbcTemplate.update("update lesson_revisions set audio_url = 'historical-only' where topic_revision_id in (select id from topic_revisions where revision_id = ?)", historicalId);
+        var historicalBefore = jdbcTemplate.queryForList("select lr.* from lesson_revisions lr join topic_revisions tr on lr.topic_revision_id = tr.id where tr.revision_id = ? order by lr.id", historicalId);
+        updateCourseMetadata(token, courseId, "Latest editable rebuild");
+        assertThat(jdbcTemplate.queryForList("select lr.* from lesson_revisions lr join topic_revisions tr on lr.topic_revision_id = tr.id where tr.revision_id = ? order by lr.id", historicalId))
+                .isEqualTo(historicalBefore);
+    }
+
+    private String guardLessonJson() {
+        return """
+                {"title":"Changed","description":"Changed","content":"Changed","skillType":"GRAMMAR","orderIndex":9,"xpReward":20,"placementTest":true}
+                """;
+    }
+
+    private java.util.List<java.util.List<Map<String, Object>>> contentDatabaseSnapshot() {
+        return java.util.List.of("courses", "course_revisions", "topics", "topic_revisions", "lessons", "lesson_revisions",
+                        "questions", "question_revisions", "question_options", "question_option_revisions").stream()
+                .map(table -> jdbcTemplate.queryForList("select * from " + table + " order by id")).toList();
+    }
+
+    @Test
     void teacherCanDownloadCourseExcelTemplate() throws Exception {
         User teacher = saveUser("template-teacher@example.com", UserRole.TEACHER);
         String teacherToken = loginAndGetAccessToken(teacher.getEmail());

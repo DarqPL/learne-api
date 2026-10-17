@@ -2,7 +2,10 @@ package com.learne.backend.ratelimit;
 
 import java.time.Duration;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /** Test lifecycle cleanup; each operation must have its own bounded wait. */
 final class CapacityCleanup implements AutoCloseable {
@@ -24,12 +27,42 @@ final class CapacityCleanup implements AutoCloseable {
 
     boolean await(TimedWait wait, Duration timeout) {
         long end = Math.min(deadline, System.nanoTime() + timeout.toNanos());
+        return awaitUntil(wait, end);
+    }
+
+    private boolean awaitUntil(TimedWait wait, long end) {
         interrupted |= Thread.interrupted();
         while (true) {
             long remaining = end - System.nanoTime();
             if (remaining <= 0) return false;
             try { return wait.await(remaining); }
             catch (InterruptedException problem) { interrupted = true; }
+        }
+    }
+
+    boolean awaitProcess(Process process, Duration timeout) {
+        long now = System.nanoTime();
+        long remaining = Math.min(deadline - now, timeout.toNanos());
+        if (remaining <= 0) return false;
+        long end = now + remaining;
+        // Reserve waiter teardown time inside both the operation bound and total cleanup deadline.
+        long joinBudget = Math.min(TimeUnit.MILLISECONDS.toNanos(100), remaining / 2);
+        var result = new FutureTask<Integer>(process::waitFor);
+        // Windows timed wait/isAlive can see the exit code before TerminateProcess releases files.
+        // Only unconditional waitFor supplies the native-termination barrier, even if already dead.
+        Thread waiter = Thread.ofVirtual().name("capacity-process-wait-" + process.pid()).start(result);
+        try {
+            return awaitUntil(n -> {
+                try { result.get(n, TimeUnit.NANOSECONDS); return true; }
+                catch (TimeoutException problem) { return false; }
+                catch (ExecutionException problem) {
+                    throw new AssertionError("Native process wait failed: " + process.pid(), problem.getCause());
+                }
+            }, end - joinBudget);
+        } finally {
+            waiter.interrupt();
+            if (!awaitUntil(n -> waiter.join(Duration.ofNanos(n)), end))
+                throw new AssertionError("Process waiter did not terminate: " + process.pid());
         }
     }
 

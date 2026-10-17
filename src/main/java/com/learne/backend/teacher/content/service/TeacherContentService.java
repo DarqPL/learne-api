@@ -43,6 +43,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -68,6 +69,8 @@ public class TeacherContentService {
     private final CourseSubmitFinalizationService courseSubmitFinalizationService;
     private final CourseSubmitPreparationService courseSubmitPreparationService;
     private final CourseReviewEnrichmentService enrichmentService;
+    private final CourseWriteLockService locks;
+    private final RevisionAudioRebuildGuard revisionAudioRebuildGuard;
 
     public TeacherContentService(CourseRepository courseRepository,
                            CourseRevisionRepository courseRevisionRepository,
@@ -81,7 +84,9 @@ public class TeacherContentService {
                              CursorTokenService cursorTokenService,
                              CourseSubmitFinalizationService courseSubmitFinalizationService,
                              CourseSubmitPreparationService courseSubmitPreparationService,
-                             CourseReviewEnrichmentService enrichmentService) {
+                             CourseReviewEnrichmentService enrichmentService,
+                             CourseWriteLockService locks,
+                             RevisionAudioRebuildGuard revisionAudioRebuildGuard) {
         this.courseRepository = courseRepository;
         this.courseRevisionRepository = courseRevisionRepository;
         this.topicRepository = topicRepository;
@@ -95,6 +100,8 @@ public class TeacherContentService {
         this.courseSubmitFinalizationService = courseSubmitFinalizationService;
         this.courseSubmitPreparationService = courseSubmitPreparationService;
         this.enrichmentService = enrichmentService;
+        this.locks = locks;
+        this.revisionAudioRebuildGuard = revisionAudioRebuildGuard;
     }
 
     @Transactional(readOnly = true)
@@ -165,9 +172,8 @@ public class TeacherContentService {
 
     @Transactional
     public CourseResponse createEditRevision(User teacher, Long courseId) {
-        Course course = courseRepository.findLockedByIdAndTeacher(courseId, teacher)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
-        CourseRevision latestRevision = courseRevisionRepository.findTopByCourseIdOrderByRevisionNumberDesc(courseId)
+        Course course = locks.teacherCourse(courseId, teacher);
+        CourseRevision latestRevision = courseRevisionRepository.findLockedLatestByCourseId(courseId, PageRequest.of(0, 1)).stream().findFirst()
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course revision not found."));
         if (!latestRevision.getTeacher().getId().equals(teacher.getId())) {
             throw new ApiException(HttpStatus.NOT_FOUND, "Course not found.");
@@ -193,7 +199,7 @@ public class TeacherContentService {
 
     @Transactional
     public CourseResponse updateCourse(User teacher, Long courseId, CourseRequest request) {
-        Course course = findCourse(teacher, courseId);
+        Course course = locks.teacherCourse(courseId, teacher);
         CourseRevision latestRevision = findLatestRevision(course);
         if (course.getPublishedAt() != null || course.getStatus() == ContentStatus.APPROVED) {
             CourseRevision editableRevision = latestLockedEditableRevision(courseId)
@@ -205,9 +211,10 @@ public class TeacherContentService {
             return response;
         }
         ensureEditable(course);
+        CourseRevision rebuildRevision = assertSafeRevisionRebuild(course, Set.of());
         applyCourseRequest(course, request, false);
         Course savedCourse = courseRepository.save(course);
-        CourseRevision revision = syncEditableRevision(savedCourse);
+        CourseRevision revision = syncEditableRevision(savedCourse, rebuildRevision);
         CourseResponse response = teacherCourseResponse(savedCourse, revision == null ? latestRevision : revision);
         evictContentCaches(teacher);
         return response;
@@ -215,7 +222,7 @@ public class TeacherContentService {
 
     @Transactional
     public void deleteCourse(User teacher, Long courseId) {
-        Course course = findCourse(teacher, courseId);
+        Course course = locks.teacherCourse(courseId, teacher);
         ensureEditable(course);
         courseRepository.delete(course);
         evictContentCaches(teacher);
@@ -223,7 +230,7 @@ public class TeacherContentService {
 
     @Transactional
     public TopicResponse createTopic(User teacher, Long courseId, TopicRequest request) {
-        Course course = findCourse(teacher, courseId);
+        Course course = locks.teacherCourse(courseId, teacher);
         if (isPublishedOrApproved(course)) {
             CourseRevision revision = latestLockedEditableRevision(courseId)
                     .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Create an edit revision before editing this course."));
@@ -237,11 +244,12 @@ public class TeacherContentService {
         }
         ensureEditable(course);
         Topic topic = new Topic();
+        CourseRevision rebuildRevision = assertSafeRevisionRebuild(course, Set.of());
         topic.setCourse(course);
         applyTopicRequest(topic, request);
         course.getTopics().add(topic);
         Topic savedTopic = topicRepository.save(topic);
-        syncEditableRevision(course);
+        syncEditableRevision(course, rebuildRevision);
         TopicResponse response = TopicResponse.from(savedTopic);
         evictContentCaches(teacher);
         return response;
@@ -249,13 +257,15 @@ public class TeacherContentService {
 
     @Transactional
     public TopicResponse updateTopic(User teacher, Long topicId, TopicRequest request) {
-        Optional<Topic> liveTopic = findTopicOptional(teacher, topicId);
+        Optional<Topic> liveTopic = lockTopicTarget(teacher, topicId)
+                ? Optional.of(findTopic(teacher, topicId)) : Optional.empty();
         if (liveTopic.isPresent()) {
             Topic topic = liveTopic.get();
             ensureEditable(topic.getCourse());
+            CourseRevision rebuildRevision = assertSafeRevisionRebuild(topic.getCourse(), Set.of());
             applyTopicRequest(topic, request);
             Topic savedTopic = topicRepository.save(topic);
-            syncEditableRevision(savedTopic.getCourse());
+            syncEditableRevision(savedTopic.getCourse(), rebuildRevision);
             TopicResponse response = TopicResponse.from(savedTopic);
             evictContentCaches(teacher);
             return response;
@@ -269,26 +279,22 @@ public class TeacherContentService {
             evictContentCaches(teacher);
             return response;
         }
-        Topic topic = liveTopic.orElseGet(() -> findTopic(teacher, topicId));
-        ensureEditable(topic.getCourse());
-        applyTopicRequest(topic, request);
-        Topic savedTopic = topicRepository.save(topic);
-        syncEditableRevision(savedTopic.getCourse());
-        TopicResponse response = TopicResponse.from(savedTopic);
-        evictContentCaches(teacher);
-        return response;
+        throw new ApiException(HttpStatus.NOT_FOUND, "Topic not found.");
     }
 
     @Transactional
     public void deleteTopic(User teacher, Long topicId) {
-        Optional<Topic> liveTopic = findTopicOptional(teacher, topicId);
+        Optional<Topic> liveTopic = lockTopicTarget(teacher, topicId)
+                ? Optional.of(findTopic(teacher, topicId)) : Optional.empty();
         if (liveTopic.isPresent()) {
             Topic topic = liveTopic.get();
             ensureEditable(topic.getCourse());
             Course course = topic.getCourse();
+            CourseRevision rebuildRevision = assertSafeRevisionRebuild(course,
+                    topic.getLessons().stream().map(Lesson::getId).collect(Collectors.toSet()));
             topicRepository.delete(topic);
             course.getTopics().remove(topic);
-            syncEditableRevision(course);
+            syncEditableRevision(course, rebuildRevision);
             evictContentCaches(teacher);
             return;
         }
@@ -303,7 +309,8 @@ public class TeacherContentService {
 
     @Transactional
     public LessonResponse createLesson(User teacher, Long topicId, LessonRequest request) {
-        Optional<Topic> liveTopic = findTopicOptional(teacher, topicId);
+        Optional<Topic> liveTopic = lockTopicTarget(teacher, topicId)
+                ? Optional.of(findTopic(teacher, topicId)) : Optional.empty();
         if (liveTopic.isEmpty()) {
             TopicRevision topic = findEditableTopicRevision(teacher, topicId)
                     .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Topic not found."));
@@ -320,6 +327,7 @@ public class TeacherContentService {
         }
         Topic topic = liveTopic.get();
         ensureEditable(topic.getCourse());
+        CourseRevision rebuildRevision = assertSafeRevisionRebuild(topic.getCourse(), Set.of());
         Lesson lesson = new Lesson();
         lesson.setTopic(topic);
         lesson.setTeacher(teacher);
@@ -327,7 +335,7 @@ public class TeacherContentService {
         applyLessonRequest(lesson, request);
         topic.getLessons().add(lesson);
         Lesson savedLesson = lessonRepository.save(lesson);
-        syncEditableRevision(topic.getCourse());
+        syncEditableRevision(topic.getCourse(), rebuildRevision);
         LessonResponse response = LessonResponse.from(savedLesson);
         evictContentCaches(teacher);
         return response;
@@ -335,13 +343,15 @@ public class TeacherContentService {
 
     @Transactional
     public LessonResponse updateLesson(User teacher, Long lessonId, LessonRequest request) {
-        Optional<Lesson> liveLesson = findLessonOptional(teacher, lessonId);
+        Optional<Lesson> liveLesson = lockLessonTarget(teacher, lessonId)
+                ? Optional.of(findLesson(teacher, lessonId)) : Optional.empty();
         if (liveLesson.isPresent()) {
             Lesson lesson = liveLesson.get();
             ensureEditable(lesson.getTopic().getCourse());
+            CourseRevision rebuildRevision = assertSafeRevisionRebuild(lesson.getTopic().getCourse(), Set.of());
             applyLessonRequest(lesson, request);
             Lesson savedLesson = lessonRepository.save(lesson);
-            syncEditableRevision(savedLesson.getTopic().getCourse());
+            syncEditableRevision(savedLesson.getTopic().getCourse(), rebuildRevision);
             LessonResponse response = LessonResponse.from(savedLesson);
             evictContentCaches(teacher);
             return response;
@@ -355,26 +365,21 @@ public class TeacherContentService {
             evictContentCaches(teacher);
             return response;
         }
-        Lesson lesson = liveLesson.orElseGet(() -> findLesson(teacher, lessonId));
-        ensureEditable(lesson.getTopic().getCourse());
-        applyLessonRequest(lesson, request);
-        Lesson savedLesson = lessonRepository.save(lesson);
-        syncEditableRevision(savedLesson.getTopic().getCourse());
-        LessonResponse response = LessonResponse.from(savedLesson);
-        evictContentCaches(teacher);
-        return response;
+        throw new ApiException(HttpStatus.NOT_FOUND, "Lesson not found.");
     }
 
     @Transactional
     public void deleteLesson(User teacher, Long lessonId) {
-        Optional<Lesson> liveLesson = findLessonOptional(teacher, lessonId);
+        Optional<Lesson> liveLesson = lockLessonTarget(teacher, lessonId)
+                ? Optional.of(findLesson(teacher, lessonId)) : Optional.empty();
         if (liveLesson.isPresent()) {
             Lesson lesson = liveLesson.get();
             ensureEditable(lesson.getTopic().getCourse());
             Course course = lesson.getTopic().getCourse();
+            CourseRevision rebuildRevision = assertSafeRevisionRebuild(course, Set.of(lessonId));
             lesson.getTopic().getLessons().remove(lesson);
             lessonRepository.delete(lesson);
-            syncEditableRevision(course);
+            syncEditableRevision(course, rebuildRevision);
             evictContentCaches(teacher);
             return;
         }
@@ -390,7 +395,8 @@ public class TeacherContentService {
     @Transactional
     public QuestionResponse createQuestion(User teacher, Long lessonId, QuestionRequest request) {
         validateQuestion(request);
-        Optional<Lesson> liveLesson = findLessonOptional(teacher, lessonId);
+        Optional<Lesson> liveLesson = lockLessonTarget(teacher, lessonId)
+                ? Optional.of(findLesson(teacher, lessonId)) : Optional.empty();
         if (liveLesson.isEmpty()) {
             LessonRevision lesson = findEditableLessonRevision(teacher, lessonId)
                     .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Lesson not found."));
@@ -407,6 +413,7 @@ public class TeacherContentService {
         }
         Lesson lesson = liveLesson.get();
         ensureEditable(lesson.getTopic().getCourse());
+        CourseRevision rebuildRevision = assertSafeRevisionRebuild(lesson.getTopic().getCourse(), Set.of());
         Question question = new Question();
         question.setLesson(lesson);
         question.setTeacher(teacher);
@@ -414,7 +421,7 @@ public class TeacherContentService {
         applyQuestionRequest(question, request);
         lesson.getQuestions().add(question);
         Question savedQuestion = questionRepository.save(question);
-        syncEditableRevision(lesson.getTopic().getCourse());
+        syncEditableRevision(lesson.getTopic().getCourse(), rebuildRevision);
         QuestionResponse response = QuestionResponse.from(savedQuestion);
         evictContentCaches(teacher);
         return response;
@@ -422,15 +429,17 @@ public class TeacherContentService {
 
     @Transactional
     public QuestionResponse updateQuestion(User teacher, Long questionId, QuestionRequest request) {
-        Optional<Question> liveQuestion = findQuestionOptional(teacher, questionId);
+        Optional<Question> liveQuestion = lockQuestionTarget(teacher, questionId)
+                ? Optional.of(findQuestion(teacher, questionId)) : Optional.empty();
         if (liveQuestion.isPresent()) {
             Question question = liveQuestion.get();
             ensureEditable(question.getLesson().getTopic().getCourse());
             validateQuestion(request);
+            CourseRevision rebuildRevision = assertSafeRevisionRebuild(question.getLesson().getTopic().getCourse(), Set.of());
             question.getOptions().clear();
             applyQuestionRequest(question, request);
             Question savedQuestion = questionRepository.save(question);
-            syncEditableRevision(savedQuestion.getLesson().getTopic().getCourse());
+            syncEditableRevision(savedQuestion.getLesson().getTopic().getCourse(), rebuildRevision);
             QuestionResponse response = QuestionResponse.from(savedQuestion);
             evictContentCaches(teacher);
             return response;
@@ -446,28 +455,21 @@ public class TeacherContentService {
             evictContentCaches(teacher);
             return response;
         }
-        Question question = liveQuestion.orElseGet(() -> findQuestion(teacher, questionId));
-        ensureEditable(question.getLesson().getTopic().getCourse());
-        validateQuestion(request);
-        question.getOptions().clear();
-        applyQuestionRequest(question, request);
-        Question savedQuestion = questionRepository.save(question);
-        syncEditableRevision(savedQuestion.getLesson().getTopic().getCourse());
-        QuestionResponse response = QuestionResponse.from(savedQuestion);
-        evictContentCaches(teacher);
-        return response;
+        throw new ApiException(HttpStatus.NOT_FOUND, "Question not found.");
     }
 
     @Transactional
     public void deleteQuestion(User teacher, Long questionId) {
-        Optional<Question> liveQuestion = findQuestionOptional(teacher, questionId);
+        Optional<Question> liveQuestion = lockQuestionTarget(teacher, questionId)
+                ? Optional.of(findQuestion(teacher, questionId)) : Optional.empty();
         if (liveQuestion.isPresent()) {
             Question question = liveQuestion.get();
             ensureEditable(question.getLesson().getTopic().getCourse());
             Course course = question.getLesson().getTopic().getCourse();
+            CourseRevision rebuildRevision = assertSafeRevisionRebuild(course, Set.of());
             question.getLesson().getQuestions().remove(question);
             questionRepository.delete(question);
-            syncEditableRevision(course);
+            syncEditableRevision(course, rebuildRevision);
             evictContentCaches(teacher);
             return;
         }
@@ -650,8 +652,16 @@ public class TeacherContentService {
         revision.setProposedPriceAmountVnd(course.getProposedPriceAmountVnd());
     }
 
-    private CourseRevision syncEditableRevision(Course course) {
+    // All callers hold the course lock and invoke this before changing the managed live graph.
+    private CourseRevision assertSafeRevisionRebuild(Course course, Set<Long> deliberatelyDeletedLiveLessonIds) {
         return latestEditableRevision(course).map(revision -> {
+            revisionAudioRebuildGuard.assertSafe(course, revision, deliberatelyDeletedLiveLessonIds);
+            return revision;
+        }).orElse(null);
+    }
+
+    private CourseRevision syncEditableRevision(Course course, CourseRevision rebuildRevision) {
+        return Optional.ofNullable(rebuildRevision).map(revision -> {
             applyRevisionMetadata(revision, course);
             revision.getTopics().clear();
             course.getTopics().stream()
@@ -663,20 +673,17 @@ public class TeacherContentService {
     }
 
     private Optional<CourseRevision> latestEditableRevision(Course course) {
-        return courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(course, CourseRevisionStatus.DRAFT)
-                .or(() -> courseRevisionRepository.findTopByCourseAndStatusOrderByRevisionNumberDesc(
-                        course, CourseRevisionStatus.REJECTED));
+        return courseRevisionRepository.findTopByCourseOrderByRevisionNumberDesc(course)
+                .filter(this::isEditableRevision);
     }
 
     private Optional<CourseRevision> latestLockedEditableRevision(Long courseId) {
-        return courseRevisionRepository.findTopByCourseIdOrderByRevisionNumberDesc(courseId)
+        return courseRevisionRepository.findLockedLatestByCourseId(courseId, PageRequest.of(0, 1)).stream().findFirst()
                 .filter(this::isEditableRevision);
     }
 
     private void ensureLockedLatestEditableRevision(User teacher, CourseRevision revision) {
         Long courseId = revision.getCourse().getId();
-        courseRepository.findLockedByIdAndTeacher(courseId, teacher)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
         CourseRevision latestRevision = latestLockedEditableRevision(courseId)
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Create an edit revision before editing this course."));
         if (!latestRevision.getId().equals(revision.getId())) {
@@ -687,6 +694,31 @@ public class TeacherContentService {
     private boolean isEditableRevision(CourseRevision revision) {
         return revision.getStatus() == CourseRevisionStatus.DRAFT
                 || revision.getStatus() == CourseRevisionStatus.REJECTED;
+    }
+
+    // Preserve the legacy live-first namespace choice, then reload that same type after locking.
+    private boolean lockTopicTarget(User teacher, Long id) {
+        Optional<Long> live = topicRepository.findCourseIdByTopicIdAndTeacherId(id, teacher.getId());
+        Long courseId = live.or(() -> topicRevisionRepository.findCourseIdByTopicIdAndTeacherId(id, teacher.getId()))
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Topic not found."));
+        locks.teacherCourse(courseId, teacher);
+        return live.isPresent();
+    }
+
+    private boolean lockLessonTarget(User teacher, Long id) {
+        Optional<Long> live = lessonRepository.findCourseIdByLessonIdAndTeacherId(id, teacher.getId());
+        Long courseId = live.or(() -> lessonRevisionRepository.findCourseIdByLessonIdAndTeacherId(id, teacher.getId()))
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Lesson not found."));
+        locks.teacherCourse(courseId, teacher);
+        return live.isPresent();
+    }
+
+    private boolean lockQuestionTarget(User teacher, Long id) {
+        Optional<Long> live = questionRepository.findCourseIdByQuestionIdAndTeacherId(id, teacher.getId());
+        Long courseId = live.or(() -> questionRevisionRepository.findCourseIdByQuestionIdAndTeacherId(id, teacher.getId()))
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Question not found."));
+        locks.teacherCourse(courseId, teacher);
+        return live.isPresent();
     }
 
     private CourseRevision cloneRevisionForEdit(Course course, User teacher, CourseRevision source) {

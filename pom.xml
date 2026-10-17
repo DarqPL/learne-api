@@ -226,6 +226,31 @@
 
 	<profiles>
 		<profile>
+			<id>audio-it</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-failsafe-plugin</artifactId>
+						<configuration>
+							<includes>
+								<include>**/teacher/content/audio/*IT.java</include>
+							</includes>
+							<failIfNoTests>true</failIfNoTests>
+						</configuration>
+						<executions>
+							<execution>
+								<goals>
+									<goal>integration-test</goal>
+									<goal>verify</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+		<profile>
 			<id>redis-it</id>
 			<properties>
 				<redis.capacity.enabled>false</redis.capacity.enabled>

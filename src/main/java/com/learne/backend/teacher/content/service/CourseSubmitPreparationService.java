@@ -6,9 +6,9 @@ import com.learne.backend.teacher.content.enrichment.CourseReviewEnrichmentServi
 import com.learne.backend.teacher.content.entity.CourseRevision;
 import com.learne.backend.teacher.content.enums.CourseRevisionStatus;
 import com.learne.backend.teacher.content.repository.CourseRevisionRepository;
-import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -23,7 +23,7 @@ public class CourseSubmitPreparationService {
         this.enrichmentService = enrichmentService;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public CourseReviewEnrichmentService.CourseRevisionSnapshot prepare(User teacher, Long courseId) {
         CourseRevision revision = courseRevisionRepository.findTopByCourseIdOrderByRevisionNumberDesc(courseId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course revision not found."));

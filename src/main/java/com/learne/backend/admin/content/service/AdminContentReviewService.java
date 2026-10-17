@@ -21,6 +21,7 @@ import com.learne.backend.teacher.content.enums.CoursePricingType;
 import com.learne.backend.teacher.content.enums.CourseRevisionStatus;
 import com.learne.backend.teacher.content.repository.CourseRepository;
 import com.learne.backend.teacher.content.repository.CourseRevisionRepository;
+import com.learne.backend.teacher.content.service.CourseWriteLockService;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.HashSet;
@@ -28,6 +29,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,15 +43,18 @@ public class AdminContentReviewService {
     private final CourseRevisionRepository courseRevisionRepository;
     private final EntityManager entityManager;
     private final CacheInvalidationService cacheInvalidationService;
+    private final CourseWriteLockService locks;
 
     public AdminContentReviewService(CourseRepository courseRepository,
                                       CourseRevisionRepository courseRevisionRepository,
                                       EntityManager entityManager,
-                                      CacheInvalidationService cacheInvalidationService) {
+                                      CacheInvalidationService cacheInvalidationService,
+                                      CourseWriteLockService locks) {
         this.courseRepository = courseRepository;
         this.courseRevisionRepository = courseRevisionRepository;
         this.entityManager = entityManager;
         this.cacheInvalidationService = cacheInvalidationService;
+        this.locks = locks;
     }
 
     @Transactional(readOnly = true)
@@ -408,11 +413,15 @@ public class AdminContentReviewService {
     }
 
     private CourseRevision findReviewRevision(Long reviewId) {
+        Long courseId = courseRevisionRepository.findCourseIdByRevisionId(reviewId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
+        locks.adminCourse(courseId);
         return courseRevisionRepository.findLockedById(reviewId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
     }
 
     private CourseRevision findCoursePathReviewRevision(Long courseId) {
+        locks.adminCourse(courseId);
         return courseRevisionRepository.findLockedTopByCourseIdAndStatusOrderByRevisionNumberDesc(
                         courseId, CourseRevisionStatus.PENDING_REVIEW)
                 .or(() -> courseRevisionRepository.findTopByCourseIdOrderByRevisionNumberDesc(courseId))
@@ -426,7 +435,7 @@ public class AdminContentReviewService {
     }
 
     private CourseRevision latestLockedRevision(Long courseId) {
-        return courseRevisionRepository.findTopByCourseIdOrderByRevisionNumberDesc(courseId)
+        return courseRevisionRepository.findLockedLatestByCourseId(courseId, PageRequest.of(0, 1)).stream().findFirst()
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
     }
 

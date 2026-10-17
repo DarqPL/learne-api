@@ -13,6 +13,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface QuestionRepository extends JpaRepository<Question, Long> {
+    @Query("select q.lesson.topic.course.id from Question q where q.id = :id and q.teacher.id = :teacherId")
+    Optional<Long> findCourseIdByQuestionIdAndTeacherId(@Param("id") Long id, @Param("teacherId") Long teacherId);
+
     @Query("""
             select question from Question question
             join fetch question.lesson lesson

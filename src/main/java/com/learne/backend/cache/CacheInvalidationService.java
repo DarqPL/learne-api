@@ -70,6 +70,24 @@ public class CacheInvalidationService {
         });
     }
 
+    /** Audio facade calls this after its transaction proxy returns, never from afterCommit. */
+    public void evictContentAfterAudioCommit(Long teacherId) {
+        bestEffort("teacher dashboard", () -> evict(CacheNames.TEACHER_DASHBOARD,
+                CacheKeySupport.teacherDashboard(teacherId)));
+        bestEffort("student catalog", () -> clear(CacheNames.STUDENT_CATALOG));
+        bestEffort("student course detail", () -> clear(CacheNames.STUDENT_COURSE_DETAIL));
+        bestEffort("catalog version", () -> catalogCacheVersionService.bumpVersion());
+        bestEffort("admin dashboard", () -> evict(CacheNames.ADMIN_DASHBOARD, CacheKeySupport.adminDashboard()));
+    }
+
+    private void bestEffort(String action, Runnable operation) {
+        try {
+            operation.run();
+        } catch (RuntimeException exception) {
+            log.warn("Audio post-commit {} invalidation failed ({})", action, exception.getClass().getSimpleName());
+        }
+    }
+
     private void evict(String cacheName, Object key) {
         Cache cache = cacheManager.getCache(cacheName);
         if (cache != null) {

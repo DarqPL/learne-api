@@ -12,6 +12,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface CourseRevisionRepository extends JpaRepository<CourseRevision, Long> {
+    @Query("select r.course.id from CourseRevision r where r.id = :id")
+    Optional<Long> findCourseIdByRevisionId(@Param("id") Long id);
+
     Optional<CourseRevision> findTopByCourseOrderByRevisionNumberDesc(Course course);
 
     @Query("""

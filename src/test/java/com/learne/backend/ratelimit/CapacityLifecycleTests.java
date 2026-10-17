@@ -312,7 +312,7 @@ class CapacityLifecycleTests {
         try (var cleanup = new CapacityCleanup()) {
             cleanup.step(() -> { if (process.isAlive()) process.destroyForcibly(); });
             cleanup.step(() -> {
-                if (!cleanup.await(n -> process.waitFor(n, TimeUnit.NANOSECONDS), Duration.ofSeconds(2)))
+                if (!cleanup.awaitProcess(process, Duration.ofSeconds(2)))
                     throw new AssertionError("Test process still alive: " + process.pid());
             });
         }
