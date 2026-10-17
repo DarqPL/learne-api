@@ -86,6 +86,12 @@ class RateLimitPropertiesTests {
                     .containsEntry("register-verify-ip",
                             new RateLimitPolicy(RateLimitDimension.IP, "r1", 10, 60, Duration.ofMinutes(1)));
             assertThat(context.getEnvironment().getProperty("server.forward-headers-strategy")).isEqualTo("none");
+            assertThat(bound.policies()).containsEntry("password-reset-request-ip",
+                    new RateLimitPolicy(RateLimitDimension.IP, "r1", 10, 30, Duration.ofMinutes(10)))
+                    .containsEntry("password-reset-request-email",
+                            new RateLimitPolicy(RateLimitDimension.EMAIL, "r1", 1, 1, Duration.ofMinutes(1)))
+                    .containsEntry("password-reset-confirm-ip",
+                            new RateLimitPolicy(RateLimitDimension.IP, "r1", 10, 60, Duration.ofMinutes(1)));
         });
         mainProperties.withInitializer(context -> context.getEnvironment().getPropertySources()
                 .addFirst(testSource))

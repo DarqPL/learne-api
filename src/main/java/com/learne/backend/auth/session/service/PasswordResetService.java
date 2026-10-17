@@ -8,12 +8,16 @@ import com.learne.backend.domain.auth.PasswordResetTokenRepository;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.domain.auth.UserRepository;
 import com.learne.backend.shared.api.ApiException;
+import com.learne.backend.ratelimit.RateLimitDimension;
+import com.learne.backend.ratelimit.RateLimitService;
 import java.time.OffsetDateTime;
+import java.util.Locale;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 @Service
 public class PasswordResetService {
@@ -29,6 +33,7 @@ public class PasswordResetService {
     private final PasswordResetTokenGenerator tokenGenerator;
     private final PasswordResetMailService mailService;
     private final RefreshTokenService refreshTokenService;
+    private final RateLimitService rateLimitService;
 
     public PasswordResetService(
             UserRepository userRepository,
@@ -37,7 +42,8 @@ public class PasswordResetService {
             PasswordPolicy passwordPolicy,
             PasswordResetTokenGenerator tokenGenerator,
             PasswordResetMailService mailService,
-            RefreshTokenService refreshTokenService
+            RefreshTokenService refreshTokenService,
+            RateLimitService rateLimitService
     ) {
         this.userRepository = userRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
@@ -46,11 +52,13 @@ public class PasswordResetService {
         this.tokenGenerator = tokenGenerator;
         this.mailService = mailService;
         this.refreshTokenService = refreshTokenService;
+        this.rateLimitService = rateLimitService;
     }
 
     @Transactional
     public void requestReset(PasswordResetRequest request) {
         String email = normalizeEmail(request.email());
+        rateLimitService.requireAllowed("password-reset-request-email", RateLimitDimension.EMAIL, email);
         userRepository.findByEmail(email)
                 .filter(user -> user.isActive() && !user.isLocked())
                 .ifPresent(this::createAndSendToken);
@@ -58,7 +66,8 @@ public class PasswordResetService {
 
     @Transactional(noRollbackFor = ApiException.class)
     public void confirmReset(ConfirmPasswordResetRequest request) {
-        User user = userRepository.findByEmail(normalizeEmail(request.email()))
+        // Serialize confirms with a fresh user read: user -> reset tokens -> refresh sessions.
+        User user = userRepository.findByEmailForUpdate(normalizeEmail(request.email()))
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Password reset token is invalid."));
         PasswordResetToken resetToken = passwordResetTokenRepository.findLatestUnusedByUserForUpdate(user, PageRequest.of(0, 1)).stream()
                 .findFirst()
@@ -84,13 +93,22 @@ public class PasswordResetService {
         }
 
         passwordPolicy.validate(request.newPassword(), request.confirmNewPassword());
-        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
-        user.setMustChangePassword(false);
-        userRepository.save(user);
+        String passwordHash = passwordEncoder.encode(request.newPassword());
+        try {
+            user.setPasswordHash(passwordHash);
+            user.setMustChangePassword(false);
+            userRepository.save(user);
 
-        resetToken.setUsedAt(OffsetDateTime.now());
-        passwordResetTokenRepository.save(resetToken);
-        refreshTokenService.revokeAllActiveTokens(user);
+            OffsetDateTime usedAt = OffsetDateTime.now();
+            resetToken.setUsedAt(usedAt);
+            passwordResetTokenRepository.save(resetToken);
+            passwordResetTokenRepository.markAllUnusedByUserAsUsed(user, usedAt);
+            refreshTokenService.revokeAllActiveTokens(user);
+        } catch (RuntimeException failure) {
+            // noRollbackFor preserves wrong-code attempts above, never partial credential changes.
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            throw failure;
+        }
     }
 
     private void createAndSendToken(User user) {
@@ -106,6 +124,6 @@ public class PasswordResetService {
     }
 
     private String normalizeEmail(String email) {
-        return email.trim().toLowerCase();
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 }

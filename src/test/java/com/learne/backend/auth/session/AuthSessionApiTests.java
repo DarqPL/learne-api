@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learne.backend.auth.session.security.LoginRateLimitFilter;
+import com.learne.backend.auth.session.security.PasswordResetRateLimitFilter;
 import com.learne.backend.auth.registration.security.RegistrationRateLimitFilter;
 import com.learne.backend.domain.auth.RefreshToken;
 import com.learne.backend.domain.auth.RefreshTokenRepository;
@@ -69,6 +70,19 @@ class AuthSessionApiTests {
 
     @Autowired
     private FilterRegistrationBean<RegistrationRateLimitFilter> registrationRateLimitFilterRegistration;
+
+    @Autowired
+    private FilterRegistrationBean<PasswordResetRateLimitFilter> passwordResetRateLimitFilterRegistration;
+
+    @Test
+    void passwordResetIpGuardIsRegisteredOnceBeforeJwtWithServletRegistrationDisabled() {
+        var filters = securityFilterChain.getFilters();
+        var names = filters.stream().map(filter -> filter.getClass().getSimpleName()).toList();
+        assertThat(names).containsOnlyOnce("PasswordResetRateLimitFilter");
+        assertThat(names.indexOf("PasswordResetRateLimitFilter")).isLessThan(names.indexOf("JwtAuthenticationFilter"));
+        assertThat(passwordResetRateLimitFilterRegistration.isEnabled()).isFalse();
+        assertThat(filters).containsOnlyOnce(passwordResetRateLimitFilterRegistration.getFilter());
+    }
 
     @Test
     void loginIpGuardIsRegisteredOnceBeforeJwtAuthentication() {
