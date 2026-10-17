@@ -61,6 +61,9 @@ class PasswordResetApiTests {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private com.learne.backend.ratelimit.RateLimitProperties limiterProperties;
+
     @BeforeEach
     void setUp() {
         TestDatabaseCleaner.clean(jdbcTemplate);
@@ -283,6 +286,31 @@ class PasswordResetApiTests {
         user.setLocked(locked);
         user.setMustChangePassword(mustChangePassword);
         return userRepository.save(user);
+    }
+
+    @Test
+    void globalLimiterBypassStillInvalidatesOlderCommittedGenerations() throws Exception {
+        assertThat(limiterProperties.enabled()).isFalse();
+        User student = saveUser("bypass@example.com", "Password123", UserRole.STUDENT, true, false, false);
+        savePasswordResetToken(student, "135790", OffsetDateTime.now().plusMinutes(10), null, 0);
+        jdbcTemplate.update("update password_reset_tokens set created_at = ? where user_id = ?",
+                OffsetDateTime.now().minusMinutes(2), student.getId());
+        savePasswordResetToken(student, "246801", OffsetDateTime.now().plusMinutes(15), null, 0);
+        String body = """
+                {"email":"bypass@example.com","token":"%s","newPassword":"%s","confirmNewPassword":"%s"}
+                """;
+        mockMvc.perform(post("/api/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
+                        .content(body.formatted("246801", "NewPassword123", "NewPassword123")))
+                .andExpect(status().isOk());
+        assertThat(passwordResetTokenRepository.findAll()).hasSize(2)
+                .allSatisfy(token -> assertThat(token.getUsedAt()).isNotNull());
+        for (String code : List.of("135790", "246801")) {
+            mockMvc.perform(post("/api/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
+                            .content(body.formatted(code, "AnotherPassword123", "AnotherPassword123")))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("Password reset token is invalid."));
+        }
+        assertThat(passwordEncoder.matches("NewPassword123", userRepository.findById(student.getId()).orElseThrow().getPasswordHash())).isTrue();
     }
 
     private void savePasswordResetToken(User user, String token, OffsetDateTime expiresAt, OffsetDateTime usedAt, int attempts) {

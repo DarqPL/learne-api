@@ -10,6 +10,7 @@ import com.learne.backend.auth.session.service.AuthProperties;
 import com.learne.backend.auth.session.service.AuthSessionService;
 import com.learne.backend.auth.session.service.PasswordResetService;
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.ratelimit.ClientIpResolver;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.shared.api.ApiMessageResponse;
 import jakarta.servlet.http.Cookie;
@@ -35,11 +36,14 @@ class AuthSessionController {
     private final AuthSessionService authSessionService;
     private final PasswordResetService passwordResetService;
     private final AuthProperties authProperties;
+    private final ClientIpResolver clientIpResolver;
 
-    AuthSessionController(AuthSessionService authSessionService, PasswordResetService passwordResetService, AuthProperties authProperties) {
+    AuthSessionController(AuthSessionService authSessionService, PasswordResetService passwordResetService,
+            AuthProperties authProperties, ClientIpResolver clientIpResolver) {
         this.authSessionService = authSessionService;
         this.passwordResetService = passwordResetService;
         this.authProperties = authProperties;
+        this.clientIpResolver = clientIpResolver;
     }
 
     @PostMapping("/login")
@@ -47,7 +51,7 @@ class AuthSessionController {
         AuthSessionService.LoginResult result = authSessionService.login(
                 request.email(),
                 request.password(),
-                servletRequest.getRemoteAddr(),
+                clientIpResolver.resolve(servletRequest),
                 servletRequest.getHeader(HttpHeaders.USER_AGENT)
         );
         return ResponseEntity.ok()
