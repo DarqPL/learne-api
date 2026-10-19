@@ -45,6 +45,7 @@ import org.testcontainers.containers.wait.strategy.Wait;
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Execution(ExecutionMode.SAME_THREAD)
+@org.springframework.context.annotation.Import(com.learne.backend.testsupport.SubmissionTestDriver.class)
 abstract class AudioPostgresTestSupport {
     private static GenericContainer<?> postgres;
 
@@ -64,8 +65,10 @@ abstract class AudioPostgresTestSupport {
         properties.add("spring.datasource.password", () -> "isolated-audio-test-password");
         properties.add("spring.jpa.hibernate.ddl-auto", () -> "none");
         properties.add("spring.flyway.enabled", () -> true);
+        properties.add("spring.flyway.locations", () -> "classpath:db/migration");
         properties.add("app.cache.redis.enabled", () -> false);
         properties.add("app.rate-limit.enabled", () -> false);
+        properties.add("app.jobs.worker-enabled", () -> false);
     }
 
     @AfterAll
@@ -74,6 +77,7 @@ abstract class AudioPostgresTestSupport {
     @Autowired UserRepository users;
     @Autowired PasswordEncoder passwords;
     @Autowired TeacherContentService content;
+    @Autowired com.learne.backend.testsupport.SubmissionTestDriver submissions;
     @Autowired CourseRevisionRepository revisions;
     @Autowired LessonRepository lessons;
     @Autowired PlatformTransactionManager manager;

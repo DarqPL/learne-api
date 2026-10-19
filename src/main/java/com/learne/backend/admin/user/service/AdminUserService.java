@@ -49,6 +49,7 @@ public class AdminUserService {
     private final GrammarCheckRepository grammarCheckRepository;
     private final AiConversationRepository aiConversationRepository;
     private final CacheInvalidationService cacheInvalidationService;
+    private final TeacherInvitationService invitations;
 
     public AdminUserService(
             UserRepository userRepository,
@@ -62,7 +63,8 @@ public class AdminUserService {
             QuizAttemptRepository quizAttemptRepository,
             GrammarCheckRepository grammarCheckRepository,
             AiConversationRepository aiConversationRepository,
-            CacheInvalidationService cacheInvalidationService) {
+            CacheInvalidationService cacheInvalidationService, TeacherInvitationService invitations) {
+        this.invitations = invitations;
         this.userRepository = userRepository;
         this.teacherProfileRepository = teacherProfileRepository;
         this.refreshTokenService = refreshTokenService;
@@ -81,8 +83,9 @@ public class AdminUserService {
     public NumberedPageResponse<AdminTeacherResponse> listTeachers(int page, int size) {
         var result = userRepository.findByRole(UserRole.TEACHER,
                 PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "createdAt").and(Sort.by("id"))));
+        var deliveries = invitations.deliveryByTeacherIds(result.getContent().stream().map(User::getId).toList());
         List<AdminTeacherResponse> content = result.getContent().stream()
-                .map(user -> AdminTeacherResponse.from(user, teacherProfileRepository.findByUser(user).orElse(null)))
+                .map(user -> AdminTeacherResponse.from(user, teacherProfileRepository.findByUser(user).orElse(null), deliveries.get(user.getId())))
                 .toList();
         return new NumberedPageResponse<>(content, result.getNumber(), result.getSize(),
                 result.getTotalElements(), result.getTotalPages());
@@ -195,9 +198,12 @@ public class AdminUserService {
         teacher.setLocked(false);
         teacher.setMustChangePassword(true);
         teacher.setAccountOrigin(AccountOrigin.ADMIN_CREATED);
+        teacher.setInvitationGeneration(java.util.UUID.randomUUID());
+        java.time.Instant generatedAt = java.time.Instant.now();
 
         User savedTeacher = userRepository.save(teacher);
-        teacherInvitationMailService.sendTeacherInvitation(savedTeacher.getEmail(), savedTeacher.getFullName(), temporaryPassword);
+        teacherInvitationMailService.sendTeacherInvitation(savedTeacher, temporaryPassword,
+                savedTeacher.getInvitationGeneration(), generatedAt.plus(java.time.Duration.ofHours(24)));
         cacheInvalidationService.evictAdminDashboard();
         return savedTeacher;
     }

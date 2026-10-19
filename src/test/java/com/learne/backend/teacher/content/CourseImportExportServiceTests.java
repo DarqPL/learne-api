@@ -1144,7 +1144,8 @@ class CourseImportExportServiceTests {
         CourseWriteLockService locks = mock(CourseWriteLockService.class);
         lenient().when(locks.teacherCourse(any(), any())).thenAnswer(call ->
                 courses.findByIdAndTeacher(call.getArgument(0), call.getArgument(1)).orElseThrow());
-        CourseImportPersistenceService target = new CourseImportPersistenceService(courses, revisions, locks);
+        CourseImportPersistenceService target = new CourseImportPersistenceService(courses, revisions, locks,
+                org.mockito.Mockito.mock(com.learne.backend.teacher.content.submission.SubmissionGuard.class));
         ProxyFactory proxy = new ProxyFactory(target);
         proxy.addAdvice(new TransactionInterceptor(transactions, new AnnotationTransactionAttributeSource()));
         CourseImportPersistenceService writer = (CourseImportPersistenceService) proxy.getProxy();

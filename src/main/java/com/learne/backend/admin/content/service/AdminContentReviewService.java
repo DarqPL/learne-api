@@ -44,17 +44,20 @@ public class AdminContentReviewService {
     private final EntityManager entityManager;
     private final CacheInvalidationService cacheInvalidationService;
     private final CourseWriteLockService locks;
+    private final ReviewDecisionService decisions;
 
     public AdminContentReviewService(CourseRepository courseRepository,
                                       CourseRevisionRepository courseRevisionRepository,
                                       EntityManager entityManager,
                                       CacheInvalidationService cacheInvalidationService,
-                                      CourseWriteLockService locks) {
+                                      CourseWriteLockService locks,
+                                      ReviewDecisionService decisions) {
         this.courseRepository = courseRepository;
         this.courseRevisionRepository = courseRevisionRepository;
         this.entityManager = entityManager;
         this.cacheInvalidationService = cacheInvalidationService;
         this.locks = locks;
+        this.decisions = decisions;
     }
 
     @Transactional(readOnly = true)
@@ -107,6 +110,7 @@ public class AdminContentReviewService {
         MaterializedSources materializedSources = publishRevisionToLive(course, revision, admin, now);
         Course savedCourse = courseRepository.saveAndFlush(course);
         linkMaterializedSources(materializedSources);
+        decisions.recordAndEnqueue(revision, null);
 
         AdminReviewCourseDetailResponse response = AdminReviewCourseDetailResponse.from(savedCourse, revision);
         evictReviewCaches(savedCourse);
@@ -164,6 +168,7 @@ public class AdminContentReviewService {
 
         courseRevisionRepository.save(revision);
         Course savedCourse = courseRepository.save(course);
+        decisions.recordAndEnqueue(revision, null);
         AdminReviewCourseDetailResponse response = AdminReviewCourseDetailResponse.from(savedCourse, revision);
         evictReviewCaches(savedCourse);
         return response;

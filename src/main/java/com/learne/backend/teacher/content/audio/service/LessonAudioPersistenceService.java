@@ -1,6 +1,8 @@
 package com.learne.backend.teacher.content.audio.service;
 
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.teacher.content.submission.SubmissionGuard;
+import com.learne.backend.shared.api.CodedApiException;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.teacher.content.audio.dto.AudioTargetKind;
 import com.learne.backend.teacher.content.audio.dto.LessonAudioMutation;
@@ -23,15 +25,17 @@ public class LessonAudioPersistenceService {
     private final LessonRepository lessons;
     private final LessonRevisionRepository revisionLessons;
     private final EntityManager entityManager;
+    private final SubmissionGuard submissionGuard;
 
     public LessonAudioPersistenceService(CourseWriteLockService locks, LessonAudioTargetResolver resolver,
                                          LessonRepository lessons, LessonRevisionRepository revisionLessons,
-                                         EntityManager entityManager) {
+                                         EntityManager entityManager, SubmissionGuard submissionGuard) {
         this.locks = locks;
         this.resolver = resolver;
         this.lessons = lessons;
         this.revisionLessons = revisionLessons;
         this.entityManager = entityManager;
+        this.submissionGuard = submissionGuard;
     }
 
     @Transactional
@@ -41,8 +45,10 @@ public class LessonAudioPersistenceService {
         LessonAudioTargetResolver.ResolvedTarget target;
         try {
             locks.teacherCourse(before.courseId(), teacher);
+            submissionGuard.requireEditable(before.courseId());
             target = resolver.resolve(teacher, before.kind(), before.targetId());
         } catch (ApiException exception) {
+            if (exception instanceof CodedApiException) throw exception;
             // A valid preflight already existed: disappearance/ownership changes are stale writes.
             throw conflict();
         }
@@ -58,6 +64,7 @@ public class LessonAudioPersistenceService {
                 : revisionLessons.findCourseIdByLessonIdAndTeacherId(id, teacher.getId()))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Lesson audio target not found"));
         locks.teacherCourse(courseId, teacher);
+        submissionGuard.requireEditable(courseId);
         var target = resolver.resolve(teacher, kind, id);
         if (!courseId.equals(target.course().getId())) throw conflict();
         return mutate(target, LessonAudioState.empty());

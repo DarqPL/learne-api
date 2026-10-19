@@ -39,13 +39,16 @@ class TeacherContentController {
     private final TeacherContentService teacherContentService;
     private final CourseExcelTemplateExporter courseExcelTemplateExporter;
     private final CourseImportExportService courseImportExportService;
+    private final com.learne.backend.teacher.content.submission.SubmissionAcceptanceService submissions;
 
     TeacherContentController(TeacherContentService teacherContentService,
                              CourseExcelTemplateExporter courseExcelTemplateExporter,
-                             CourseImportExportService courseImportExportService) {
+                             CourseImportExportService courseImportExportService,
+                             com.learne.backend.teacher.content.submission.SubmissionAcceptanceService submissions) {
         this.teacherContentService = teacherContentService;
         this.courseExcelTemplateExporter = courseExcelTemplateExporter;
         this.courseImportExportService = courseImportExportService;
+        this.submissions = submissions;
     }
 
     @GetMapping(value = "/course-template", produces = "application/vnd.ms-excel.sheet.macroEnabled.12")
@@ -174,8 +177,9 @@ class TeacherContentController {
     }
 
     @PostMapping("/courses/{courseId}/submit")
-    CourseResponse submitCourse(@PathVariable Long courseId, Authentication authentication) {
-        return teacherContentService.submitCourse(currentUser(authentication), courseId);
+    ResponseEntity<com.learne.backend.teacher.content.submission.SubmissionResponse> submitCourse(@PathVariable Long courseId, Authentication authentication) {
+        var response = submissions.accept(currentUser(authentication).getId(), courseId);
+        return ResponseEntity.accepted().location(java.net.URI.create("/api/teacher/content/courses/"+courseId+"/submissions/"+response.id())).body(response);
     }
 
     @PostMapping("/courses/{courseId}/edit-revision")

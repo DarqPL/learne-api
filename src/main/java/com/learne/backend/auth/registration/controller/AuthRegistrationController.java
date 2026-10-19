@@ -23,7 +23,7 @@ public class AuthRegistrationController {
     @PostMapping("/request-otp")
     ApiMessageResponse requestOtp(@Valid @RequestBody RequestRegistrationOtpRequest request) {
         studentRegistrationService.requestOtp(request);
-        return new ApiMessageResponse("Registration OTP has been sent to your email.");
+        return new ApiMessageResponse("Registration OTP request accepted. Please check your inbox.");
     }
 
     @PostMapping("/verify-otp")
@@ -35,6 +35,6 @@ public class AuthRegistrationController {
     @PostMapping("/resend-otp")
     ApiMessageResponse resendOtp(@Valid @RequestBody ResendRegistrationOtpRequest request) {
         studentRegistrationService.resendOtp(request);
-        return new ApiMessageResponse("A new registration OTP has been sent to your email.");
+        return new ApiMessageResponse("New registration OTP request accepted. Please check your inbox.");
     }
 }

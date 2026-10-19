@@ -67,7 +67,10 @@ import org.springframework.mock.web.MockMultipartFile;
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 @SpringBootTest
-class TeacherContentApiTests {
+class TeacherContentApiTests extends com.learne.backend.testsupport.SubmissionHttpPostgresSupport {
+    @Autowired private org.springframework.transaction.PlatformTransactionManager fixtureTransactions;
+    @MockitoBean
+    private com.learne.backend.admin.content.service.ReviewDecisionService reviewDecisions;
     @Autowired
     private UserRepository userRepository;
 
@@ -127,7 +130,7 @@ class TeacherContentApiTests {
     @BeforeEach
     void setUp() {
         TestDatabaseCleaner.clean(jdbcTemplate);
-        when(courseKnowledgePointClient.enrichKnowledgePoints(any())).thenAnswer(invocation -> {
+        when(courseKnowledgePointClient.enrichKnowledgePoints(any(), org.mockito.ArgumentMatchers.eq(com.learne.backend.teacher.content.enrichment.EnrichmentContract.V1))).thenAnswer(invocation -> {
             CourseKnowledgePointRequest request = invocation.getArgument(0);
             return new CourseKnowledgePointResponse(request.questions().stream()
                     .map(question -> new CourseKnowledgePointResponse.Item(
@@ -469,17 +472,13 @@ class TeacherContentApiTests {
         long staleRevisionId = objectMapper.readTree(firstEditResult.getResponse().getContentAsString())
                 .get("latestRevisionId").asLong();
         updateCourseMetadata(teacherToken, courseId, "Older Editable Export Name");
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk());
         updateCourseMetadata(teacherToken, courseId, "Latest Pending Export Name");
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
         jdbcTemplate.update("update course_revisions set status = 'DRAFT' where id = ?", staleRevisionId);
 
         MvcResult exportResult = mockMvc.perform(get("/api/teacher/content/courses/%d/export".formatted(courseId))
@@ -932,9 +931,7 @@ class TeacherContentApiTests {
                         + "(select id from topic_revisions where revision_id = ?)",
                 "Approved edited lesson",
                 draftRevisionId);
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
@@ -972,9 +969,7 @@ class TeacherContentApiTests {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk());
         updateCourseMetadata(teacherToken, courseId, "Rejected edited name", "GRAMMAR", "A2", 7);
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         mockMvc.perform(post("/api/admin/content/courses/%d/reject".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
@@ -1020,17 +1015,13 @@ class TeacherContentApiTests {
         long staleRevisionId = objectMapper.readTree(firstEditResult.getResponse().getContentAsString())
                 .get("latestRevisionId").asLong();
         updateCourseMetadata(teacherToken, courseId, "Older Editable Metadata");
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
                 .andExpect(status().isOk());
         updateCourseMetadata(teacherToken, courseId, "Latest Pending Metadata");
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
         jdbcTemplate.update("update course_revisions set status = 'DRAFT' where id = ?", staleRevisionId);
 
         mockMvc.perform(put("/api/teacher/content/courses/%d".formatted(courseId))
@@ -1176,10 +1167,7 @@ class TeacherContentApiTests {
                                 """))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.latestRevisionStatus").value("PENDING_REVIEW"));
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         mockMvc.perform(get("/api/teacher/content/courses/%d".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
@@ -1338,14 +1326,12 @@ class TeacherContentApiTests {
                 "select t.id from topics t join lessons l on l.topic_id = t.id where l.id = ?",
                 Long.class,
                 draftLessonId);
-        jdbcTemplate.execute("set referential_integrity false");
-        try {
+        new org.springframework.transaction.support.TransactionTemplate(fixtureTransactions).executeWithoutResult(tx -> {
+            jdbcTemplate.execute("set local session_replication_role = 'replica'");
             jdbcTemplate.update("update topics set id = ? where id = ?", topicRevisionId, draftTopicId);
             jdbcTemplate.update("update lessons set topic_id = ?, id = ? where id = ?", topicRevisionId, lessonRevisionId, draftLessonId);
             jdbcTemplate.update("update questions set lesson_id = ?, id = ? where id = ?", lessonRevisionId, questionRevisionId, draftQuestionId);
-        } finally {
-            jdbcTemplate.execute("set referential_integrity true");
-        }
+        });
 
         mockMvc.perform(put("/api/teacher/content/topics/%d".formatted(topicRevisionId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
@@ -1446,14 +1432,12 @@ class TeacherContentApiTests {
                 "select q.id from questions q where q.lesson_id = ?",
                 Long.class,
                 liveLessonId);
-        jdbcTemplate.execute("set referential_integrity false");
-        try {
+        new org.springframework.transaction.support.TransactionTemplate(fixtureTransactions).executeWithoutResult(tx -> {
+            jdbcTemplate.execute("set local session_replication_role = 'replica'");
             jdbcTemplate.update("update topics set id = ? where id = ?", topicRevisionId, liveTopicId);
             jdbcTemplate.update("update lessons set topic_id = ?, id = ? where id = ?", topicRevisionId, lessonRevisionId, liveLessonId);
             jdbcTemplate.update("update questions set lesson_id = ?, id = ? where id = ?", lessonRevisionId, questionRevisionId, liveQuestionId);
-        } finally {
-            jdbcTemplate.execute("set referential_integrity true");
-        }
+        });
 
         mockMvc.perform(put("/api/teacher/content/topics/%d".formatted(topicRevisionId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken)
@@ -1651,11 +1635,7 @@ class TeacherContentApiTests {
         long lessonId = createLesson(teacherToken, courseId);
         createShortAnswerQuestion(teacherToken, lessonId);
 
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PENDING_REVIEW"))
-                .andExpect(jsonPath("$.latestRevisionStatus").value("PENDING_REVIEW"));
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         Long pendingRevisionId = jdbcTemplate.queryForObject(
                 "select id from course_revisions where course_id = ? and status = 'PENDING_REVIEW'",
@@ -1775,10 +1755,7 @@ class TeacherContentApiTests {
                                 { "name": "First pending name", "description": "First", "type": "COMPREHENSIVE", "level": "A1", "orderIndex": 1 }
                                 """))
                 .andExpect(status().isOk());
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.latestRevisionStatus").value("PENDING_REVIEW"));
+        submitAndProcess(mockMvc, teacherToken, courseId);
         long firstPendingRevisionId = latestRevisionId(courseId);
 
         MvcResult secondEditResult = mockMvc.perform(post("/api/teacher/content/courses/%d/edit-revision".formatted(courseId))
@@ -1835,10 +1812,7 @@ class TeacherContentApiTests {
                                 }
                                 """))
                 .andExpect(status().isOk());
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.latestRevisionStatus").value("PENDING_REVIEW"));
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         mockMvc.perform(get("/api/admin/content/courses/pending")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
@@ -2337,10 +2311,7 @@ class TeacherContentApiTests {
         long lessonId = createLesson(teacherToken, completeCourseId);
         long questionId = createShortAnswerQuestion(teacherToken, lessonId);
 
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(completeCourseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PENDING_REVIEW"));
+        submitAndProcess(mockMvc, teacherToken, completeCourseId);
 
         Map<String, Object> metadata = jdbcTemplate.queryForMap(
                 """
@@ -2491,9 +2462,7 @@ class TeacherContentApiTests {
     private void approveCourseThroughAdmin(String teacherToken, String adminToken, long courseId) throws Exception {
         long lessonId = createLesson(teacherToken, courseId);
         createShortAnswerQuestion(teacherToken, lessonId);
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
         mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk());

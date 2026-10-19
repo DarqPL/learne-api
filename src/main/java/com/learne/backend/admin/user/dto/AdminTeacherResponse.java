@@ -11,9 +11,13 @@ public record AdminTeacherResponse(
         boolean locked,
         boolean mustChangePassword,
         TeacherProfileStatus profileStatus,
-        boolean completed) {
+        boolean completed, InvitationDeliveryResponse invitationDelivery) {
 
     public static AdminTeacherResponse from(User user, TeacherProfile profile) {
+        return from(user, profile, null);
+    }
+
+    public static AdminTeacherResponse from(User user, TeacherProfile profile, InvitationDeliveryResponse delivery) {
         return new AdminTeacherResponse(
                 user.getId(),
                 user.getFullName(),
@@ -21,6 +25,6 @@ public record AdminTeacherResponse(
                 user.isLocked(),
                 user.isMustChangePassword(),
                 profile != null ? profile.getStatus() : null,
-                profile != null && profile.isCompleted());
+                profile != null && profile.isCompleted(), delivery);
     }
 }

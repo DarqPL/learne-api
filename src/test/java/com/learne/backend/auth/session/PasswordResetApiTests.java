@@ -38,7 +38,7 @@ import org.springframework.test.web.servlet.MvcResult;
 @SpringBootTest
 class PasswordResetApiTests {
 
-    private static final String REQUEST_MESSAGE = "If the email is registered, password reset instructions have been sent.";
+    private static final String REQUEST_MESSAGE = com.learne.backend.auth.session.service.PasswordResetService.REQUEST_MESSAGE;
 
     @Autowired
     private MockMvc mockMvc;
@@ -364,8 +364,8 @@ class PasswordResetApiTests {
         }
 
         @Override
-        public void sendPasswordResetToken(String email, String token) {
-            sentMessages.add(new SentResetToken(email, token));
+        public void sendPasswordResetToken(PasswordResetToken pending, String token) {
+            sentMessages.add(new SentResetToken(pending.getUser().getEmail(), token));
         }
 
         List<SentResetToken> sentMessages() {

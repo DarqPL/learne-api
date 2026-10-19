@@ -96,7 +96,7 @@ class PasswordResetProtectionIT extends RedisTestSupport {
                 .with(r -> { r.setRemoteAddr(ip); return r; })
                 .content("{\"email\":\"" + user.getEmail() + "\"}"))
                 .andExpect(status().isOk());
-        verify(mail).sendPasswordResetToken(user.getEmail(), "246801");
+        verify(mail).sendPasswordResetToken(argThat(t -> t.getUser().getEmail().equals(user.getEmail())), eq("246801"));
         latestId = tokens.findTopByUserAndUsedAtIsNullOrderByCreatedAtDesc(user).orElseThrow().getId();
         for (int i = 0; i < 2; i++) {
             var session = new RefreshToken();
@@ -278,7 +278,7 @@ class PasswordResetProtectionIT extends RedisTestSupport {
         assertSpent(EMAIL, address);
         verify(users).findByEmail(address);
         if (state.equals("known")) {
-            verify(mail).sendPasswordResetToken(address, "357912");
+            verify(mail).sendPasswordResetToken(argThat(t -> t.getUser().getEmail().equals(address)), eq("357912"));
             assertThat(tokens.count()).isEqualTo(count + 1);
         } else {
             verifyNoInteractions(generator, mail, encoder);
@@ -315,20 +315,20 @@ class PasswordResetProtectionIT extends RedisTestSupport {
     }
 
     @Test
-    void smtpFailureRollsBackSqlButNeverRefundsEmailAllowance() throws Exception {
+    void enqueueFailureRollsBackSqlButNeverRefundsEmailAllowance() throws Exception {
         var owner = saveUser();
         seedToken(owner, "468023", OffsetDateTime.now().minusMinutes(1), null);
         var before = snapshot();
-        var failure = new org.springframework.mail.MailSendException("Injected SMTP failure");
+        var failure = new IllegalStateException("Injected queue failure");
         doAnswer(call -> {
             tokens.flush();
             assertThat(jdbc.queryForObject("select count(*) from password_reset_tokens where user_id = ?", Long.class, owner.getId())).isEqualTo(2L);
             assertSpent(EMAIL, owner.getEmail());
             throw failure;
-        }).when(mail).sendPasswordResetToken(eq(owner.getEmail()), anyString());
+        }).when(mail).sendPasswordResetToken(argThat(t -> t.getUser().getEmail().equals(owner.getEmail())), anyString());
         clearObservations();
         assertThatThrownBy(() -> request(owner.getEmail())).isInstanceOf(jakarta.servlet.ServletException.class).hasRootCause(failure);
-        verify(mail).sendPasswordResetToken(owner.getEmail(), "357912");
+        verify(mail).sendPasswordResetToken(argThat(t -> t.getUser().getEmail().equals(owner.getEmail())), eq("357912"));
         assertThat(snapshot()).isEqualTo(before);
         assertSpent(EMAIL, owner.getEmail());
         String spent = raw(EMAIL, owner.getEmail());
@@ -410,7 +410,7 @@ class PasswordResetProtectionIT extends RedisTestSupport {
         assertThat(http("request", json.writeValueAsString(Map.of("email", address)), null).statusCode()).isEqualTo(200);
         assertSpent(EMAIL, address);
         assertSpent(REQUEST, "127.0.0.1");
-        verify(mail).sendPasswordResetToken(address, "357912");
+        verify(mail).sendPasswordResetToken(argThat(t -> t.getUser().getEmail().equals(address)), eq("357912"));
         String spent = raw(EMAIL, address), requestIp = raw(REQUEST, "127.0.0.1");
         assertThat(http("confirm", confirmBody(address).replace("246801", "357912"), null).statusCode()).isEqualTo(200);
         assertSpent(CONFIRM, "127.0.0.1");

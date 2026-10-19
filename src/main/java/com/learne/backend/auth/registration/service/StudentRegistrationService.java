@@ -78,9 +78,10 @@ public class StudentRegistrationService {
         pending.setOtpHash(passwordEncoder.encode(otp));
         pending.setExpiresAt(OffsetDateTime.now().plusMinutes(5));
         pending.setAttempts(0);
+        pending.setMailGeneration(java.util.UUID.randomUUID());
         registrationOtpRepository.save(pending);
 
-        registrationMailService.sendRegistrationOtp(email, otp);
+        registrationMailService.sendRegistrationOtp(pending, otp);
     }
 
     @Transactional(noRollbackFor = ApiException.class)
@@ -141,8 +142,9 @@ public class StudentRegistrationService {
         pending.setOtpHash(passwordEncoder.encode(otp));
         pending.setExpiresAt(OffsetDateTime.now().plusMinutes(5));
         pending.setAttempts(0);
+        pending.setMailGeneration(java.util.UUID.randomUUID());
         registrationOtpRepository.save(pending);
-        registrationMailService.sendRegistrationOtp(email, otp);
+        registrationMailService.sendRegistrationOtp(pending, otp);
     }
 
     private String normalizeEmail(String email) {

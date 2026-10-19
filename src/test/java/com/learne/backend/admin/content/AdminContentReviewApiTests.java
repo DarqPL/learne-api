@@ -60,7 +60,9 @@ import static org.mockito.Mockito.when;
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 @SpringBootTest
-class AdminContentReviewApiTests {
+class AdminContentReviewApiTests extends com.learne.backend.testsupport.SubmissionHttpPostgresSupport {
+    @MockitoBean
+    private com.learne.backend.admin.content.service.ReviewDecisionService reviewDecisions;
     @Autowired
     private UserRepository userRepository;
 
@@ -120,7 +122,7 @@ class AdminContentReviewApiTests {
     @BeforeEach
     void setUp() {
         TestDatabaseCleaner.clean(jdbcTemplate);
-        when(courseKnowledgePointClient.enrichKnowledgePoints(any())).thenAnswer(invocation -> {
+        when(courseKnowledgePointClient.enrichKnowledgePoints(any(), org.mockito.ArgumentMatchers.eq(com.learne.backend.teacher.content.enrichment.EnrichmentContract.V1))).thenAnswer(invocation -> {
             CourseKnowledgePointRequest request = invocation.getArgument(0);
             return new CourseKnowledgePointResponse(request.questions().stream()
                     .map(question -> new CourseKnowledgePointResponse.Item(
@@ -440,9 +442,7 @@ class AdminContentReviewApiTests {
                 .andExpect(status().isOk())
                 .andReturn();
         long courseId = objectMapper.readTree(importResult.getResponse().getContentAsString()).get("courseId").asLong();
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         MvcResult pendingDetail = mockMvc.perform(get("/api/admin/content/courses/%d".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
@@ -461,9 +461,7 @@ class AdminContentReviewApiTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.courseId").value(courseId))
                 .andExpect(jsonPath("$.status").value("DRAFT"));
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         mockMvc.perform(post("/api/admin/content/course-revisions/%d/approve".formatted(oldRevisionId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
@@ -483,9 +481,7 @@ class AdminContentReviewApiTests {
                 .andExpect(status().isOk())
                 .andReturn();
         long courseId = objectMapper.readTree(importResult.getResponse().getContentAsString()).get("courseId").asLong();
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         MvcResult pendingDetail = mockMvc.perform(get("/api/admin/content/courses/%d".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
@@ -500,9 +496,7 @@ class AdminContentReviewApiTests {
                 .andReturn();
          importWorkbook(teacherToken, replaceExportedQuestion(exportedWorkbook(exportResult.getResponse().getContentAsByteArray())))
                 .andExpect(status().isOk());
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         mockMvc.perform(post("/api/admin/content/course-revisions/%d/reject".formatted(oldRevisionId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
@@ -528,9 +522,7 @@ class AdminContentReviewApiTests {
                 .andExpect(status().isOk())
                 .andReturn();
         long courseId = objectMapper.readTree(importResult.getResponse().getContentAsString()).get("courseId").asLong();
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
         mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
@@ -546,9 +538,7 @@ class AdminContentReviewApiTests {
         importWorkbook(teacherToken, editedWorkbook)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("DRAFT"));
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         mockMvc.perform(post("/api/admin/content/courses/%d/reject".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
@@ -588,9 +578,7 @@ class AdminContentReviewApiTests {
                 .andExpect(status().isOk())
                 .andReturn();
         long courseId = objectMapper.readTree(importResult.getResponse().getContentAsString()).get("courseId").asLong();
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
         mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk());
@@ -604,9 +592,7 @@ class AdminContentReviewApiTests {
                         "Approved Revision 2", "Revision 2 description."))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("DRAFT"));
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
@@ -629,9 +615,7 @@ class AdminContentReviewApiTests {
                 .andExpect(status().isOk())
                 .andReturn();
         long courseId = objectMapper.readTree(importResult.getResponse().getContentAsString()).get("courseId").asLong();
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
         mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk());
@@ -664,9 +648,7 @@ class AdminContentReviewApiTests {
          importWorkbook(teacherToken, replaceExportedQuestion(exportedWorkbook(exportResult.getResponse().getContentAsByteArray())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("DRAFT"));
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
@@ -703,9 +685,7 @@ class AdminContentReviewApiTests {
                 .andExpect(status().isOk())
                 .andReturn();
         long courseId = objectMapper.readTree(importResult.getResponse().getContentAsString()).get("courseId").asLong();
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
         mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk());
@@ -723,9 +703,7 @@ class AdminContentReviewApiTests {
          importWorkbook(teacherToken, removeThirdOption(exportedWorkbook(exportResult.getResponse().getContentAsByteArray())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("DRAFT"));
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk());
+        submitAndProcess(mockMvc, teacherToken, courseId);
         mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
@@ -789,10 +767,7 @@ class AdminContentReviewApiTests {
         long topicId = createTopic(teacherToken, courseId);
         long lessonId = createLesson(teacherToken, topicId);
         createQuestion(teacherToken, lessonId);
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PENDING_REVIEW"));
+        submitAndProcess(mockMvc, teacherToken, courseId);
         return courseId;
     }
 

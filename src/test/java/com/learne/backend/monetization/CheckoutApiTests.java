@@ -36,7 +36,9 @@ import org.springframework.test.web.servlet.MvcResult;
 @AutoConfigureMockMvc
 @SpringBootTest
 @Import(CourseKnowledgePointClientTestConfiguration.class)
-class CheckoutApiTests {
+@org.springframework.test.context.bean.override.mockito.MockitoBean(types = {com.learne.backend.monetization.service.PaymentConfirmationMailService.class,
+        com.learne.backend.admin.content.service.ReviewDecisionService.class})
+class CheckoutApiTests extends com.learne.backend.testsupport.SubmissionHttpPostgresSupport {
     @Autowired private UserRepository userRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JdbcTemplate jdbcTemplate;
@@ -126,9 +128,9 @@ class CheckoutApiTests {
         String studentToken = loginAndGetAccessToken(student.getEmail());
         long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 250000L);
         long firstOrderId = checkoutCourse(studentToken, courseId);
-        jdbcTemplate.update("update orders set expires_at = ?, dedupe_key = null where id = ?", Instant.now().minusSeconds(1), firstOrderId);
+        jdbcTemplate.update("update orders set expires_at = ?, dedupe_key = null where id = ?", java.sql.Timestamp.from(Instant.now().minusSeconds(1)), firstOrderId);
         long secondOrderId = checkoutCourse(studentToken, courseId);
-        jdbcTemplate.update("update orders set expires_at = ? where id = ?", Instant.now().plusSeconds(900), firstOrderId);
+        jdbcTemplate.update("update orders set expires_at = ? where id = ?", java.sql.Timestamp.from(Instant.now().plusSeconds(900)), firstOrderId);
 
         markPaid(adminToken, secondOrderId);
         markPaid(adminToken, firstOrderId);
@@ -146,7 +148,7 @@ class CheckoutApiTests {
         String studentToken = loginAndGetAccessToken(student.getEmail());
         long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 250000L);
         long orderId = checkoutCourse(studentToken, courseId);
-        jdbcTemplate.update("update orders set expires_at = ? where id = ?", Instant.now().minusSeconds(1), orderId);
+        jdbcTemplate.update("update orders set expires_at = ? where id = ?", java.sql.Timestamp.from(Instant.now().minusSeconds(1)), orderId);
 
         mockMvc.perform(post("/api/admin/orders/%d/mark-paid".formatted(orderId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
@@ -168,7 +170,7 @@ class CheckoutApiTests {
         String studentToken = loginAndGetAccessToken(student.getEmail());
         long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 250000L);
         long orderId = checkoutCourse(studentToken, courseId);
-        jdbcTemplate.update("update orders set expires_at = ? where id = ?", Instant.now().minusSeconds(1), orderId);
+        jdbcTemplate.update("update orders set expires_at = ? where id = ?", java.sql.Timestamp.from(Instant.now().minusSeconds(1)), orderId);
 
         mockMvc.perform(post("/api/admin/orders/%d/mark-paid".formatted(orderId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
@@ -191,7 +193,7 @@ class CheckoutApiTests {
         String studentToken = loginAndGetAccessToken(student.getEmail());
         long courseId = createApprovedPaidCourse(teacherToken, adminToken, "English A2 Premium", "A2", 250000L);
         long orderId = checkoutCourse(studentToken, courseId);
-        jdbcTemplate.update("update orders set expires_at = ? where id = ?", Instant.now().minusSeconds(1), orderId);
+        jdbcTemplate.update("update orders set expires_at = ? where id = ?", java.sql.Timestamp.from(Instant.now().minusSeconds(1)), orderId);
 
         long freshOrderId = checkoutCourse(studentToken, courseId);
 
@@ -534,7 +536,8 @@ class CheckoutApiTests {
             "app.payments.sepay.account-name=CONG TY LEARNE"
     })
     @Import(CourseKnowledgePointClientTestConfiguration.class)
-    class SepayEnabledCheckoutTests {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean(types = com.learne.backend.admin.content.service.ReviewDecisionService.class)
+    class SepayEnabledCheckoutTests extends com.learne.backend.testsupport.SubmissionHttpPostgresSupport {
         @Test
         void courseCheckoutIncludesSepayPaymentInstructions() throws Exception {
             User admin = saveUser("sepay-admin@example.com", UserRole.ADMIN);
@@ -636,14 +639,11 @@ class CheckoutApiTests {
                   and revoked_at is null
                   and starts_at <= ?
                   and (ends_at is null or ends_at > ?)
-                """, Integer.class, userId, courseId, Instant.now(), Instant.now());
+                """, Integer.class, userId, courseId, java.sql.Timestamp.from(Instant.now()), java.sql.Timestamp.from(Instant.now()));
     }
 
     private void approveCourse(String teacherToken, String adminToken, long courseId) throws Exception {
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PENDING_REVIEW"));
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))

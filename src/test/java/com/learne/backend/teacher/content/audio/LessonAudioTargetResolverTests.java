@@ -310,7 +310,8 @@ class LessonAudioTargetResolverTests {
             protected void doCommit(DefaultTransactionStatus status) { }
             protected void doRollback(DefaultTransactionStatus status) { }
         };
-        ProxyFactory factory = new ProxyFactory(new LessonAudioReadService(checkingResolver, mock(CourseRepository.class), revisions));
+        ProxyFactory factory = new ProxyFactory(new LessonAudioReadService(checkingResolver, mock(CourseRepository.class), revisions,
+                mock(com.learne.backend.teacher.content.submission.SubmissionGuard.class)));
         factory.addAdvice(new TransactionInterceptor(manager, attributes));
         var proxy = (LessonAudioReadService) factory.getProxy();
         assertThat(proxy.preflight(teacher, AudioTargetKind.LIVE, 30L))

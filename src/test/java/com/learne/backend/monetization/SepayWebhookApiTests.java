@@ -46,7 +46,10 @@ import org.springframework.test.web.servlet.MvcResult;
         "app.payments.sepay.account-number=0010000000355",
         "app.payments.sepay.account-name=CONG TY LEARNE"
 })
-class SepayWebhookApiTests {
+class SepayWebhookApiTests extends com.learne.backend.testsupport.SubmissionHttpPostgresSupport {
+    @MockitoBean private com.learne.backend.admin.content.service.ReviewDecisionService reviewDecisions;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.learne.backend.monetization.service.PaymentConfirmationMailService paymentMail;
     private static final String WEBHOOK_SECRET = "test-sepay-secret";
 
     @Autowired private UserRepository userRepository;
@@ -60,7 +63,7 @@ class SepayWebhookApiTests {
     @BeforeEach
     void setUp() {
         TestDatabaseCleaner.clean(jdbcTemplate);
-        when(courseKnowledgePointClient.enrichKnowledgePoints(any())).thenAnswer(invocation -> {
+        when(courseKnowledgePointClient.enrichKnowledgePoints(any(), org.mockito.ArgumentMatchers.eq(com.learne.backend.teacher.content.enrichment.EnrichmentContract.V1))).thenAnswer(invocation -> {
             CourseKnowledgePointRequest request = invocation.getArgument(0);
             return new CourseKnowledgePointResponse(request.questions().stream()
                     .map(question -> new CourseKnowledgePointResponse.Item(
@@ -337,10 +340,7 @@ class SepayWebhookApiTests {
     }
 
     private void approveCourse(String teacherToken, String adminToken, long courseId) throws Exception {
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PENDING_REVIEW"));
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
@@ -407,7 +407,7 @@ class SepayWebhookApiTests {
                   and revoked_at is null
                   and starts_at <= ?
                   and (ends_at is null or ends_at > ?)
-                """, Integer.class, userId, courseId, Instant.now(), Instant.now());
+                """, Integer.class, userId, courseId, java.sql.Timestamp.from(Instant.now()), java.sql.Timestamp.from(Instant.now()));
     }
 
     private record PendingCourseOrder(long orderId, String paymentReference, Long studentId, long courseId) {}

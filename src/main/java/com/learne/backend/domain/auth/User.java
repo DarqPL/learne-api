@@ -14,6 +14,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "users")
@@ -50,6 +51,9 @@ public class User {
 
     @Column(name = "must_change_password", nullable = false)
     private boolean mustChangePassword;
+
+    @Column(name = "invitation_generation")
+    private UUID invitationGeneration;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "account_origin", nullable = false)
@@ -159,6 +163,14 @@ public class User {
 
     public void setAccountOrigin(AccountOrigin accountOrigin) {
         this.accountOrigin = accountOrigin;
+    }
+
+    public UUID getInvitationGeneration() {
+        return invitationGeneration;
+    }
+
+    public void setInvitationGeneration(UUID invitationGeneration) {
+        this.invitationGeneration = invitationGeneration;
     }
 
     public User getOwnerTeacher() {

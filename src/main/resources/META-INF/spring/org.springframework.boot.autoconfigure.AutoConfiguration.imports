@@ -1,0 +1,2 @@
+com.learne.backend.mail.config.SmtpTransportConfiguration
+com.learne.backend.mail.config.MailJobConfiguration

@@ -40,7 +40,9 @@ import org.springframework.test.web.servlet.MvcResult;
         "app.payments.sepay.account-name=CONG TY LEARNE"
 })
 @Import(CourseKnowledgePointClientTestConfiguration.class)
-class SepaySimulationApiTests {
+@org.springframework.test.context.bean.override.mockito.MockitoBean(types = {com.learne.backend.monetization.service.PaymentConfirmationMailService.class,
+        com.learne.backend.admin.content.service.ReviewDecisionService.class})
+class SepaySimulationApiTests extends com.learne.backend.testsupport.SubmissionHttpPostgresSupport {
     @Autowired private UserRepository userRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JdbcTemplate jdbcTemplate;
@@ -148,7 +150,8 @@ class SepaySimulationApiTests {
             "app.payments.sepay.account-name=CONG TY LEARNE"
     })
     @Import(CourseKnowledgePointClientTestConfiguration.class)
-    class DisabledSimulationTests {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean(types = com.learne.backend.admin.content.service.ReviewDecisionService.class)
+    class DisabledSimulationTests extends com.learne.backend.testsupport.SubmissionHttpPostgresSupport {
         @Test
         void simulationIsRejectedWhenDisabled() throws Exception {
             User admin = saveUser("simulate-disabled-admin@example.com", UserRole.ADMIN);
@@ -294,10 +297,7 @@ class SepaySimulationApiTests {
     }
 
     private void approveCourse(String teacherToken, String adminToken, long courseId) throws Exception {
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PENDING_REVIEW"));
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
@@ -357,7 +357,7 @@ class SepaySimulationApiTests {
                   and revoked_at is null
                   and starts_at <= ?
                   and (ends_at is null or ends_at > ?)
-                """, Integer.class, userId, courseId, Instant.now(), Instant.now());
+                """, Integer.class, userId, courseId, java.sql.Timestamp.from(Instant.now()), java.sql.Timestamp.from(Instant.now()));
     }
 
     private record PendingCourseOrder(long orderId, String paymentReference, long amountVnd, Long studentId, long courseId) {}

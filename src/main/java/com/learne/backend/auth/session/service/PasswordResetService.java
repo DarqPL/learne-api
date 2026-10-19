@@ -22,7 +22,7 @@ import org.springframework.transaction.interceptor.TransactionAspectSupport;
 @Service
 public class PasswordResetService {
 
-    public static final String REQUEST_MESSAGE = "If the email is registered, password reset instructions have been sent.";
+    public static final String REQUEST_MESSAGE = "Nếu email hợp lệ, yêu cầu đặt lại mật khẩu đã được tiếp nhận. Vui lòng kiểm tra hộp thư.";
     private static final int MAX_OTP_ATTEMPTS = 5;
     private static final String TOO_MANY_OTP_ATTEMPTS_MESSAGE = "Too many invalid OTP attempts. Please request a new code.";
 
@@ -120,7 +120,7 @@ public class PasswordResetService {
         resetToken.setAttempts(0);
         resetToken.setCreatedAt(OffsetDateTime.now());
         passwordResetTokenRepository.save(resetToken);
-        mailService.sendPasswordResetToken(user.getEmail(), token);
+        mailService.sendPasswordResetToken(resetToken, token);
     }
 
     private String normalizeEmail(String email) {
