@@ -63,6 +63,7 @@ public class CourseImportExportService {
         this.cleanup = cleanup;
     }
 
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NEVER)
     public CourseImportResponse importCourse(User teacher, MultipartFile file) {
         PreparedCourseImport prepared = preparation.prepare(teacher, file);
         CourseWriteOutcome outcome = new CourseWriteOutcome();
@@ -72,8 +73,8 @@ public class CourseImportExportService {
             // A thrown proxy call can also be a post-commit failure. Never infer rollback from it.
             if (outcome.rolledBack()) {
                 try {
-                    cleanup.tryCleanup(prepared.model().courseId(), prepared.uploadedAssets().stream()
-                            .map(asset -> new LessonAudioState(asset.url(), asset.publicId())).toList());
+                    cleanup.compensate(prepared.operationId(), prepared.model().courseId(), prepared.uploadedAssets().stream()
+                            .map(asset -> new LessonAudioState(asset.url(), asset.publicId())).toList(), true, outcome);
                 } catch (RuntimeException cleanupFailure) {
                     log.warn("Import rollback compensation failed for course {} ({}); retaining assets",
                             prepared.model().courseId(), cleanupFailure.getClass().getSimpleName());

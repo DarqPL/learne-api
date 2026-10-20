@@ -72,7 +72,7 @@ class JobMaintenanceIT extends JobsPostgresTestSupport {
         makeRunning(running);
         UUID recent = insert(JobType.MEDIA_CLEANUP, null);
         makeTerminal(recent);
-        jdbc.update("update background_jobs set completed_at=clock_timestamp() where id=?", recent);
+        jdbc.update("update background_jobs set completed_at=clock_timestamp()-interval '29 days' where id=?", recent);
         jdbc.update("update background_jobs set created_at=clock_timestamp()-interval '90 days' where id in (?,?,?)", active, retry, running);
         assertThat(maintenance.maintain().terminalDeleted()).isEqualTo(500);
         assertThat(maintenance.maintain().terminalDeleted()).isOne();

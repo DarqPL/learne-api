@@ -26,16 +26,18 @@ public class LessonAudioPersistenceService {
     private final LessonRevisionRepository revisionLessons;
     private final EntityManager entityManager;
     private final SubmissionGuard submissionGuard;
+    private final MediaCleanupProducer cleanup;
 
     public LessonAudioPersistenceService(CourseWriteLockService locks, LessonAudioTargetResolver resolver,
                                          LessonRepository lessons, LessonRevisionRepository revisionLessons,
-                                         EntityManager entityManager, SubmissionGuard submissionGuard) {
+                                         EntityManager entityManager, SubmissionGuard submissionGuard, MediaCleanupProducer cleanup) {
         this.locks = locks;
         this.resolver = resolver;
         this.lessons = lessons;
         this.revisionLessons = revisionLessons;
         this.entityManager = entityManager;
         this.submissionGuard = submissionGuard;
+        this.cleanup = cleanup;
     }
 
     @Transactional
@@ -74,6 +76,7 @@ public class LessonAudioPersistenceService {
         var oldStates = target.oldStates(state);
         target.apply(state);
         entityManager.flush();
+        if (!oldStates.isEmpty()) cleanup.enqueue(java.util.UUID.randomUUID(), target.course().getId(), oldStates);
         return new LessonAudioMutation(target.response(), target.course().getId(), oldStates);
     }
 

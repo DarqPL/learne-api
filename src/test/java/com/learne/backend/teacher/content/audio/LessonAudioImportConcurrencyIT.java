@@ -63,6 +63,7 @@ class LessonAudioImportConcurrencyIT extends AudioPostgresTestSupport {
         }
         assertThat(jdbc.queryForMap("select title,audio_url,audio_public_id from lesson_revisions where id=?",draft.revisionLessonId())).isEqualTo(before);
         assertThat(jdbc.queryForObject("select count(*) from course_revisions where course_id=?",Integer.class,draft.courseId())).isEqualTo(1);
+        media.assertIntentAndDrain();
         if(provenance.equals("managed")) verify(storage).delete(candidate.publicId(),com.learne.backend.storage.dto.StorageResourceType.VIDEO);
         else verify(storage,never()).delete(any(),any());
         verifyNoInteractions(knowledge);
@@ -120,7 +121,7 @@ class LessonAudioImportConcurrencyIT extends AudioPostgresTestSupport {
         seedAudio("kept");
         var prepared = prepared(true);
         java.util.concurrent.Callable<?> importing = () -> imports.persist(draft.teacher(), prepared, new CourseWriteOutcome());
-        java.util.concurrent.Callable<?> cleaning = () -> { cleanup.tryCleanup(draft.courseId(), List.of(state("kept"))); return true; };
+        java.util.concurrent.Callable<?> cleaning = () -> { media.enqueueAndDrain(draft.courseId(), List.of(state("kept"))); return true; };
         if (importFirst) courseRace(importing, cleaning);
         else courseRace(cleaning, importing);
         verify(storage, never()).delete(eq(state("kept").publicId()), any());
@@ -130,7 +131,7 @@ class LessonAudioImportConcurrencyIT extends AudioPostgresTestSupport {
     @Test
     void uncertainReferenceRetainsUnreferencedCandidate() throws Exception {
         jdbc.update("update lesson_revisions set audio_url='https://example.com/a/../uncertain.mp3' where id=?", draft.revisionLessonId());
-        courseBlocks(() -> { cleanup.tryCleanup(draft.courseId(), List.of(state("uncertain"))); return true; });
+        courseBlocks(() -> { media.enqueueAndDrain(draft.courseId(), List.of(state("uncertain"))); return true; });
         verify(storage, never()).delete(any(), any());
     }
 }

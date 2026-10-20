@@ -44,6 +44,15 @@ public final class MailEligibilityService {
         return inRead(() -> checkCurrent(payload));
     }
 
+    /** Operator reader: same authoritative rules, in the caller's domain-before-job lock scope. */
+    public Result checkNoticeInCurrentTransaction(MailPayload payload) {
+        MailPayloadCodec.validate(payload);
+        if (MailPayloadCodec.requiresSecret(payload.template())
+                || !org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive())
+            throw new IllegalArgumentException("Notice transaction required");
+        return checkCurrent(payload);
+    }
+
     /** Rechecks all invitation state after decryption, then compares with the current hash. */
     public Result checkInvitationPassword(MailPayload payload, byte[] secret) {
         MailPayloadCodec.validate(payload);

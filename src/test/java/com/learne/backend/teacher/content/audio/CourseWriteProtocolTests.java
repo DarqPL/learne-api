@@ -101,9 +101,11 @@ class CourseWriteProtocolTests {
         teacherService = new TeacherContentService(courses, revisions, topics, lessons, questions,
                 topicRevisions, lessonRevisions, questionRevisions, caches, null, locks,
                 new RevisionAudioRebuildGuard(), submissionGuard,
-                org.mockito.Mockito.mock(com.learne.backend.teacher.content.submission.SubmissionRepository.class));
+                org.mockito.Mockito.mock(com.learne.backend.teacher.content.submission.SubmissionRepository.class),
+                org.mockito.Mockito.mock(com.learne.backend.teacher.content.audio.service.MediaCleanupProducer.class));
         adminService = new AdminContentReviewService(courses, revisions, entityManager, caches, locks,
-                org.mockito.Mockito.mock(com.learne.backend.admin.content.service.ReviewDecisionService.class));
+                org.mockito.Mockito.mock(com.learne.backend.admin.content.service.ReviewDecisionService.class),
+                org.mockito.Mockito.mock(com.learne.backend.teacher.content.audio.service.MediaCleanupProducer.class));
     }
 
     private final User teacher = user(7L);

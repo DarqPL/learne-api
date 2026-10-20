@@ -70,6 +70,33 @@ public class JobMaintenanceService {
                         ORDER BY completed_at,id FOR UPDATE SKIP LOCKED LIMIT 500
                     ) DELETE FROM background_jobs j USING candidates c WHERE j.id=c.id
                     """);
+            // Lock the owning submission first: active submissions never qualify, regardless of age.
+            // Select only owners that still have staging, so old empty summaries cannot starve a batch.
+            update("""
+                    WITH candidates AS (
+                        SELECT s.id FROM course_submission_attempts s
+                        WHERE s.state IN ('SUCCEEDED','FAILED')
+                          AND s.completed_at<clock_timestamp()-interval '30 days'
+                          AND EXISTS (SELECT 1 FROM course_submission_questions q WHERE q.submission_id=s.id)
+                        ORDER BY s.completed_at,s.id FOR UPDATE OF s SKIP LOCKED LIMIT 500
+                    ) DELETE FROM course_submission_questions q USING candidates c WHERE q.submission_id=c.id
+                    """);
+            // The FK cascades any staging remaining in this separately selected summary batch.
+            // Historical decisions and notifications deliberately carry scalar submission IDs.
+            update("""
+                    WITH candidates AS (
+                        SELECT id FROM course_submission_attempts WHERE state IN ('SUCCEEDED','FAILED')
+                          AND completed_at<clock_timestamp()-interval '90 days'
+                        ORDER BY completed_at,id FOR UPDATE SKIP LOCKED LIMIT 500
+                    ) DELETE FROM course_submission_attempts s USING candidates c WHERE s.id=c.id
+                    """);
+            update("""
+                    WITH candidates AS (
+                        SELECT id FROM user_notifications
+                        WHERE created_at<clock_timestamp()-interval '90 days'
+                        ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 500
+                    ) DELETE FROM user_notifications n USING candidates c WHERE n.id=c.id
+                    """);
             return new Counts(expired, purged, deleted);
         } finally { busy.set(false); }
     }

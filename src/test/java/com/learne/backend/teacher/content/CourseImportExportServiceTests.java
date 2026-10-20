@@ -1,5 +1,7 @@
 package com.learne.backend.teacher.content;
 
+import static org.mockito.ArgumentMatchers.isNull;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -148,12 +150,12 @@ class CourseImportExportServiceTests {
                 .thenThrow(failure);
         CourseImportPreparationService preparation = new CourseImportPreparationService(reader, parser,
                 new AudioFileValidator(), mock(ClamAvClient.class), storage, writer, cleanup);
-        doThrow(new IllegalStateException("cleanup failed")).when(cleanup).tryCleanup(any(), any());
+        doThrow(new IllegalStateException("cleanup failed")).when(cleanup).compensate(any(), any(), any(), eq(false), isNull());
 
         assertThatThrownBy(() -> preparation.prepare(new User(), multipartFile())).isSameAs(failure);
 
         verify(storage, never()).delete(any(), any());
-        verify(cleanup).tryCleanup(42L, List.of(new LessonAudioState("https://cdn/new.mp3", "new")));
+        verify(cleanup).compensate(any(), eq(42L), eq(List.of(new LessonAudioState("https://cdn/new.mp3", "new"))), eq(false), isNull());
         verify(writer, never()).persist(any(), any(), any());
     }
 
@@ -507,14 +509,14 @@ class CourseImportExportServiceTests {
         when(storageService.uploadLessonAudio(any())).thenReturn(new StorageUploadResult("https://cdn/audio.mp3", "audio-public-id"));
         when(courseRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0, Course.class));
         doThrow(persistenceFailure).when(courseRevisionRepository).save(any());
-        doThrow(new IllegalStateException("cleanup failure")).when(cleanup).tryCleanup(any(), any());
+        doThrow(new IllegalStateException("cleanup failure")).when(cleanup).compensate(any(), any(), any(), eq(true), any());
 
         assertThatThrownBy(() -> service.importCourse(new User(), new MockMultipartFile(
                 "file", "course.zip", "application/zip", new byte[] {1})))
                 .isSameAs(persistenceFailure);
 
         verify(storageService, never()).delete(any(), any());
-        verify(cleanup).tryCleanup(null, List.of(new LessonAudioState("https://cdn/audio.mp3", "audio-public-id")));
+        verify(cleanup).compensate(any(), isNull(), eq(List.of(new LessonAudioState("https://cdn/audio.mp3", "audio-public-id"))), eq(true), any());
     }
 
     @Test
@@ -1145,7 +1147,8 @@ class CourseImportExportServiceTests {
         lenient().when(locks.teacherCourse(any(), any())).thenAnswer(call ->
                 courses.findByIdAndTeacher(call.getArgument(0), call.getArgument(1)).orElseThrow());
         CourseImportPersistenceService target = new CourseImportPersistenceService(courses, revisions, locks,
-                org.mockito.Mockito.mock(com.learne.backend.teacher.content.submission.SubmissionGuard.class));
+                org.mockito.Mockito.mock(com.learne.backend.teacher.content.submission.SubmissionGuard.class),
+                org.mockito.Mockito.mock(com.learne.backend.teacher.content.audio.service.MediaCleanupProducer.class));
         ProxyFactory proxy = new ProxyFactory(target);
         proxy.addAdvice(new TransactionInterceptor(transactions, new AnnotationTransactionAttributeSource()));
         CourseImportPersistenceService writer = (CourseImportPersistenceService) proxy.getProxy();

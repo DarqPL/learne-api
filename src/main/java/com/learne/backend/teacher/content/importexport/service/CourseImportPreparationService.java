@@ -62,6 +62,7 @@ public class CourseImportPreparationService {
         Long expectedRevision = persistence.preflight(teacher, model);
         Map<String, StorageUploadResult> uploadedByPath = new LinkedHashMap<>();
         List<StorageUploadResult> uploaded = new ArrayList<>();
+        var operationId = java.util.UUID.randomUUID();
         try {
             for (var entry : audioFiles.entrySet()) {
                 CourseImportPackage.ImportFile audio = entry.getValue();
@@ -70,12 +71,12 @@ public class CourseImportPreparationService {
                 uploaded.add(result);
                 uploadedByPath.put(entry.getKey(), result);
             }
-            return new PreparedCourseImport(model, expectedRevision, uploadedByPath, uploaded);
+            return new PreparedCourseImport(model, expectedRevision, uploadedByPath, uploaded, operationId);
         } catch (RuntimeException exception) {
             // No persistence attempt has started; still require provenance + global reference proof.
             try {
-                cleanup.tryCleanup(model.courseId(), uploaded.stream()
-                        .map(asset -> new LessonAudioState(asset.url(), asset.publicId())).toList());
+                cleanup.compensate(operationId, model.courseId(), uploaded.stream()
+                        .map(asset -> new LessonAudioState(asset.url(), asset.publicId())).toList(), false, null);
             } catch (RuntimeException cleanupFailure) {
                 log.warn("Import preparation compensation failed for course {} ({}); retaining assets",
                         model.courseId(), cleanupFailure.getClass().getSimpleName());

@@ -34,6 +34,7 @@ class LessonAudioConcurrencyIT extends AudioPostgresTestSupport {
             (winner.equals("a") ? releaseB : releaseA).countDown();
             conflict(winner.equals("a") ? b : a);
             assertMirrored(state(winner));
+            media.assertIntentAndDrain();
             verify(storage).delete(state(loser).publicId(), StorageResourceType.VIDEO);
             verify(storage, never()).delete(eq(state(winner).publicId()), any());
         } finally { releaseA.countDown(); releaseB.countDown(); }

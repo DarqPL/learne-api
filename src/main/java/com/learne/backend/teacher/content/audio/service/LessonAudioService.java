@@ -42,6 +42,7 @@ public class LessonAudioService {
     public LessonResponse upload(User teacher, AudioTargetKind kind, Long id, MultipartFile input) {
         var before = reads.preflight(teacher, kind, id);
         var file = files.validateAndScan(input);
+        var operationId = java.util.UUID.randomUUID();
         var uploaded = storage.uploadLessonAudio(file);
         if (uploaded == null || uploaded.url() == null || uploaded.url().isBlank()
                 || uploaded.publicId() == null || uploaded.publicId().isBlank()) {
@@ -55,7 +56,7 @@ public class LessonAudioService {
         } catch (RuntimeException original) {
             if (outcome.rolledBack()) {
                 try {
-                    cleanup.tryCleanup(before.courseId(), List.of(newState));
+                    cleanup.compensate(operationId, before.courseId(), List.of(newState), true, outcome);
                 } catch (RuntimeException cleanupFailure) {
                     log.warn("Audio rollback cleanup failed for course {} ({})", before.courseId(),
                             cleanupFailure.getClass().getSimpleName());

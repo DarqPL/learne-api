@@ -43,7 +43,7 @@ class LessonAudioPostCommitServiceTests {
         verify(detail).invalidate();
         verify(versions).bumpVersion();
         verify(admin).evictIfPresent(CacheKeySupport.adminDashboard());
-        verify(cleanup).tryCleanup(1L, states);
+        verifyNoInteractions(cleanup);
     }
 
     @Test
@@ -54,7 +54,7 @@ class LessonAudioPostCommitServiceTests {
         doThrow(new IllegalStateException("cleanup")).when(cleanup).tryCleanup(1L, List.of());
         assertThatCode(() -> new LessonAudioPostCommitService(cache, cleanup).complete(2L, 1L, List.of()))
                 .doesNotThrowAnyException();
-        verify(cleanup).tryCleanup(1L, List.of());
+        verifyNoInteractions(cleanup);
     }
 
     @Test

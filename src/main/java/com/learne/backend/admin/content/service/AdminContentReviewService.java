@@ -45,19 +45,22 @@ public class AdminContentReviewService {
     private final CacheInvalidationService cacheInvalidationService;
     private final CourseWriteLockService locks;
     private final ReviewDecisionService decisions;
+    private final com.learne.backend.teacher.content.audio.service.MediaCleanupProducer cleanup;
 
     public AdminContentReviewService(CourseRepository courseRepository,
                                       CourseRevisionRepository courseRevisionRepository,
                                       EntityManager entityManager,
                                       CacheInvalidationService cacheInvalidationService,
                                       CourseWriteLockService locks,
-                                      ReviewDecisionService decisions) {
+                                      ReviewDecisionService decisions,
+                                      com.learne.backend.teacher.content.audio.service.MediaCleanupProducer cleanup) {
         this.courseRepository = courseRepository;
         this.courseRevisionRepository = courseRevisionRepository;
         this.entityManager = entityManager;
         this.cacheInvalidationService = cacheInvalidationService;
         this.locks = locks;
         this.decisions = decisions;
+        this.cleanup = cleanup;
     }
 
     @Transactional(readOnly = true)
@@ -107,7 +110,14 @@ public class AdminContentReviewService {
         revision.setRejectionReason(null);
 
         Course course = revision.getCourse();
+        var oldAudio = new java.util.IdentityHashMap<Lesson, com.learne.backend.teacher.content.audio.dto.LessonAudioState>();
+        course.getTopics().forEach(t -> t.getLessons().forEach(l -> oldAudio.put(l,
+                com.learne.backend.teacher.content.audio.dto.LessonAudioState.from(l))));
         MaterializedSources materializedSources = publishRevisionToLive(course, revision, admin, now);
+        var detachedAudio = oldAudio.entrySet().stream().filter(e -> e.getValue().publicId() != null
+                && !e.getValue().equals(com.learne.backend.teacher.content.audio.dto.LessonAudioState.from(e.getKey())))
+                .map(Map.Entry::getValue).toList();
+        if (!detachedAudio.isEmpty()) cleanup.enqueue(java.util.UUID.randomUUID(), course.getId(), detachedAudio);
         Course savedCourse = courseRepository.saveAndFlush(course);
         linkMaterializedSources(materializedSources);
         decisions.recordAndEnqueue(revision, null);

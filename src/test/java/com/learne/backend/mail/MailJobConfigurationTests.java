@@ -60,6 +60,13 @@ class MailJobConfigurationTests {
             }
             assertThat(registry.supported(QueueName.MAIL_AUTH)).hasSize(3);
             assertThat(registry.supported(QueueName.MAIL_NOTICE)).hasSize(3);
+            com.learne.backend.jobs.maintenance.JobRetryCommand.SUPPORTED.forEach((type,version)-> {
+                if(type!=JobType.MEDIA_CLEANUP) assertThat(registry.find(type,version)).isPresent();
+            });
+            for(var type:registry.supported(QueueName.MAIL_NOTICE).keySet())
+                assertThat(com.learne.backend.jobs.maintenance.JobRetryCommand.SUPPORTED).containsEntry(type,1);
+            for(var type:registry.supported(QueueName.MAIL_AUTH).keySet())
+                assertThat(com.learne.backend.jobs.maintenance.JobRetryCommand.SUPPORTED).doesNotContainKey(type);
         });
     }
     @Test void activeMailConfigurationFailsStartupWithoutActiveKey() {

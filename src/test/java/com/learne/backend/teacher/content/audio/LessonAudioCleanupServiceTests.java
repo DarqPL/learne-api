@@ -44,8 +44,7 @@ class LessonAudioCleanupServiceTests {
         when(courses.findLockedById(1L)).thenReturn(Optional.of(new Course()));
         doThrow(new IllegalStateException("provider unavailable")).when(storage)
                 .delete(state("first").publicId(), StorageResourceType.VIDEO);
-        new LessonAudioCleanupService(decision(), storage).tryCleanup(1L,
-                List.of(state("first"), state("first"), state("second")));
+        tick(decision(), List.of(state("first"), state("first"), state("second")));
         verify(storage).delete(state("first").publicId(), StorageResourceType.VIDEO);
         verify(storage).delete(state("second").publicId(), StorageResourceType.VIDEO);
         var order = inOrder(courses, live, revisions);
@@ -64,8 +63,7 @@ class LessonAudioCleanupServiceTests {
         when(live.existsByAudioUrl(state("live-url").url())).thenReturn(true);
         when(revisions.existsByAudioPublicId(state("history-id").publicId())).thenReturn(true);
         when(revisions.existsByAudioUrl(state("history-url").url())).thenReturn(true);
-        new LessonAudioCleanupService(decision, storage).tryCleanup(1L,
-                List.of(state("live-id"), state("live-url"), state("history-id"), state("history-url")));
+        tick(decision, List.of(state("live-id"), state("live-url"), state("history-id"), state("history-url")));
         verifyNoInteractions(storage);
     }
 
@@ -111,9 +109,9 @@ class LessonAudioCleanupServiceTests {
     @Test
     void decisionFailureNeverDeletesAndContinues() {
         var decision = mock(LessonAudioCleanupDecisionService.class);
-        when(decision.canDelete(1L, state("a"))).thenThrow(new IllegalStateException("database unavailable"));
-        when(decision.canDelete(1L, state("b"))).thenReturn(true);
-        new LessonAudioCleanupService(decision, storage).tryCleanup(1L, List.of(state("a"), state("b")));
+        when(decision.evaluate(1L, state("a"))).thenThrow(new IllegalStateException("database unavailable"));
+        when(decision.evaluate(1L, state("b"))).thenReturn(new com.learne.backend.teacher.content.audio.dto.CleanupDecision(com.learne.backend.teacher.content.audio.dto.CleanupDecision.Kind.DELETE,"SAFE_ABSENCE"));
+        tick(decision, List.of(state("a"), state("b")));
         verify(storage, never()).delete(state("a").publicId(), StorageResourceType.VIDEO);
         verify(storage).delete(state("b").publicId(), StorageResourceType.VIDEO);
     }
@@ -172,8 +170,10 @@ class LessonAudioCleanupServiceTests {
             when(decision.canDelete(1L, candidate)).thenReturn(true);
             doThrow(unavailable).when(storage).delete(candidate.publicId(), StorageResourceType.VIDEO);
         }
+        var compensation = mock(com.learne.backend.teacher.content.audio.service.MediaCompensationService.class);
+        doThrow(unavailable).when(compensation).enqueueConfirmedRollback(any(),eq(1L),anyList(),eq(false),isNull());
         var events = captureLogs(LessonAudioCleanupService.class,
-                () -> new LessonAudioCleanupService(decision, storage).tryCleanup(1L, List.of(candidate)));
+                () -> new LessonAudioCleanupService(compensation).compensate(java.util.UUID.randomUUID(),1L,List.of(candidate),false,null));
         assertThat(events).hasSize(1);
         assertThat(events.getFirst().getFormattedMessage()).contains("publicId=" + candidate.publicId(), "course 1", "VIDEO",
                         "IllegalStateException")
@@ -188,7 +188,7 @@ class LessonAudioCleanupServiceTests {
         TransactionSynchronizationManager.setActualTransactionActive(true);
         try {
             events = captureLogs(LessonAudioCleanupService.class,
-                    () -> new LessonAudioCleanupService(decision, storage).tryCleanup(1L, List.of(state("a"), state("b"))));
+                    () -> new LessonAudioCleanupService(mock(com.learne.backend.teacher.content.audio.service.MediaCompensationService.class)).tryCleanup(1L, List.of(state("a"), state("b"))));
         } finally {
             TransactionSynchronizationManager.setActualTransactionActive(false);
         }
@@ -205,6 +205,19 @@ class LessonAudioCleanupServiceTests {
                 () -> assertThat(decision().canDelete(1L, input)).isFalse());
         assertThat(events.getFirst().getFormattedMessage()).contains("publicId=<invalid>", "course 1", "VIDEO")
                 .doesNotContain("provider-credential", "https://", "forged", "\r", "\n");
+    }
+
+    private void tick(LessonAudioCleanupDecisionService decision, List<LessonAudioState> states) {
+        var jobs=mock(com.learne.backend.jobs.service.JobStore.class);
+        when(jobs.isLeaseCurrent(any())).thenReturn(true);
+        var mapper=new tools.jackson.databind.ObjectMapper();
+        com.learne.backend.teacher.content.audio.service.MediaDeletePort fake=id->storage.delete(id,StorageResourceType.VIDEO);
+        var handler=new com.learne.backend.teacher.content.audio.service.MediaCleanupHandler(jobs,decision,fake,mapper);
+        for(var state:new java.util.LinkedHashSet<>(states)) {
+            var payload=mapper.createObjectNode().put("courseId",1L).put("url",state.url()).put("publicId",state.publicId()).put("resourceType","VIDEO");
+            var lease=new com.learne.backend.jobs.model.JobLease(java.util.UUID.randomUUID(),java.util.UUID.randomUUID(),java.time.Instant.now().plusSeconds(30),com.learne.backend.jobs.model.JobType.MEDIA_CLEANUP,1,1,3,mapper.writeValueAsString(payload),null,false);
+            try { handler.execute(lease); } catch(RuntimeException expectedRetry) { /* Each job fails independently. */ }
+        }
     }
 
     private List<ILoggingEvent> captureLogs(Class<?> type, Runnable action) {

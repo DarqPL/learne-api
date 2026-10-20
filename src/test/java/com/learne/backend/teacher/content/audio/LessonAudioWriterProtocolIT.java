@@ -116,6 +116,7 @@ class LessonAudioWriterProtocolIT extends AudioPostgresTestSupport {
                             com.learne.backend.shared.api.CodedApiException.class,
                             api -> assertThat(api.getCode()).isEqualTo("COURSE_SUBMISSION_IN_PROGRESS")));
             assertMirrored(LessonAudioState.empty());
+            media.assertIntentAndDrain();
             verify(storage).delete(eq(state("new").publicId()), any());
             assertThat(jdbc.queryForObject("select status from course_revisions where id=?", String.class,
                     draft.revisionId())).isEqualTo("DRAFT");
@@ -350,7 +351,7 @@ class LessonAudioWriterProtocolIT extends AudioPostgresTestSupport {
             if (order.contains("clone")) return content.createEditRevision(draft.teacher(), draft.courseId());
             return adminReview.approveRevision(admin, draft.revisionId());
         };
-        Callable<?> cleaning = () -> { cleanup.tryCleanup(draft.courseId(), java.util.List.of(state("kept"))); return true; };
+        Callable<?> cleaning = () -> { media.enqueueAndDrain(draft.courseId(), java.util.List.of(state("kept"))); return true; };
         if (order.startsWith("cleanup")) courseRace(cleaning, writer);
         else courseRace(writer, cleaning);
         verify(storage, never()).delete(eq(state("kept").publicId()), any());

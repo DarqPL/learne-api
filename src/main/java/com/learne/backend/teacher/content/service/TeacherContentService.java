@@ -71,6 +71,7 @@ public class TeacherContentService {
     private final RevisionAudioRebuildGuard revisionAudioRebuildGuard;
     private final SubmissionGuard submissionGuard;
     private final com.learne.backend.teacher.content.submission.SubmissionRepository submissions;
+    private final com.learne.backend.teacher.content.audio.service.MediaCleanupProducer cleanup;
 
     public TeacherContentService(CourseRepository courseRepository,
                            CourseRevisionRepository courseRevisionRepository,
@@ -84,7 +85,8 @@ public class TeacherContentService {
                              CursorTokenService cursorTokenService,
                              CourseWriteLockService locks,
                              RevisionAudioRebuildGuard revisionAudioRebuildGuard, SubmissionGuard submissionGuard,
-                             com.learne.backend.teacher.content.submission.SubmissionRepository submissions) {
+                             com.learne.backend.teacher.content.submission.SubmissionRepository submissions,
+                             com.learne.backend.teacher.content.audio.service.MediaCleanupProducer cleanup) {
         this.courseRepository = courseRepository;
         this.courseRevisionRepository = courseRevisionRepository;
         this.topicRepository = topicRepository;
@@ -99,6 +101,7 @@ public class TeacherContentService {
         this.revisionAudioRebuildGuard = revisionAudioRebuildGuard;
         this.submissionGuard = submissionGuard;
         this.submissions = submissions;
+        this.cleanup = cleanup;
     }
 
     @Transactional(readOnly = true)
@@ -294,9 +297,13 @@ public class TeacherContentService {
             Course course = topic.getCourse();
             CourseRevision rebuildRevision = assertSafeRevisionRebuild(course,
                     topic.getLessons().stream().map(Lesson::getId).collect(Collectors.toSet()));
+            var detached = new java.util.ArrayList<>(topic.getLessons().stream()
+                    .map(com.learne.backend.teacher.content.audio.dto.LessonAudioState::from).toList());
+            detached.addAll(revisionAudio(rebuildRevision));
             topicRepository.delete(topic);
             course.getTopics().remove(topic);
             syncEditableRevision(course, rebuildRevision);
+            enqueueDetached(course.getId(), detached, revisionAudio(rebuildRevision));
             evictContentCaches(teacher);
             return;
         }
@@ -304,8 +311,10 @@ public class TeacherContentService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Topic not found."));
         CourseRevision revision = topic.getCourseRevision();
         ensureLockedLatestEditableRevision(teacher, revision);
+        var detached = topic.getLessons().stream().map(com.learne.backend.teacher.content.audio.dto.LessonAudioState::from).toList();
         revision.getTopics().remove(topic);
         courseRevisionRepository.save(revision);
+        enqueueDetached(revision.getCourse().getId(), detached, List.of());
         evictContentCaches(teacher);
     }
 
@@ -379,9 +388,12 @@ public class TeacherContentService {
             ensureEditable(lesson.getTopic().getCourse());
             Course course = lesson.getTopic().getCourse();
             CourseRevision rebuildRevision = assertSafeRevisionRebuild(course, Set.of(lessonId));
+            var detached = new java.util.ArrayList<>(revisionAudio(rebuildRevision));
+            detached.add(com.learne.backend.teacher.content.audio.dto.LessonAudioState.from(lesson));
             lesson.getTopic().getLessons().remove(lesson);
             lessonRepository.delete(lesson);
             syncEditableRevision(course, rebuildRevision);
+            enqueueDetached(course.getId(), detached, revisionAudio(rebuildRevision));
             evictContentCaches(teacher);
             return;
         }
@@ -389,8 +401,10 @@ public class TeacherContentService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Lesson not found."));
         TopicRevision topic = lesson.getTopicRevision();
         ensureLockedLatestEditableRevision(teacher, topic.getCourseRevision());
+        var detached = List.of(com.learne.backend.teacher.content.audio.dto.LessonAudioState.from(lesson));
         topic.getLessons().remove(lesson);
         courseRevisionRepository.save(topic.getCourseRevision());
+        enqueueDetached(topic.getCourseRevision().getCourse().getId(), detached, List.of());
         evictContentCaches(teacher);
     }
 
@@ -664,6 +678,17 @@ public class TeacherContentService {
                     .forEach(topic -> revision.getTopics().add(toTopicRevision(revision, topic)));
             return courseRevisionRepository.save(revision);
         }).orElse(null);
+    }
+
+    private List<com.learne.backend.teacher.content.audio.dto.LessonAudioState> revisionAudio(CourseRevision revision) {
+        return revision == null ? List.of() : revision.getTopics().stream().flatMap(t -> t.getLessons().stream())
+                .map(com.learne.backend.teacher.content.audio.dto.LessonAudioState::from).toList();
+    }
+
+    private void enqueueDetached(Long courseId, List<com.learne.backend.teacher.content.audio.dto.LessonAudioState> before,
+            List<com.learne.backend.teacher.content.audio.dto.LessonAudioState> remaining) {
+        var detached = before.stream().filter(s -> s.publicId() != null && !remaining.contains(s)).toList();
+        if (!detached.isEmpty()) cleanup.enqueue(java.util.UUID.randomUUID(), courseId, detached);
     }
 
     private Optional<CourseRevision> latestEditableRevision(Course course) {

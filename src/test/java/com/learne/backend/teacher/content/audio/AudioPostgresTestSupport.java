@@ -45,7 +45,7 @@ import org.testcontainers.containers.wait.strategy.Wait;
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Execution(ExecutionMode.SAME_THREAD)
-@org.springframework.context.annotation.Import(com.learne.backend.testsupport.SubmissionTestDriver.class)
+@org.springframework.context.annotation.Import({com.learne.backend.testsupport.SubmissionTestDriver.class, com.learne.backend.testsupport.MediaTestDriver.class})
 abstract class AudioPostgresTestSupport {
     private static GenericContainer<?> postgres;
 
@@ -87,6 +87,7 @@ abstract class AudioPostgresTestSupport {
     @Autowired LessonAudioService audio;
     @Autowired LessonAudioReadService reads;
     @Autowired LessonAudioCleanupService cleanup;
+    @Autowired com.learne.backend.testsupport.MediaTestDriver media;
     @MockitoBean StorageService storage;
     @MockitoBean ClamAvClient scanner;
     @MockitoBean CourseKnowledgePointClient knowledge;

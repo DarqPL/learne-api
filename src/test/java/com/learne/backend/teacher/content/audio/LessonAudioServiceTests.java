@@ -63,8 +63,7 @@ class LessonAudioServiceTests {
                 .thenReturn(new LessonAudioMutation(response, 1L, List.of(old)));
         doThrow(new IllegalStateException("cache")).when(cache).evictContentAfterAudioCommit(any());
         assertThat(service.upload(teacher, AudioTargetKind.LIVE, 3L, input)).isSameAs(response);
-        verify(cleanup).tryCleanup(1L, List.of(old));
-        verify(cleanup, never()).tryCleanup(1L, List.of(uploaded));
+        verifyNoInteractions(cleanup);
         var order = inOrder(reads, files, storage, persistence, postCommit);
         order.verify(reads).preflight(teacher, AudioTargetKind.LIVE, 3L);
         order.verify(files).validateAndScan(input);
@@ -84,9 +83,9 @@ class LessonAudioServiceTests {
             });
         });
         doAnswer(invocation -> { outsideTransaction(); throw new IllegalStateException("cleanup"); })
-                .when(cleanup).tryCleanup(1L, List.of(uploaded));
+                .when(cleanup).compensate(any(), eq(1L), eq(List.of(uploaded)), eq(true), any());
         assertThatThrownBy(() -> service.upload(teacher, AudioTargetKind.LIVE, 3L, input)).isSameAs(original);
-        verify(cleanup).tryCleanup(1L, List.of(uploaded));
+        verify(cleanup).compensate(any(), eq(1L), eq(List.of(uploaded)), eq(true), any());
         verifyNoInteractions(postCommit);
     }
 

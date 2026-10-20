@@ -30,11 +30,5 @@ public class LessonAudioPostCommitService {
             log.warn("Audio post-commit cache invalidation failed for course {} ({})", courseId,
                     exception.getClass().getSimpleName());
         }
-        try {
-            cleanup.tryCleanup(courseId, oldStates);
-        } catch (RuntimeException exception) {
-            log.warn("Audio post-commit cleanup failed for course {} ({})", courseId,
-                    exception.getClass().getSimpleName());
-        }
     }
 }
