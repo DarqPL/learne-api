@@ -2,6 +2,8 @@ package com.learne.backend.teacher.content.audio.service;
 
 import com.learne.backend.storage.config.CloudinaryProperties;
 import com.learne.backend.teacher.content.audio.dto.LessonAudioState;
+import com.learne.backend.teacher.content.audio.dto.CleanupDecision;
+import static com.learne.backend.teacher.content.audio.dto.CleanupDecision.Kind.*;
 import com.learne.backend.teacher.content.repository.CourseRepository;
 import com.learne.backend.teacher.content.repository.LessonRepository;
 import com.learne.backend.teacher.content.repository.LessonRevisionRepository;
@@ -35,26 +37,31 @@ public class LessonAudioCleanupDecisionService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public boolean canDelete(Long courseId, LessonAudioState state) {
+        return evaluate(courseId, state).kind() == DELETE;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
+    public CleanupDecision evaluate(Long courseId, LessonAudioState state) {
         if (!hasManagedProvenance(state)) {
-            return retain(courseId, state, "unproven managed VIDEO upload provenance");
+            return retain(courseId, state, "UNPROVEN_PROVENANCE");
         }
         if (courseId == null) {
-            return retain(null, state, "missing course lock scope");
+            return retain(null, state, "MISSING_COURSE");
         }
         try {
             // Course first, before any reference reads. No provider I/O in this transaction.
             if (courses.findLockedById(courseId).isEmpty()) {
-                return retain(courseId, state, "course no longer exists; reintroduction safety unproven");
+                return retain(courseId, state, "MISSING_COURSE");
             }
             if (live.existsByAudioPublicId(state.publicId()) || live.existsByAudioUrl(state.url())
                     || revisions.existsByAudioPublicId(state.publicId()) || revisions.existsByAudioUrl(state.url())
                     || live.existsByAudioUrlContaining(state.publicId())
                     || revisions.existsByAudioUrlContaining(state.publicId())) {
-                return retain(courseId, state, "global live or historical revision reference remains");
+                return retain(courseId, state, "REFERENCED");
             }
             if (hasUncertainReference(state.publicId(), live.findAllAudioUrls())
                     || hasUncertainReference(state.publicId(), revisions.findAllAudioUrls())) {
-                return retain(courseId, state, "ambiguous or matching URL reference prevents proving global absence");
+                return retain(courseId, state, "AMBIGUOUS_REFERENCE");
             }
             /* Reintroduction proof (not just a reference count): TeacherContentService creates
              * revisions from this course's locked live/latest graph; AdminContentReviewService
@@ -65,13 +72,15 @@ public class LessonAudioCleanupDecisionService {
              * from which to reintroduce this ID after the decision transaction releases it.
              * A future cross-course copy/snapshot writer must extend this protocol or retain.
              */
-            return true;
+            return new CleanupDecision(DELETE, "SAFE_ABSENCE");
         } catch (RuntimeException exception) {
-            return retain(courseId, state, "reference/lock query failed (" + exception.getClass().getSimpleName() + ")");
+            log.warn("Retrying lesson audio publicId={} for course {} (target=VIDEO): DB_CHECK_FAILED",
+                    candidatePublicId(state), courseId);
+            return new CleanupDecision(RETRY, "DB_CHECK_FAILED");
         }
     }
 
-    private boolean hasUncertainReference(String publicId, List<String> urls) {
+    public static boolean hasUncertainReference(String publicId, List<String> urls) {
         if (urls == null) {
             return true;
         }
@@ -100,7 +109,10 @@ public class LessonAudioCleanupDecisionService {
     }
 
     private boolean hasManagedProvenance(LessonAudioState state) {
-        String cloud = properties.getCloudName();
+        return hasManagedProvenance(state, properties.getCloudName());
+    }
+
+    public static boolean hasManagedProvenance(LessonAudioState state, String cloud) {
         if (state == null || state.publicId() == null || state.url() == null
                 || !MANAGED_ID.matcher(state.publicId()).matches()
                 || cloud == null || !cloud.matches("[A-Za-z0-9_-]+")) {
@@ -135,9 +147,9 @@ public class LessonAudioCleanupDecisionService {
         return state.publicId().matches("[A-Za-z0-9_./-]{1,255}") ? state.publicId() : "<invalid>";
     }
 
-    private boolean retain(Long courseId, LessonAudioState state, String reason) {
+    private CleanupDecision retain(Long courseId, LessonAudioState state, String reason) {
         log.warn("Retaining lesson audio publicId={} for course {} (target=VIDEO): {}",
                 candidatePublicId(state), courseId, reason);
-        return false;
+        return new CleanupDecision(RETAIN, reason);
     }
 }

@@ -12,10 +12,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface PasswordResetTokenRepository extends JpaRepository<PasswordResetToken, Long> {
+    @Query("select token from PasswordResetToken token where token.user = :user and token.usedAt is null order by token.createdAt desc, token.id desc limit 1")
     Optional<PasswordResetToken> findTopByUserAndUsedAtIsNullOrderByCreatedAtDesc(User user);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select token from PasswordResetToken token where token.user = :user and token.usedAt is null order by token.createdAt desc")
+    @Query("select token from PasswordResetToken token where token.user = :user and token.usedAt is null order by token.createdAt desc, token.id desc")
     List<PasswordResetToken> findLatestUnusedByUserForUpdate(@Param("user") User user, Pageable pageable);
 
     @Modifying(flushAutomatically = true)

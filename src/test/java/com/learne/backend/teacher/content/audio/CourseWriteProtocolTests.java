@@ -44,7 +44,6 @@ import com.learne.backend.teacher.content.repository.QuestionRepository;
 import com.learne.backend.teacher.content.repository.QuestionRevisionRepository;
 import com.learne.backend.teacher.content.service.CourseWriteLockService;
 import com.learne.backend.teacher.content.service.TeacherContentService;
-import com.learne.backend.teacher.content.service.CourseSubmitFinalizationService;
 import com.learne.backend.teacher.content.dto.CourseRequest;
 import com.learne.backend.teacher.content.service.RevisionAudioRebuildGuard;
 import jakarta.persistence.EntityManager;
@@ -88,7 +87,6 @@ class CourseWriteProtocolTests {
     private CourseWriteLockService locks;
     private TeacherContentService teacherService;
     private AdminContentReviewService adminService;
-    private CourseSubmitFinalizationService finalization;
 
     @Autowired CourseWriteLockService actualLocks;
     @Autowired EntityManager actualEntityManager;
@@ -99,11 +97,15 @@ class CourseWriteProtocolTests {
     @BeforeEach
     void configureLockHelper() {
         locks = spy(new CourseWriteLockService(entityManager, courses));
-        finalization = new CourseSubmitFinalizationService(courses, revisions, caches, enrichment, locks);
+        var submissionGuard = org.mockito.Mockito.mock(com.learne.backend.teacher.content.submission.SubmissionGuard.class);
         teacherService = new TeacherContentService(courses, revisions, topics, lessons, questions,
-                topicRevisions, lessonRevisions, questionRevisions, caches, null, finalization, null, enrichment, locks,
-                new RevisionAudioRebuildGuard());
-        adminService = new AdminContentReviewService(courses, revisions, entityManager, caches, locks);
+                topicRevisions, lessonRevisions, questionRevisions, caches, null, locks,
+                new RevisionAudioRebuildGuard(), submissionGuard,
+                org.mockito.Mockito.mock(com.learne.backend.teacher.content.submission.SubmissionRepository.class),
+                org.mockito.Mockito.mock(com.learne.backend.teacher.content.audio.service.MediaCleanupProducer.class));
+        adminService = new AdminContentReviewService(courses, revisions, entityManager, caches, locks,
+                org.mockito.Mockito.mock(com.learne.backend.admin.content.service.ReviewDecisionService.class),
+                org.mockito.Mockito.mock(com.learne.backend.teacher.content.audio.service.MediaCleanupProducer.class));
     }
 
     private final User teacher = user(7L);
@@ -195,25 +197,6 @@ class CourseWriteProtocolTests {
                 10L, CourseRevisionStatus.PENDING_REVIEW);
         order.verify(revisions).findLockedLatestByCourseId(eq(10L), any());
         verify(locks, times(1)).adminCourse(10L);
-    }
-
-    @ParameterizedTest
-    @CsvSource({"19,1", "20,0"})
-    void staleSnapshotIdentityIsRejectedBeforeEnrichment(long revisionId, int revisionNumber) {
-        CourseRevision revision = pendingRevision();
-        revision.setStatus(CourseRevisionStatus.DRAFT);
-        when(courses.findLockedByIdAndTeacher(10L, teacher)).thenReturn(Optional.of(revision.getCourse()));
-        when(revisions.findLockedLatestByCourseId(eq(10L), any())).thenReturn(List.of(revision));
-        var snapshot = new CourseReviewEnrichmentService.CourseRevisionSnapshot(
-                revisionId, revisionNumber, "same", null, List.of());
-        var enriched = new CourseReviewEnrichmentService.EnrichedCourseRevisionSnapshot(snapshot, Map.of());
-
-        assertEquals(HttpStatus.CONFLICT,
-                assertThrows(ApiException.class, () -> finalization.finalizeSubmit(teacher, 10L, enriched)).getStatus());
-        verify(enrichment, never()).applyEnrichment(any(), any());
-        InOrder order = inOrder(locks, revisions);
-        order.verify(locks).teacherCourse(10L, teacher);
-        order.verify(revisions).findLockedLatestByCourseId(eq(10L), any());
     }
 
     @Test

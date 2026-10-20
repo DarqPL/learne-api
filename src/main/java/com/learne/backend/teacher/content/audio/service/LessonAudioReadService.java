@@ -1,6 +1,7 @@
 package com.learne.backend.teacher.content.audio.service;
 
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.teacher.content.submission.SubmissionGuard;
 import com.learne.backend.teacher.content.audio.dto.AudioTargetKind;
 import com.learne.backend.teacher.content.audio.dto.LessonAudioToken;
 import com.learne.backend.teacher.content.audio.dto.CourseAudioTargetsResponse;
@@ -24,17 +25,21 @@ public class LessonAudioReadService {
     private final LessonAudioTargetResolver resolver;
     private final CourseRepository courses;
     private final CourseRevisionRepository revisions;
+    private final SubmissionGuard submissionGuard;
 
     public LessonAudioReadService(LessonAudioTargetResolver resolver, CourseRepository courses,
-                                  CourseRevisionRepository revisions) {
+                                  CourseRevisionRepository revisions, SubmissionGuard submissionGuard) {
         this.resolver = resolver;
         this.courses = courses;
         this.revisions = revisions;
+        this.submissionGuard = submissionGuard;
     }
 
     @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW, isolation = Isolation.REPEATABLE_READ)
     public LessonAudioToken preflight(User teacher, AudioTargetKind kind, Long id) {
-        return resolver.resolve(teacher, kind, id).token();
+        var token = resolver.resolve(teacher, kind, id).token();
+        submissionGuard.requireEditable(token.courseId());
+        return token;
     }
 
     @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW, isolation = Isolation.REPEATABLE_READ)

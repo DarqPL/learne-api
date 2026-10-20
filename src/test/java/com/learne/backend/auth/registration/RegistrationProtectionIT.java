@@ -89,7 +89,7 @@ class RegistrationProtectionIT extends RedisTestSupport {
             mailAttempts.incrementAndGet();
             delivered.add(call.getArgument(1));
             return null;
-        }).when(mail).sendRegistrationOtp(anyString(), anyString());
+        }).when(mail).sendRegistrationOtp(any(com.learne.backend.domain.auth.RegistrationOtp.class), anyString());
         clearObservations();
     }
 
@@ -335,20 +335,20 @@ class RegistrationProtectionIT extends RedisTestSupport {
         assertFiveMinutes(); assertThat(replacement.getAttempts()).isZero();
         assertThat(mailAttempts.get()).isEqualTo(1); assertThat(users.count()).isZero();
         assertSpent(EMAIL, email); assertSpent(SEND, ip);
-        verify(mail).sendRegistrationOtp(email, delivered.getFirst());
+        verify(mail).sendRegistrationOtp(argThat(p -> p.getEmail().equals(email)), eq(delivered.getFirst()));
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"request", "resend", "replacement"})
-    void smtpFailureRollsBackPendingButNeverRefundsEmailOrRetriesMail(String route) throws Exception {
+    void enqueueFailureRollsBackPendingButNeverRefundsEmailOrRetriesMail(String route) throws Exception {
         if (route.equals("resend")) seedExpired();
         if (route.equals("replacement")) seedActive();
         var before = !route.equals("request") ? snapshot() : List.of();
         assertThat(raw(key(EMAIL, email))).isNull();
-        doAnswer(call -> { mailAttempts.incrementAndGet(); throw new MailSendException("fixture SMTP failure"); })
-                .when(mail).sendRegistrationOtp(anyString(), anyString());
+        doAnswer(call -> { mailAttempts.incrementAndGet(); throw new IllegalStateException("fixture queue failure"); })
+                .when(mail).sendRegistrationOtp(any(com.learne.backend.domain.auth.RegistrationOtp.class), anyString());
         assertThatThrownBy(() -> { if (route.equals("resend")) resend(email); else request(email); })
-                .hasRootCauseInstanceOf(MailSendException.class);
+                .hasRootCauseInstanceOf(IllegalStateException.class);
         if (!route.equals("request")) assertThat(snapshot()).isEqualTo(before);
         else assertThat(pending.count()).isZero();
         assertThat(users.count()).isZero();

@@ -51,6 +51,7 @@ import org.springframework.test.web.servlet.MvcResult;
         "app.monetization.plans.pro-price-vnd=500000",
         "app.monetization.plans.pro-plus-price-vnd=350000"
 })
+@org.springframework.test.context.bean.override.mockito.MockitoBean(types = com.learne.backend.monetization.service.PaymentConfirmationMailService.class)
 class PlanSubscriptionApiTests {
     @Autowired private UserRepository userRepository;
     @Autowired private OrderRepository orderRepository;

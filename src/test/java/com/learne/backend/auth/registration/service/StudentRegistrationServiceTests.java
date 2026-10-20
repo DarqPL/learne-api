@@ -144,13 +144,14 @@ class StudentRegistrationServiceTests {
         order.verify(passwords).encode("123456");
         var saved = org.mockito.ArgumentCaptor.forClass(RegistrationOtp.class);
         order.verify(pendingOtps).save(saved.capture());
-        order.verify(mail).sendRegistrationOtp(EMAIL, "123456");
+        order.verify(mail).sendRegistrationOtp(saved.getValue(), "123456");
         assertThat(saved.getValue()).isNotSameAs(old);
         assertThat(saved.getValue().getEmail()).isEqualTo(EMAIL);
         assertThat(saved.getValue().getFullName()).isEqualTo("Student Name");
         assertThat(saved.getValue().getPasswordHash()).isEqualTo("password-hash");
         assertThat(saved.getValue().getOtpHash()).isEqualTo("new-otp-hash");
         assertThat(saved.getValue().getAttempts()).isZero();
+        assertThat(saved.getValue().getMailGeneration()).isNotNull();
         assertThat(saved.getValue().getExpiresAt()).isBetween(before.plusMinutes(5), after.plusMinutes(5));
         verifyNoMoreInteractions(limiter, mail, users, pendingOtps);
         verifyNoInteractions(cache);
@@ -166,7 +167,7 @@ class StudentRegistrationServiceTests {
         order.verify(pendingOtps).findByEmail(EMAIL);
         order.verify(generator).generate();
         order.verify(pendingOtps).save(any(RegistrationOtp.class));
-        order.verify(mail).sendRegistrationOtp(EMAIL, "123456");
+        order.verify(mail).sendRegistrationOtp(any(RegistrationOtp.class), eq("123456"));
         verifyNoMoreInteractions(pendingOtps, limiter, mail);
     }
 
@@ -257,7 +258,7 @@ class StudentRegistrationServiceTests {
         order.verify(pending).setExpiresAt(any());
         order.verify(pending).setAttempts(0);
         order.verify(pendingOtps).save(pending);
-        order.verify(mail).sendRegistrationOtp(EMAIL, "123456");
+        order.verify(mail).sendRegistrationOtp(pending, "123456");
         assertThat(pending.getId()).isEqualTo(42L);
         assertThat(pending.getPasswordHash()).isEqualTo("password-hash");
         assertThat(pending.getOtpHash()).isEqualTo("new-otp-hash");
@@ -286,32 +287,32 @@ class StudentRegistrationServiceTests {
     }
 
     @Test
-    void requestSmtpFailurePropagatesAfterOneBudgetChargeWithoutRetryOrRefund() {
+    void requestEnqueueFailurePropagatesAfterOneBudgetChargeWithoutRetryOrRefund() {
         generatedOtp();
         when(passwords.encode(PASSWORD)).thenReturn("password-hash");
-        var failure = new IllegalStateException("SMTP unavailable");
-        doThrow(failure).when(mail).sendRegistrationOtp(EMAIL, "123456");
+        var failure = new IllegalStateException("Queue unavailable");
+        doThrow(failure).when(mail).sendRegistrationOtp(any(RegistrationOtp.class), eq("123456"));
         assertThatThrownBy(() -> service.requestOtp(request())).isSameAs(failure);
         var order = inOrder(limiter, pendingOtps, mail);
         order.verify(limiter).requireAllowed(POLICY, DIMENSION, EMAIL);
         order.verify(pendingOtps).save(any(RegistrationOtp.class));
-        order.verify(mail).sendRegistrationOtp(EMAIL, "123456");
+        order.verify(mail).sendRegistrationOtp(any(RegistrationOtp.class), eq("123456"));
         verify(generator).generate();
         verifyNoMoreInteractions(limiter, mail, generator);
         verify(users, never()).save(any());
     }
 
     @Test
-    void resendSmtpFailurePropagatesAfterOneBudgetChargeWithoutRetryOrRefund() {
+    void resendEnqueueFailurePropagatesAfterOneBudgetChargeWithoutRetryOrRefund() {
         when(pendingOtps.findByEmail(EMAIL)).thenReturn(Optional.of(pending(true)));
         generatedOtp();
-        var failure = new IllegalStateException("SMTP unavailable");
-        doThrow(failure).when(mail).sendRegistrationOtp(EMAIL, "123456");
+        var failure = new IllegalStateException("Queue unavailable");
+        doThrow(failure).when(mail).sendRegistrationOtp(any(RegistrationOtp.class), eq("123456"));
         assertThatThrownBy(() -> service.resendOtp(resend())).isSameAs(failure);
         var order = inOrder(limiter, pendingOtps, mail);
         order.verify(limiter).requireAllowed(POLICY, DIMENSION, EMAIL);
         order.verify(pendingOtps).save(any(RegistrationOtp.class));
-        order.verify(mail).sendRegistrationOtp(EMAIL, "123456");
+        order.verify(mail).sendRegistrationOtp(any(RegistrationOtp.class), eq("123456"));
         verify(generator).generate();
         verifyNoMoreInteractions(limiter, mail, generator);
         verifyNoInteractions(users);
@@ -333,7 +334,7 @@ class StudentRegistrationServiceTests {
         service.requestOtp(request());
         verify(core).requireAllowed(POLICY, DIMENSION, EMAIL);
         verify(core).consume(POLICY, DIMENSION, EMAIL);
-        verify(mail).sendRegistrationOtp(EMAIL, "123456");
+        verify(mail).sendRegistrationOtp(any(RegistrationOtp.class), eq("123456"));
         clearInvocations(limiter);
         when(pendingOtps.findByEmail(EMAIL)).thenReturn(Optional.of(pending(false)));
         assertStatus(() -> service.resendOtp(resend()), HttpStatus.BAD_REQUEST,

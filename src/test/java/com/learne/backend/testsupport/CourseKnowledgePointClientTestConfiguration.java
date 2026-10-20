@@ -11,7 +11,7 @@ public class CourseKnowledgePointClientTestConfiguration {
     @Bean
     @Primary
     CourseKnowledgePointClient courseKnowledgePointClient() {
-        return request -> new CourseKnowledgePointResponse(request.questions().stream()
+        return (request, contract) -> new CourseKnowledgePointResponse(request.questions().stream()
                 .map(question -> new CourseKnowledgePointResponse.Item(
                         question.questionId(), "test_knowledge_point"))
                 .toList());

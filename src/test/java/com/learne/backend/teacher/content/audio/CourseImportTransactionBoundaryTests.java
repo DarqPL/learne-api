@@ -68,7 +68,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 
 @SpringBootTest(properties = "app.cloudinary.cloud-name=test-cloud")
 @ActiveProfiles("test")
-class CourseImportTransactionBoundaryTests {
+class CourseImportTransactionBoundaryTests extends MediaPostgresTestSupport {
     @Autowired CourseImportExportService facade;
     @Autowired UserRepository users;
     @Autowired CourseRepository courses;
@@ -114,6 +114,7 @@ class CourseImportTransactionBoundaryTests {
         assertThatThrownBy(() -> facade.importCourse(fixture.teacher(), fixture.file()))
                 .isInstanceOf(ApiException.class).hasMessageContaining("ID bài học trong file không thuộc");
         assertThat(lessons.existsById(fixture.lessonId())).isFalse();
+        media.assertIntentAndDrain();
         verify(storage).delete(uploaded.publicId(), StorageResourceType.VIDEO);
     }
 
@@ -139,6 +140,7 @@ class CourseImportTransactionBoundaryTests {
 
         assertThatThrownBy(() -> facade.importCourse(fixture.teacher(), fixture.file()))
                 .isInstanceOf(ApiException.class).hasMessageContaining("Phiên bản khóa học đã thay đổi");
+        media.assertIntentAndDrain();
         verify(storage).delete(uploaded.publicId(), StorageResourceType.VIDEO);
     }
 
@@ -176,7 +178,7 @@ class CourseImportTransactionBoundaryTests {
         });
 
         assertThat(cleanupDecision.canDelete(owner.courseId(), candidate)).isFalse();
-        cleanup.tryCleanup(owner.courseId(), List.of(candidate));
+        media.enqueueAndDrain(owner.courseId(), List.of(candidate));
         verify(storage, never()).delete(any(), any());
     }
 
@@ -193,7 +195,7 @@ class CourseImportTransactionBoundaryTests {
             return null;
         }).when(storage).delete(candidate.publicId(), StorageResourceType.VIDEO);
 
-        cleanup.tryCleanup(fixture.courseId(), List.of(candidate));
+        media.enqueueAndDrain(fixture.courseId(), List.of(candidate));
 
         verify(storage).delete(candidate.publicId(), StorageResourceType.VIDEO);
     }
@@ -237,7 +239,7 @@ class CourseImportTransactionBoundaryTests {
         try {
             // Neither the exact URL nor the literal canonical public ID occurs in this reference.
             assertThat(referenceUrl).doesNotContain("%").doesNotContain(candidate.publicId());
-            cleanup.tryCleanup(owner.courseId(), List.of(candidate));
+            media.enqueueAndDrain(owner.courseId(), List.of(candidate));
             verify(storage, never()).delete(any(), any());
             assertThat(cleanupDecision.canDelete(owner.courseId(), candidate)).isFalse();
         } finally {

@@ -32,6 +32,7 @@ public class OrderPaymentSettlementService {
     private final CouponRepository couponRepository;
     private final CouponRedemptionRepository couponRedemptionRepository;
     private final CacheInvalidationService cacheInvalidationService;
+    private final PaymentConfirmationMailService paymentConfirmationMailService;
 
     public OrderPaymentSettlementService(OrderRepository orderRepository,
                                           CourseEntitlementRepository courseEntitlementRepository,
@@ -39,7 +40,8 @@ public class OrderPaymentSettlementService {
                                           SubscriptionRepository subscriptionRepository,
                                           CouponRepository couponRepository,
                                           CouponRedemptionRepository couponRedemptionRepository,
-                                          CacheInvalidationService cacheInvalidationService) {
+                                          CacheInvalidationService cacheInvalidationService,
+                                          PaymentConfirmationMailService paymentConfirmationMailService) {
         this.orderRepository = orderRepository;
         this.courseEntitlementRepository = courseEntitlementRepository;
         this.userRepository = userRepository;
@@ -47,6 +49,7 @@ public class OrderPaymentSettlementService {
         this.couponRepository = couponRepository;
         this.couponRedemptionRepository = couponRedemptionRepository;
         this.cacheInvalidationService = cacheInvalidationService;
+        this.paymentConfirmationMailService = paymentConfirmationMailService;
     }
 
     @Transactional(noRollbackFor = ApiException.class)
@@ -91,35 +94,40 @@ public class OrderPaymentSettlementService {
         userRepository.findByIdForUpdate(order.getUser().getId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Order user not found."));
         Coupon coupon = lockAndValidateCouponUsage(order);
-        order.setStatus(OrderStatus.PAID);
-        order.setPaidAt(paidAt);
-        if (order.getOrderType() == OrderType.PLAN_SUBSCRIPTION) {
-            createSubscription(order, paidAt);
+        try {
+            order.setStatus(OrderStatus.PAID);
+            order.setPaidAt(paidAt);
+            if (order.getOrderType() == OrderType.PLAN_SUBSCRIPTION) {
+                createSubscription(order, paidAt);
+            } else {
+                for (OrderItem item : order.getItems()) {
+                    if (item.getCourse() == null) {
+                        continue;
+                    }
+                    if (courseEntitlementRepository.existsActiveCourseAccess(order.getUser(), item.getCourse(), paidAt)) {
+                        continue;
+                    }
+                    CourseEntitlement entitlement = new CourseEntitlement();
+                    entitlement.setUser(order.getUser());
+                    entitlement.setCourse(item.getCourse());
+                    entitlement.setOrder(order);
+                    entitlement.setSource(CourseEntitlementSource.COURSE_PURCHASE);
+                    entitlement.setStartsAt(paidAt);
+                    courseEntitlementRepository.save(entitlement);
+                }
+            }
             createCouponRedemptionIfNeeded(order, coupon, paidAt);
+
             Order savedOrder = orderRepository.save(order);
+            paymentConfirmationMailService.enqueue(savedOrder);
             evictAccessCaches(savedOrder);
             return savedOrder;
+        } catch (RuntimeException failure) {
+            // ApiException is excluded by existing outer transactions and may be caught by SePay.
+            // Once paid/access mutations begin, every failure must still abort the whole transaction.
+            org.springframework.transaction.interceptor.TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            throw failure;
         }
-        for (OrderItem item : order.getItems()) {
-            if (item.getCourse() == null) {
-                continue;
-            }
-            if (courseEntitlementRepository.existsActiveCourseAccess(order.getUser(), item.getCourse(), paidAt)) {
-                continue;
-            }
-            CourseEntitlement entitlement = new CourseEntitlement();
-            entitlement.setUser(order.getUser());
-            entitlement.setCourse(item.getCourse());
-            entitlement.setOrder(order);
-            entitlement.setSource(CourseEntitlementSource.COURSE_PURCHASE);
-            entitlement.setStartsAt(paidAt);
-            courseEntitlementRepository.save(entitlement);
-        }
-        createCouponRedemptionIfNeeded(order, coupon, paidAt);
-
-        Order savedOrder = orderRepository.save(order);
-        evictAccessCaches(savedOrder);
-        return savedOrder;
     }
 
     private void evictAccessCaches(Order order) {

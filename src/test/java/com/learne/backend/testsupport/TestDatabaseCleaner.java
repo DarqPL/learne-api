@@ -7,6 +7,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 public final class TestDatabaseCleaner {
     private static final String[] DELETE_STATEMENTS = {
+            "delete from course_submission_questions",
+            "delete from user_notifications",
+            "delete from course_submission_attempts",
+            "delete from background_jobs",
+            "delete from course_review_decisions",
             "delete from ai_feedback",
             "delete from ai_messages",
             "delete from ai_conversations",

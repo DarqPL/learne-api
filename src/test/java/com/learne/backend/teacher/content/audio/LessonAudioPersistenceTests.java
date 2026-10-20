@@ -44,7 +44,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 @SpringBootTest(properties = "app.cloudinary.cloud-name=test-cloud")
-class LessonAudioPersistenceTests {
+class LessonAudioPersistenceTests extends MediaPostgresTestSupport {
     @Autowired UserRepository users;
     @Autowired PasswordEncoder passwords;
     @Autowired TeacherContentService content;
@@ -321,6 +321,7 @@ class LessonAudioPersistenceTests {
             assertThatThrownBy(() -> service.upload(draft.teacher(), AudioTargetKind.LIVE, draft.liveLessonId(), input))
                     .isInstanceOf(org.hibernate.exception.DataException.class);
         }
+        media.assertIntentAndDrain();
         verify(storage).delete(uploaded.publicId(), com.learne.backend.storage.dto.StorageResourceType.VIDEO);
         verifyNoInteractions(cache);
         assertStates(LessonAudioState.empty(), LessonAudioState.empty());

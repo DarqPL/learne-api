@@ -37,6 +37,8 @@ import org.springframework.test.web.servlet.MvcResult;
 @AutoConfigureMockMvc
 @SpringBootTest
 class CouponApiTests {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.learne.backend.monetization.service.PaymentConfirmationMailService paymentMail;
     @Autowired private UserRepository userRepository;
     @Autowired private CourseRepository courseRepository;
     @Autowired private PasswordEncoder passwordEncoder;

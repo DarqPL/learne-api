@@ -16,6 +16,58 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 class LessonAudioImportConcurrencyIT extends AudioPostgresTestSupport {
     @Autowired CourseImportPersistenceService imports;
+    @Autowired CourseImportExportService facade;
+    @Autowired com.learne.backend.teacher.content.submission.SubmissionAcceptanceService acceptance;
+
+    @ParameterizedTest
+    @ValueSource(strings = {"managed", "unproven", "other-course-reference"})
+    void acceptanceWhileImportUploadBlockedRejectsPersistenceWithSafeCompensation(String provenance) throws Exception {
+        // Export a real package, then add an audio replacement to the real workbook/parser flow.
+        byte[] exported=facade.exportCourse(draft.teacher(),draft.courseId());
+        byte[] workbook;
+        try(var zip=new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(exported))) {
+            assertThat(zip.getNextEntry()).isNotNull(); workbook=zip.readAllBytes();
+        }
+        var edited=new java.io.ByteArrayOutputStream();
+        try(var book=new org.apache.poi.xssf.usermodel.XSSFWorkbook(new java.io.ByteArrayInputStream(workbook))) {
+            book.getSheet("Content").getRow(1).getCell(6,org.apache.poi.ss.usermodel.Row.MissingCellPolicy.CREATE_NULL_AS_BLANK).setCellValue("audio/new.mp3");
+            book.getSheet("Lessons").getRow(1).getCell(6,org.apache.poi.ss.usermodel.Row.MissingCellPolicy.CREATE_NULL_AS_BLANK).setCellValue("audio/new.mp3");
+            book.write(edited);
+        }
+        var bytes=new java.io.ByteArrayOutputStream();
+        try(var zip=new java.util.zip.ZipOutputStream(bytes)) {
+            zip.putNextEntry(new java.util.zip.ZipEntry("course.xlsm")); zip.write(edited.toByteArray()); zip.closeEntry();
+            zip.putNextEntry(new java.util.zip.ZipEntry("audio/new.mp3")); zip.write(file("new").getBytes()); zip.closeEntry();
+        }
+        var candidate=provenance.equals("unproven")
+                ? new com.learne.backend.storage.dto.StorageUploadResult("https://example.test/audio.mp3","unproven") : uploaded("new");
+        if(provenance.equals("other-course-reference")) {
+            var other=new LessonAudioTestFixture(users,passwords,content,revisions,manager,mvc).draft();
+            jdbc.update("update lessons set audio_url=?,audio_public_id=? where id=?",candidate.url(),candidate.publicId(),other.liveLessonId());
+        }
+        var before=jdbc.queryForMap("select title,audio_url,audio_public_id from lesson_revisions where id=?",draft.revisionLessonId());
+        try(var gate=new Gate()) {
+            when(storage.uploadLessonAudio(any())).thenAnswer(i -> {
+                outsideTransaction(); gate.entered.countDown(); await(gate.release); return candidate;
+            });
+            var importing=workers.submit(() -> facade.importCourse(draft.teacher(),new org.springframework.mock.web.MockMultipartFile("file","import.zip","application/zip",bytes.toByteArray())));
+            try {
+                gate.entered();
+                assertThat(acceptance.accept(draft.teacher().getId(),draft.courseId()).status()).isEqualTo("QUEUED");
+                assertThat(importing.isDone()).isFalse();
+            } finally { gate.close(); }
+            assertThatThrownBy(() -> get(importing)).isInstanceOfSatisfying(java.util.concurrent.ExecutionException.class,
+                    failure -> assertThat(failure.getCause()).isInstanceOfSatisfying(com.learne.backend.shared.api.CodedApiException.class,
+                            api -> { assertThat(api.getStatus()).isEqualTo(org.springframework.http.HttpStatus.CONFLICT);
+                                assertThat(api.getCode()).isEqualTo("COURSE_SUBMISSION_IN_PROGRESS"); }));
+        }
+        assertThat(jdbc.queryForMap("select title,audio_url,audio_public_id from lesson_revisions where id=?",draft.revisionLessonId())).isEqualTo(before);
+        assertThat(jdbc.queryForObject("select count(*) from course_revisions where course_id=?",Integer.class,draft.courseId())).isEqualTo(1);
+        media.assertIntentAndDrain();
+        if(provenance.equals("managed")) verify(storage).delete(candidate.publicId(),com.learne.backend.storage.dto.StorageResourceType.VIDEO);
+        else verify(storage,never()).delete(any(),any());
+        verifyNoInteractions(knowledge);
+    }
 
     private PreparedCourseImport prepared(boolean retain) {
         long topic = jdbc.queryForObject("select topic_revision_id from lesson_revisions where id=?", Long.class, draft.revisionLessonId());
@@ -69,7 +121,7 @@ class LessonAudioImportConcurrencyIT extends AudioPostgresTestSupport {
         seedAudio("kept");
         var prepared = prepared(true);
         java.util.concurrent.Callable<?> importing = () -> imports.persist(draft.teacher(), prepared, new CourseWriteOutcome());
-        java.util.concurrent.Callable<?> cleaning = () -> { cleanup.tryCleanup(draft.courseId(), List.of(state("kept"))); return true; };
+        java.util.concurrent.Callable<?> cleaning = () -> { media.enqueueAndDrain(draft.courseId(), List.of(state("kept"))); return true; };
         if (importFirst) courseRace(importing, cleaning);
         else courseRace(cleaning, importing);
         verify(storage, never()).delete(eq(state("kept").publicId()), any());
@@ -79,7 +131,7 @@ class LessonAudioImportConcurrencyIT extends AudioPostgresTestSupport {
     @Test
     void uncertainReferenceRetainsUnreferencedCandidate() throws Exception {
         jdbc.update("update lesson_revisions set audio_url='https://example.com/a/../uncertain.mp3' where id=?", draft.revisionLessonId());
-        courseBlocks(() -> { cleanup.tryCleanup(draft.courseId(), List.of(state("uncertain"))); return true; });
+        courseBlocks(() -> { media.enqueueAndDrain(draft.courseId(), List.of(state("uncertain"))); return true; });
         verify(storage, never()).delete(any(), any());
     }
 }

@@ -66,7 +66,7 @@ class PasswordResetServiceTests {
             assertThat(saved.getValue().getTokenHash()).isEqualTo("hash");
             assertThat(saved.getValue().getAttempts()).isZero();
             assertThat(saved.getValue().getExpiresAt()).isBetween(before.plusMinutes(15), OffsetDateTime.now().plusMinutes(15));
-            order.verify(mail).sendPasswordResetToken(EMAIL, "123456");
+            order.verify(mail).sendPasswordResetToken(saved.getValue(), "123456");
         } else {
             verifyNoInteractions(generator, encoder, tokens, mail);
         }
@@ -168,12 +168,12 @@ class PasswordResetServiceTests {
     }
 
     @Test
-    void smtpFailureDoesNotRefundOrRetryReservationOrBusinessWork() {
+    void enqueueFailureDoesNotRefundOrRetryReservationOrBusinessWork() {
         when(users.findByEmail(EMAIL)).thenReturn(Optional.of(user()));
         when(generator.generate()).thenReturn("123456");
         when(encoder.encode("123456")).thenReturn("hash");
-        var failure = new IllegalStateException("SMTP unavailable");
-        doThrow(failure).when(mail).sendPasswordResetToken(EMAIL, "123456");
+        var failure = new IllegalStateException("Queue unavailable");
+        doThrow(failure).when(mail).sendPasswordResetToken(any(PasswordResetToken.class), eq("123456"));
         assertThatThrownBy(() -> service.requestReset(new PasswordResetRequest(EMAIL))).isSameAs(failure);
         var order = inOrder(limiter, users, generator, encoder, tokens, mail);
         order.verify(limiter).requireAllowed(POLICY, RateLimitDimension.EMAIL, EMAIL);
@@ -181,7 +181,7 @@ class PasswordResetServiceTests {
         order.verify(generator).generate();
         order.verify(encoder).encode("123456");
         order.verify(tokens).save(any(PasswordResetToken.class));
-        order.verify(mail).sendPasswordResetToken(EMAIL, "123456");
+        order.verify(mail).sendPasswordResetToken(any(PasswordResetToken.class), eq("123456"));
         verifyNoMoreInteractions(limiter, users, generator, encoder, tokens, mail);
         verifyNoInteractions(passwordPolicy, refresh);
     }

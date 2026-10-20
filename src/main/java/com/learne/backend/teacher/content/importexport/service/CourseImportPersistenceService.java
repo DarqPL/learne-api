@@ -1,6 +1,7 @@
 package com.learne.backend.teacher.content.importexport.service;
 
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.teacher.content.submission.SubmissionGuard;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.storage.dto.StorageUploadResult;
 import com.learne.backend.teacher.content.entity.Course;
@@ -45,12 +46,17 @@ public class CourseImportPersistenceService {
     private final CourseRepository courseRepository;
     private final CourseRevisionRepository courseRevisionRepository;
     private final CourseWriteLockService locks;
+    private final SubmissionGuard submissionGuard;
+    private final com.learne.backend.teacher.content.audio.service.MediaCleanupProducer cleanup;
 
     public CourseImportPersistenceService(CourseRepository courseRepository,
-            CourseRevisionRepository courseRevisionRepository, CourseWriteLockService locks) {
+            CourseRevisionRepository courseRevisionRepository, CourseWriteLockService locks, SubmissionGuard submissionGuard,
+            com.learne.backend.teacher.content.audio.service.MediaCleanupProducer cleanup) {
         this.courseRepository = courseRepository;
         this.courseRevisionRepository = courseRevisionRepository;
         this.locks = locks;
+        this.submissionGuard = submissionGuard;
+        this.cleanup = cleanup;
     }
 
     @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW, isolation = Isolation.REPEATABLE_READ)
@@ -61,6 +67,7 @@ public class CourseImportPersistenceService {
         }
         Course course = courseRepository.findByIdAndTeacher(model.courseId(), teacher)
                 .orElseThrow(() -> notFound("Không tìm thấy khóa học."));
+        submissionGuard.requireEditable(model.courseId());
         CourseRevision source = latestUpdatableSourceRevision(course)
                 .orElseThrow(() -> notFound("Không tìm thấy phiên bản khóa học để cập nhật."));
         validateExistingCourseModel(model, source);
@@ -102,6 +109,7 @@ public class CourseImportPersistenceService {
     private CourseImportResponse reimportExistingCourse(User teacher, PreparedCourseImport prepared) {
         CourseImportModel model = prepared.model();
         Course course = locks.teacherCourse(model.courseId(), teacher);
+        submissionGuard.requireEditable(model.courseId());
         CourseRevision sourceRevision = latestUpdatableSourceRevision(course)
                 .orElseThrow(() -> notFound("Không tìm thấy phiên bản khóa học để cập nhật."));
         if (!java.util.Objects.equals(sourceRevision.getId(), prepared.expectedSourceRevisionId())) {
@@ -116,6 +124,8 @@ public class CourseImportPersistenceService {
         Map<Long, LessonRevision> existingLessons = lessonsById(sourceRevision);
         Map<Long, QuestionRevision> existingQuestions = questionsById(sourceRevision);
         Map<Long, QuestionOptionRevision> existingOptions = optionsById(sourceRevision);
+        var detached = revision == sourceRevision ? existingLessons.values().stream()
+                .map(com.learne.backend.teacher.content.audio.dto.LessonAudioState::from).toList() : List.<com.learne.backend.teacher.content.audio.dto.LessonAudioState>of();
         applyRevisionMetadata(revision, model);
         applyRevisionPricingMetadata(revision, sourceRevision);
         revision.getTopics().clear();
@@ -126,6 +136,10 @@ public class CourseImportPersistenceService {
             course.setStatus(ContentStatus.DRAFT);
         }
         CourseRevision savedRevision = courseRevisionRepository.save(revision);
+        var remaining = revision.getTopics().stream().flatMap(t -> t.getLessons().stream())
+                .map(com.learne.backend.teacher.content.audio.dto.LessonAudioState::from).collect(java.util.stream.Collectors.toSet());
+        var candidates = detached.stream().filter(s -> s.publicId() != null && !remaining.contains(s)).toList();
+        if (!candidates.isEmpty()) cleanup.enqueue(prepared.operationId(), course.getId(), candidates);
         return new CourseImportResponse(course.getId(), savedRevision.getId(), savedRevision.getStatus().name(), List.of());
     }
 

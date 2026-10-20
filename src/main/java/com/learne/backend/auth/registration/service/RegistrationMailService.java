@@ -1,35 +1,30 @@
 package com.learne.backend.auth.registration.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import com.learne.backend.domain.auth.RegistrationOtp;
+import com.learne.backend.mail.model.MailPayload;
+import com.learne.backend.mail.model.MailTemplate;
+import com.learne.backend.mail.service.MailJobProducer;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.Arrays;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class RegistrationMailService {
-    private final JavaMailSender mailSender;
-    private final String mailFrom;
+    private final MailJobProducer producer;
 
-    @Autowired
-    public RegistrationMailService(JavaMailSender mailSender, @Value("${app.mail.from:}") String mailFrom) {
-        this.mailSender = mailSender;
-        this.mailFrom = mailFrom;
-    }
+    public RegistrationMailService(MailJobProducer producer) { this.producer = producer; }
 
-    public RegistrationMailService(JavaMailSender mailSender) {
-        this(mailSender, "");
-    }
-
-    public void sendRegistrationOtp(String email, String otp) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        if (StringUtils.hasText(mailFrom)) {
-            message.setFrom(mailFrom);
-        }
-        message.setTo(email);
-        message.setSubject("LearnE registration OTP");
-        message.setText("Your LearnE registration OTP is " + otp + ". It expires in 5 minutes.");
-        mailSender.send(message);
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void sendRegistrationOtp(RegistrationOtp pending, String otp) {
+        String generation = pending.getMailGeneration().toString();
+        var payload = new MailPayload(0, pending.getEmail(), pending.getFullName(),
+                MailTemplate.REGISTRATION_OTP, generation, pending.getExpiresAt().toInstant(),
+                null, null, null, null, null, Map.of());
+        byte[] secret = otp.getBytes(StandardCharsets.UTF_8);
+        try { producer.enqueue(MailTemplate.REGISTRATION_OTP.jobType(), "registration-otp:" + generation, payload, secret); }
+        finally { Arrays.fill(secret, (byte) 0); }
     }
 }

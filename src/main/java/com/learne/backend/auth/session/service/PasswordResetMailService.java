@@ -1,35 +1,31 @@
 package com.learne.backend.auth.session.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import com.learne.backend.domain.auth.PasswordResetToken;
+import com.learne.backend.mail.model.MailPayload;
+import com.learne.backend.mail.model.MailTemplate;
+import com.learne.backend.mail.service.MailJobProducer;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.Arrays;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PasswordResetMailService {
-    private final JavaMailSender mailSender;
-    private final String mailFrom;
+    private final MailJobProducer producer;
 
-    @Autowired
-    public PasswordResetMailService(JavaMailSender mailSender, @Value("${app.mail.from:}") String mailFrom) {
-        this.mailSender = mailSender;
-        this.mailFrom = mailFrom;
-    }
+    public PasswordResetMailService(MailJobProducer producer) { this.producer = producer; }
 
-    public PasswordResetMailService(JavaMailSender mailSender) {
-        this(mailSender, "");
-    }
-
-    public void sendPasswordResetToken(String email, String token) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        if (StringUtils.hasText(mailFrom)) {
-            message.setFrom(mailFrom);
-        }
-        message.setTo(email);
-        message.setSubject("LearnE password reset");
-        message.setText("Your LearnE password reset token is " + token + ". It expires in 15 minutes.");
-        mailSender.send(message);
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void sendPasswordResetToken(PasswordResetToken token, String code) {
+        var user = token.getUser();
+        String generation = token.getId().toString();
+        var payload = new MailPayload(user.getId(), user.getEmail(), user.getFullName(),
+                MailTemplate.PASSWORD_RESET, generation, token.getExpiresAt().toInstant(),
+                null, null, null, null, null, Map.of());
+        byte[] secret = code.getBytes(StandardCharsets.UTF_8);
+        try { producer.enqueue(MailTemplate.PASSWORD_RESET.jobType(), "password-reset:" + generation, payload, secret); }
+        finally { Arrays.fill(secret, (byte) 0); }
     }
 }

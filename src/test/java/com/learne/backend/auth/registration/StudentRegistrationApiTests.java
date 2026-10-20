@@ -78,7 +78,7 @@ class StudentRegistrationApiTests {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Registration OTP has been sent to your email."))
+                .andExpect(jsonPath("$.message").value("Registration OTP request accepted. Please check your inbox."))
                 .andExpect(jsonPath("$.otp").doesNotExist());
 
         RegistrationOtp pending = registrationOtpRepository.findByEmail("student@example.com").orElseThrow();
@@ -310,7 +310,7 @@ class StudentRegistrationApiTests {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("A new registration OTP has been sent to your email."))
+                .andExpect(jsonPath("$.message").value("New registration OTP request accepted. Please check your inbox."))
                 .andExpect(jsonPath("$.otp").doesNotExist());
 
         RegistrationOtp pending = registrationOtpRepository.findByEmail("student@example.com").orElseThrow();
@@ -358,8 +358,8 @@ class StudentRegistrationApiTests {
         }
 
         @Override
-        public void sendRegistrationOtp(String email, String otp) {
-            sentMessages.add(new SentOtp(email, otp));
+        public void sendRegistrationOtp(RegistrationOtp pending, String otp) {
+            sentMessages.add(new SentOtp(pending.getEmail(), otp));
         }
 
         List<SentOtp> sentMessages() {

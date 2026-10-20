@@ -27,9 +27,17 @@ import org.springframework.web.bind.annotation.RestController;
 class AdminUserController {
 
     private final AdminUserService adminUserService;
+    private final com.learne.backend.admin.user.service.TeacherInvitationService invitations;
 
-    AdminUserController(AdminUserService adminUserService) {
+    AdminUserController(AdminUserService adminUserService, com.learne.backend.admin.user.service.TeacherInvitationService invitations) {
         this.adminUserService = adminUserService;
+        this.invitations = invitations;
+    }
+
+    @PostMapping("/teachers/{teacherId}/invitation/resend")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    com.learne.backend.admin.user.dto.InvitationDeliveryResponse resendInvitation(@PathVariable long teacherId) {
+        return invitations.resend(teacherId);
     }
 
     @PostMapping("/users/{userId}/lock")

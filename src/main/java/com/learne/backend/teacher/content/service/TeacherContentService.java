@@ -1,6 +1,7 @@
 package com.learne.backend.teacher.content.service;
 
 import com.learne.backend.cache.CacheInvalidationService;
+import com.learne.backend.teacher.content.submission.SubmissionGuard;
 import com.learne.backend.domain.auth.User;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.shared.pagination.CursorPageResponse;
@@ -66,11 +67,11 @@ public class TeacherContentService {
     private final QuestionRevisionRepository questionRevisionRepository;
     private final CacheInvalidationService cacheInvalidationService;
     private final CursorTokenService cursorTokenService;
-    private final CourseSubmitFinalizationService courseSubmitFinalizationService;
-    private final CourseSubmitPreparationService courseSubmitPreparationService;
-    private final CourseReviewEnrichmentService enrichmentService;
     private final CourseWriteLockService locks;
     private final RevisionAudioRebuildGuard revisionAudioRebuildGuard;
+    private final SubmissionGuard submissionGuard;
+    private final com.learne.backend.teacher.content.submission.SubmissionRepository submissions;
+    private final com.learne.backend.teacher.content.audio.service.MediaCleanupProducer cleanup;
 
     public TeacherContentService(CourseRepository courseRepository,
                            CourseRevisionRepository courseRevisionRepository,
@@ -82,11 +83,10 @@ public class TeacherContentService {
                              QuestionRevisionRepository questionRevisionRepository,
                              CacheInvalidationService cacheInvalidationService,
                              CursorTokenService cursorTokenService,
-                             CourseSubmitFinalizationService courseSubmitFinalizationService,
-                             CourseSubmitPreparationService courseSubmitPreparationService,
-                             CourseReviewEnrichmentService enrichmentService,
                              CourseWriteLockService locks,
-                             RevisionAudioRebuildGuard revisionAudioRebuildGuard) {
+                             RevisionAudioRebuildGuard revisionAudioRebuildGuard, SubmissionGuard submissionGuard,
+                             com.learne.backend.teacher.content.submission.SubmissionRepository submissions,
+                             com.learne.backend.teacher.content.audio.service.MediaCleanupProducer cleanup) {
         this.courseRepository = courseRepository;
         this.courseRevisionRepository = courseRevisionRepository;
         this.topicRepository = topicRepository;
@@ -97,11 +97,11 @@ public class TeacherContentService {
         this.questionRevisionRepository = questionRevisionRepository;
         this.cacheInvalidationService = cacheInvalidationService;
         this.cursorTokenService = cursorTokenService;
-        this.courseSubmitFinalizationService = courseSubmitFinalizationService;
-        this.courseSubmitPreparationService = courseSubmitPreparationService;
-        this.enrichmentService = enrichmentService;
         this.locks = locks;
         this.revisionAudioRebuildGuard = revisionAudioRebuildGuard;
+        this.submissionGuard = submissionGuard;
+        this.submissions = submissions;
+        this.cleanup = cleanup;
     }
 
     @Transactional(readOnly = true)
@@ -130,8 +130,9 @@ public class TeacherContentService {
         Map<Long, CourseRevision> latestRevisions = courseRevisionRepository.findLatestByCourseIds(
                         pageCourses.stream().map(Course::getId).toList()).stream()
                 .collect(Collectors.toMap(revision -> revision.getCourse().getId(), Function.identity()));
+        var summaries = submissions.latestSummaries(pageCourses.stream().map(Course::getId).toList());
         List<CourseResponse> content = pageCourses.stream()
-                .map(course -> teacherCourseResponse(course, latestRevisions.get(course.getId())))
+                .map(course -> teacherCourseResponse(course, latestRevisions.get(course.getId())).withSubmission(summaries.get(course.getId())))
                 .toList();
         String nextCursor = null;
         if (hasNext) {
@@ -148,7 +149,7 @@ public class TeacherContentService {
     @Transactional(readOnly = true)
     public CourseResponse getCourse(User teacher, Long courseId) {
         Course course = findCourse(teacher, courseId);
-        return teacherCourseResponse(course, findLatestRevision(course));
+        return teacherCourseResponse(course, findLatestRevision(course)).withSubmission(submissions.latestSummaries(List.of(courseId)).get(courseId));
     }
 
     @Transactional
@@ -173,6 +174,7 @@ public class TeacherContentService {
     @Transactional
     public CourseResponse createEditRevision(User teacher, Long courseId) {
         Course course = locks.teacherCourse(courseId, teacher);
+        submissionGuard.requireEditable(courseId);
         CourseRevision latestRevision = courseRevisionRepository.findLockedLatestByCourseId(courseId, PageRequest.of(0, 1)).stream().findFirst()
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course revision not found."));
         if (!latestRevision.getTeacher().getId().equals(teacher.getId())) {
@@ -200,6 +202,7 @@ public class TeacherContentService {
     @Transactional
     public CourseResponse updateCourse(User teacher, Long courseId, CourseRequest request) {
         Course course = locks.teacherCourse(courseId, teacher);
+        submissionGuard.requireEditable(courseId);
         CourseRevision latestRevision = findLatestRevision(course);
         if (course.getPublishedAt() != null || course.getStatus() == ContentStatus.APPROVED) {
             CourseRevision editableRevision = latestLockedEditableRevision(courseId)
@@ -223,6 +226,7 @@ public class TeacherContentService {
     @Transactional
     public void deleteCourse(User teacher, Long courseId) {
         Course course = locks.teacherCourse(courseId, teacher);
+        submissionGuard.requireEditable(courseId);
         ensureEditable(course);
         courseRepository.delete(course);
         evictContentCaches(teacher);
@@ -231,6 +235,7 @@ public class TeacherContentService {
     @Transactional
     public TopicResponse createTopic(User teacher, Long courseId, TopicRequest request) {
         Course course = locks.teacherCourse(courseId, teacher);
+        submissionGuard.requireEditable(courseId);
         if (isPublishedOrApproved(course)) {
             CourseRevision revision = latestLockedEditableRevision(courseId)
                     .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Create an edit revision before editing this course."));
@@ -292,9 +297,13 @@ public class TeacherContentService {
             Course course = topic.getCourse();
             CourseRevision rebuildRevision = assertSafeRevisionRebuild(course,
                     topic.getLessons().stream().map(Lesson::getId).collect(Collectors.toSet()));
+            var detached = new java.util.ArrayList<>(topic.getLessons().stream()
+                    .map(com.learne.backend.teacher.content.audio.dto.LessonAudioState::from).toList());
+            detached.addAll(revisionAudio(rebuildRevision));
             topicRepository.delete(topic);
             course.getTopics().remove(topic);
             syncEditableRevision(course, rebuildRevision);
+            enqueueDetached(course.getId(), detached, revisionAudio(rebuildRevision));
             evictContentCaches(teacher);
             return;
         }
@@ -302,8 +311,10 @@ public class TeacherContentService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Topic not found."));
         CourseRevision revision = topic.getCourseRevision();
         ensureLockedLatestEditableRevision(teacher, revision);
+        var detached = topic.getLessons().stream().map(com.learne.backend.teacher.content.audio.dto.LessonAudioState::from).toList();
         revision.getTopics().remove(topic);
         courseRevisionRepository.save(revision);
+        enqueueDetached(revision.getCourse().getId(), detached, List.of());
         evictContentCaches(teacher);
     }
 
@@ -377,9 +388,12 @@ public class TeacherContentService {
             ensureEditable(lesson.getTopic().getCourse());
             Course course = lesson.getTopic().getCourse();
             CourseRevision rebuildRevision = assertSafeRevisionRebuild(course, Set.of(lessonId));
+            var detached = new java.util.ArrayList<>(revisionAudio(rebuildRevision));
+            detached.add(com.learne.backend.teacher.content.audio.dto.LessonAudioState.from(lesson));
             lesson.getTopic().getLessons().remove(lesson);
             lessonRepository.delete(lesson);
             syncEditableRevision(course, rebuildRevision);
+            enqueueDetached(course.getId(), detached, revisionAudio(rebuildRevision));
             evictContentCaches(teacher);
             return;
         }
@@ -387,8 +401,10 @@ public class TeacherContentService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Lesson not found."));
         TopicRevision topic = lesson.getTopicRevision();
         ensureLockedLatestEditableRevision(teacher, topic.getCourseRevision());
+        var detached = List.of(com.learne.backend.teacher.content.audio.dto.LessonAudioState.from(lesson));
         topic.getLessons().remove(lesson);
         courseRevisionRepository.save(topic.getCourseRevision());
+        enqueueDetached(topic.getCourseRevision().getCourse().getId(), detached, List.of());
         evictContentCaches(teacher);
     }
 
@@ -480,14 +496,6 @@ public class TeacherContentService {
         lesson.getQuestions().remove(question);
         courseRevisionRepository.save(lesson.getTopicRevision().getCourseRevision());
         evictContentCaches(teacher);
-    }
-
-    public CourseResponse submitCourse(User teacher, Long courseId) {
-        CourseReviewEnrichmentService.CourseRevisionSnapshot snapshot =
-                courseSubmitPreparationService.prepare(teacher, courseId);
-        CourseReviewEnrichmentService.EnrichedCourseRevisionSnapshot enrichedSnapshot =
-                enrichmentService.enrichSnapshot(snapshot);
-        return courseSubmitFinalizationService.finalizeSubmit(teacher, courseId, enrichedSnapshot);
     }
 
     private void evictContentCaches(User teacher) {
@@ -672,6 +680,17 @@ public class TeacherContentService {
         }).orElse(null);
     }
 
+    private List<com.learne.backend.teacher.content.audio.dto.LessonAudioState> revisionAudio(CourseRevision revision) {
+        return revision == null ? List.of() : revision.getTopics().stream().flatMap(t -> t.getLessons().stream())
+                .map(com.learne.backend.teacher.content.audio.dto.LessonAudioState::from).toList();
+    }
+
+    private void enqueueDetached(Long courseId, List<com.learne.backend.teacher.content.audio.dto.LessonAudioState> before,
+            List<com.learne.backend.teacher.content.audio.dto.LessonAudioState> remaining) {
+        var detached = before.stream().filter(s -> s.publicId() != null && !remaining.contains(s)).toList();
+        if (!detached.isEmpty()) cleanup.enqueue(java.util.UUID.randomUUID(), courseId, detached);
+    }
+
     private Optional<CourseRevision> latestEditableRevision(Course course) {
         return courseRevisionRepository.findTopByCourseOrderByRevisionNumberDesc(course)
                 .filter(this::isEditableRevision);
@@ -702,6 +721,7 @@ public class TeacherContentService {
         Long courseId = live.or(() -> topicRevisionRepository.findCourseIdByTopicIdAndTeacherId(id, teacher.getId()))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Topic not found."));
         locks.teacherCourse(courseId, teacher);
+        submissionGuard.requireEditable(courseId);
         return live.isPresent();
     }
 
@@ -710,6 +730,7 @@ public class TeacherContentService {
         Long courseId = live.or(() -> lessonRevisionRepository.findCourseIdByLessonIdAndTeacherId(id, teacher.getId()))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Lesson not found."));
         locks.teacherCourse(courseId, teacher);
+        submissionGuard.requireEditable(courseId);
         return live.isPresent();
     }
 
@@ -718,6 +739,7 @@ public class TeacherContentService {
         Long courseId = live.or(() -> questionRevisionRepository.findCourseIdByQuestionIdAndTeacherId(id, teacher.getId()))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Question not found."));
         locks.teacherCourse(courseId, teacher);
+        submissionGuard.requireEditable(courseId);
         return live.isPresent();
     }
 

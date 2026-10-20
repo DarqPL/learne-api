@@ -34,6 +34,8 @@ import org.springframework.test.web.servlet.MvcResult;
 @AutoConfigureMockMvc
 @SpringBootTest
 class StudentOrderApiTests {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.learne.backend.monetization.service.PaymentConfirmationMailService paymentMail;
     @Autowired private UserRepository userRepository;
     @Autowired private OrderRepository orderRepository;
     @Autowired private PasswordEncoder passwordEncoder;

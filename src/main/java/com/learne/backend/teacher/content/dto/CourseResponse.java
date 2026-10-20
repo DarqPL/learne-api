@@ -28,7 +28,9 @@ public record CourseResponse(
         Long latestRevisionId,
         CourseRevisionStatus latestRevisionStatus,
         boolean hasEditableRevision,
-        List<TopicResponse> topics
+        List<TopicResponse> topics,
+        com.learne.backend.teacher.content.submission.SubmissionResponse submission,
+        boolean editingLocked
 ) {
     public static CourseResponse from(Course course) {
         return from(course, null);
@@ -54,7 +56,7 @@ public record CourseResponse(
                 course.getTopics().stream()
                         .sorted(Comparator.comparingInt(Topic::getOrderIndex).thenComparing(Topic::getId))
                         .map(TopicResponse::from)
-                        .toList()
+                        .toList(), null, false
                 );
     }
 
@@ -80,8 +82,14 @@ public record CourseResponse(
                         .sorted(Comparator.comparingInt(TopicRevision::getOrderIndex)
                                 .thenComparing(TopicRevision::getId))
                         .map(topic -> TopicResponse.from(topic, revisionContentStatus))
-                        .toList()
+                        .toList(), null, false
         );
+    }
+
+    public CourseResponse withSubmission(com.learne.backend.teacher.content.submission.SubmissionResponse summary) {
+        return new CourseResponse(id,name,description,type,level,orderIndex,status,pricingType,priceAmountVnd,
+                proposedPriceAmountVnd,priceStatus,rejectionReason,latestRevisionId,latestRevisionStatus,
+                hasEditableRevision,topics,summary,summary != null && summary.editingLocked());
     }
 
     private static ContentStatus toContentStatus(CourseRevisionStatus status) {

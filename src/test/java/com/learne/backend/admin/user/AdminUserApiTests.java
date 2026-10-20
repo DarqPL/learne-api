@@ -58,6 +58,8 @@ import org.springframework.test.web.servlet.MvcResult;
 @AutoConfigureMockMvc
 @SpringBootTest
 class AdminUserApiTests {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.learne.backend.admin.user.service.TeacherInvitationService invitations;
 
     @Autowired
     private MockMvc mockMvc;
@@ -289,6 +291,47 @@ class AdminUserApiTests {
     }
 
     @Test
+    void resendRequiresAdminAndReturnsOnlySafeDeliveryFields() throws Exception {
+        saveUser("admin@example.com", "Password123", UserRole.ADMIN);
+        saveUser("student@example.com", "Password123", UserRole.STUDENT);
+        String path = "/api/admin/teachers/42/invitation/resend";
+        mockMvc.perform(post(path)).andExpect(status().isUnauthorized());
+        mockMvc.perform(post(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + loginAndGetAccessToken("student@example.com", "Password123")))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.when(invitations.resend(42L)).thenReturn(new com.learne.backend.admin.user.dto.InvitationDeliveryResponse(
+                "QUEUED", java.time.Instant.parse("2026-10-19T00:00:00Z"), null, null, false));
+        var result = mockMvc.perform(post(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + loginAndGetAccessToken("admin@example.com", "Password123")))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("QUEUED"))
+                .andExpect(jsonPath("$.canResend").value(false))
+                .andExpect(jsonPath("$.generation").doesNotExist())
+                .andExpect(jsonPath("$.passwordHash").doesNotExist())
+                .andExpect(jsonPath("$.temporaryPassword").doesNotExist()).andReturn();
+        assertThat(objectMapper.readTree(result.getResponse().getContentAsString()).size()).isEqualTo(5);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "404,Teacher not found.",
+            "409,Teacher invitation is not eligible for resend.",
+            "409,Teacher invitation is already pending."})
+    void resendReturnsSafeErrorEnvelope(int statusCode, String message) throws Exception {
+        saveUser("admin@example.com", "Password123", UserRole.ADMIN);
+        org.mockito.Mockito.when(invitations.resend(42L)).thenThrow(new com.learne.backend.shared.api.ApiException(
+                org.springframework.http.HttpStatus.valueOf(statusCode), message));
+        var result = mockMvc.perform(post("/api/admin/teachers/42/invitation/resend")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + loginAndGetAccessToken("admin@example.com", "Password123")))
+                .andExpect(status().is(statusCode))
+                .andExpect(jsonPath("$.message").value(message))
+                .andExpect(jsonPath("$.passwordHash").doesNotExist())
+                .andExpect(jsonPath("$.generation").doesNotExist())
+                .andExpect(jsonPath("$.payload").doesNotExist()).andReturn();
+        var body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.has("stackTrace")).isFalse();
+        assertThat(body.has("exception")).isFalse();
+    }
+
+    @Test
     void adminCanCreateTeacherWithTemporaryPasswordAndMustChangePassword() throws Exception {
         saveUser("admin@example.com", "Password123", UserRole.ADMIN);
         String adminToken = loginAndGetAccessToken("admin@example.com", "Password123");
@@ -317,6 +360,8 @@ class AdminUserApiTests {
         assertThat(teacher.isActive()).isTrue();
         assertThat(teacher.isLocked()).isFalse();
         assertThat(teacher.isMustChangePassword()).isTrue();
+        assertThat(teacher.getInvitationGeneration()).isNotNull();
+        assertThat(teacher.getAccountOrigin()).isEqualTo(com.learne.backend.domain.auth.AccountOrigin.ADMIN_CREATED);
         assertThat(passwordEncoder.matches("TempPassword123", teacher.getPasswordHash())).isTrue();
         assertThat(teacherInvitationMailService.sentMessages())
                 .containsExactly(new SentTeacherInvitation("teacher@example.com", "Teacher User", "TempPassword123"));
@@ -387,7 +432,12 @@ class AdminUserApiTests {
 
         String adminToken = loginAndGetAccessToken("admin@example.com", "Password123");
 
-        mockMvc.perform(get("/api/admin/teachers")
+        var delivery = new com.learne.backend.admin.user.dto.InvitationDeliveryResponse(
+                "SENT", java.time.Instant.parse("2026-10-19T00:00:00Z"), java.time.Instant.parse("2026-10-19T00:01:00Z"), null, false);
+        org.mockito.Mockito.when(invitations.deliveryByTeacherIds(org.mockito.ArgumentMatchers.anyList()))
+                .thenReturn(java.util.Map.of(teacherWithProfile.getId(), delivery));
+        var before = userRepository.findById(teacherWithProfile.getId()).orElseThrow();
+        var response = mockMvc.perform(get("/api/admin/teachers")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(3))
@@ -398,7 +448,25 @@ class AdminUserApiTests {
                 .andExpect(jsonPath("$.content[?(@.userId == %d)].completed".formatted(teacherWithProfile.getId())).value(true))
                 .andExpect(jsonPath("$.content[?(@.userId == %d)].profileStatus".formatted(teacherWithoutProfile.getId())).value((Object) null))
                 .andExpect(jsonPath("$.content[?(@.userId == %d)].completed".formatted(teacherWithoutProfile.getId())).value(false))
-                .andExpect(jsonPath("$.content[?(@.userId == %d)].locked".formatted(lockedTeacher.getId())).value(true));
+                .andExpect(jsonPath("$.content[?(@.userId == %d)].locked".formatted(lockedTeacher.getId())).value(true))
+                .andReturn();
+        var content = objectMapper.readTree(response.getResponse().getContentAsString()).get("content");
+        JsonNode teacherDto = null;
+        for (JsonNode item : content) if (item.get("userId").asLong() == teacherWithProfile.getId()) teacherDto = item;
+        assertThat(teacherDto).isNotNull();
+        var invitation = teacherDto.get("invitationDelivery");
+        assertThat(invitation.get("status").asText()).isEqualTo("SENT");
+        assertThat(invitation.get("requestedAt").asText()).isEqualTo("2026-10-19T00:00:00Z");
+        assertThat(invitation.get("completedAt").asText()).isEqualTo("2026-10-19T00:01:00Z");
+        assertThat(invitation.get("failureCode").isNull()).isTrue();
+        assertThat(invitation.get("canResend").asBoolean()).isFalse();
+        assertThat(invitation.size()).isEqualTo(5);
+        assertThat(teacherDto.has("invitationGeneration")).isFalse();
+        assertThat(teacherDto.has("passwordHash")).isFalse();
+        org.mockito.Mockito.verify(invitations).deliveryByTeacherIds(List.of(teacherWithProfile.getId(), teacherWithoutProfile.getId(), lockedTeacher.getId()));
+        var after = userRepository.findById(teacherWithProfile.getId()).orElseThrow();
+        assertThat(after.getPasswordHash()).isEqualTo(before.getPasswordHash());
+        assertThat(after.getInvitationGeneration()).isEqualTo(before.getInvitationGeneration());
     }
 
     @Test
@@ -545,8 +613,8 @@ class AdminUserApiTests {
         }
 
         @Override
-        public void sendTeacherInvitation(String email, String fullName, String temporaryPassword) {
-            sentMessages.add(new SentTeacherInvitation(email, fullName, temporaryPassword));
+        public void sendTeacherInvitation(User user, String temporaryPassword, java.util.UUID generation, java.time.Instant deadline) {
+            sentMessages.add(new SentTeacherInvitation(user.getEmail(), user.getFullName(), temporaryPassword));
         }
 
         List<SentTeacherInvitation> sentMessages() {

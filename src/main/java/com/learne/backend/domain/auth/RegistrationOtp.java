@@ -9,6 +9,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "registration_otps")
@@ -29,6 +30,9 @@ public class RegistrationOtp {
 
     @Column(name = "otp_hash", nullable = false)
     private String otpHash;
+
+    @Column(name = "mail_generation")
+    private UUID mailGeneration;
 
     @Column(name = "expires_at", nullable = false)
     private OffsetDateTime expiresAt;
@@ -96,6 +100,14 @@ public class RegistrationOtp {
 
     public void setExpiresAt(OffsetDateTime expiresAt) {
         this.expiresAt = expiresAt;
+    }
+
+    public UUID getMailGeneration() {
+        return mailGeneration;
+    }
+
+    public void setMailGeneration(UUID mailGeneration) {
+        this.mailGeneration = mailGeneration;
     }
 
     public int getAttempts() {

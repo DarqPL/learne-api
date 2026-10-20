@@ -78,7 +78,7 @@ import org.springframework.test.web.servlet.ResultActions;
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 @SpringBootTest(properties = "app.cloudinary.cloud-name=test-cloud")
-class TeacherLessonAudioApiTests {
+class TeacherLessonAudioApiTests extends MediaPostgresTestSupport {
     @Autowired
     private UserRepository userRepository;
 
@@ -536,6 +536,7 @@ class TeacherLessonAudioApiTests {
         upload(draft, audioUri(draft, revision), validFile()).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").isNotEmpty());
         assertAudio(draft, null);
+        media.assertIntentAndDrain();
         verify(storageService).delete(uploaded.publicId(), StorageResourceType.VIDEO);
     }
 

@@ -30,10 +30,102 @@ class LessonAudioWriterProtocolIT extends AudioPostgresTestSupport {
     @MockitoSpyBean CourseWriteLockService locks;
     @MockitoSpyBean TeacherContentService editWriter;
     @Autowired EntityManager entityManager;
+    @Autowired com.learne.backend.teacher.content.submission.SubmissionAcceptanceService acceptance;
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"FAILED,DRAFT","FAILED,REJECTED","FAILED,PENDING_REVIEW","FAILED,APPROVED",
+            "SUCCEEDED,DRAFT","SUCCEEDED,REJECTED","SUCCEEDED,PENDING_REVIEW","SUCCEEDED,APPROVED"})
+    void terminalSubmissionReleasesGuardButRetainsContentStatusRules(String terminal, String status) {
+        var attempt=acceptance.accept(draft.teacher().getId(),draft.courseId());
+        jdbc.update("update course_submission_attempts set state=?,completed_at=clock_timestamp() where id=?",terminal,attempt.id());
+        jdbc.update("update courses set status=?,published_at=case when ?='APPROVED' then current_timestamp else null end where id=?",status,status,draft.courseId());
+        jdbc.update("update course_revisions set status=? where id=?",status,draft.revisionId());
+        var request=new com.learne.backend.teacher.content.dto.CourseRequest("Edited after terminal",null,
+                com.learne.backend.teacher.content.enums.CourseType.COMPREHENSIVE,"A2",2,
+                com.learne.backend.teacher.content.enums.CoursePricingType.FREE,null);
+        if(status.equals("DRAFT") || status.equals("REJECTED")) {
+            assertThat(reads.preflight(draft.teacher(),AudioTargetKind.REVISION,draft.revisionLessonId())).isNotNull();
+            content.updateCourse(draft.teacher(),draft.courseId(),request);
+            content.updateLesson(draft.teacher(),draft.liveLessonId(),edit("Editable after terminal"));
+            assertThat(jdbc.queryForObject("select title from lessons where id=?",String.class,draft.liveLessonId())).isEqualTo("Editable after terminal");
+        } else {
+            assertThatThrownBy(() -> content.updateCourse(draft.teacher(),draft.courseId(),request))
+                    .isInstanceOfSatisfying(ApiException.class,api -> {
+                        assertThat(api.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+                        assertThat(api).isNotInstanceOf(com.learne.backend.shared.api.CodedApiException.class);
+                    });
+            conflict(() -> audio.delete(draft.teacher(),AudioTargetKind.REVISION,draft.revisionLessonId()));
+            assertThat(jdbc.queryForObject("select status from course_revisions where id=?",String.class,draft.revisionId())).isEqualTo(status);
+            // Existing supported way to edit reviewed content remains available after terminal state.
+            content.createEditRevision(draft.teacher(),draft.courseId());
+            content.updateCourse(draft.teacher(),draft.courseId(),request);
+        }
+        verifyNoInteractions(knowledge);
+    }
+
+    @Test
+    void httpMutationsCannotBypassGuardAndOptionalCodeKeepsLegacyEnvelope() throws Exception {
+        long topic=jdbc.queryForObject("select topic_id from lessons where id=?",Long.class,draft.liveLessonId());
+        long question=jdbc.queryForObject("select id from questions where lesson_id=?",Long.class,draft.liveLessonId());
+        acceptance.accept(draft.teacher().getId(),draft.courseId());
+        for(String path:java.util.List.of("courses/"+draft.courseId(),"topics/"+topic,"lessons/"+draft.liveLessonId(),
+                "questions/"+question,"lessons/"+draft.revisionLessonId())) {
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/teacher/content/"+path)
+                            .header("Authorization","Bearer "+draft.accessToken()))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isConflict())
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code").value("COURSE_SUBMISSION_IN_PROGRESS"))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.message").isString());
+        }
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/teacher/content/courses/"+draft.courseId()+"/submit")
+                        .header("Authorization","Bearer "+draft.accessToken()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isAccepted());
+        for(String operation:java.util.List.of("edit-revision")) {
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/teacher/content/courses/"+draft.courseId()+"/"+operation)
+                            .header("Authorization","Bearer "+draft.accessToken()))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isConflict())
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code").value("COURSE_SUBMISSION_IN_PROGRESS"));
+        }
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/teacher/content/courses/"+draft.courseId())
+                        .header("Authorization","Bearer "+draft.accessToken()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/teacher/content/courses/"+draft.courseId()+"/export")
+                        .header("Authorization","Bearer "+draft.accessToken()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/teacher/content/courses/9223372036854775807")
+                        .header("Authorization","Bearer "+draft.accessToken()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isNotFound())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json("{\"message\":\"Course not found.\"}",org.springframework.test.json.JsonCompareMode.STRICT));
+        var mapper=new tools.jackson.databind.json.JsonMapper();
+        assertThat(mapper.writeValueAsString(new com.learne.backend.shared.api.ApiErrorResponse("Legacy"))).isEqualTo("{\"message\":\"Legacy\"}");
+        assertThat(jdbc.queryForObject("select count(*) from courses where id=?",Integer.class,draft.courseId())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from questions where id=?",Integer.class,question)).isEqualTo(1);
+        verifyNoInteractions(knowledge);
+    }
+
+    @Test
+    void acceptanceDuringExternalUploadRejectsFinalPersistenceAndCompensates() throws Exception {
+        try (var gate = gateUpload()) {
+            var uploading = workers.submit(this::upload);
+            gate.entered();
+            try {
+                assertThat(acceptance.accept(draft.teacher().getId(), draft.courseId()).status()).isEqualTo("QUEUED");
+                assertThat(uploading.isDone()).isFalse();
+            } finally { gate.close(); }
+            assertThatThrownBy(() -> get(uploading)).isInstanceOfSatisfying(ExecutionException.class,
+                    failure -> assertThat(failure.getCause()).isInstanceOfSatisfying(
+                            com.learne.backend.shared.api.CodedApiException.class,
+                            api -> assertThat(api.getCode()).isEqualTo("COURSE_SUBMISSION_IN_PROGRESS")));
+            assertMirrored(LessonAudioState.empty());
+            media.assertIntentAndDrain();
+            verify(storage).delete(eq(state("new").publicId()), any());
+            assertThat(jdbc.queryForObject("select status from course_revisions where id=?", String.class,
+                    draft.revisionId())).isEqualTo("DRAFT");
+        }
+    }
 
     @BeforeEach
     void aiResponse() {
-        when(knowledge.enrichKnowledgePoints(any())).thenAnswer(i -> {
+        when(knowledge.enrichKnowledgePoints(any(), org.mockito.ArgumentMatchers.eq(com.learne.backend.teacher.content.enrichment.EnrichmentContract.V1))).thenAnswer(i -> {
             outsideTransaction();
             return response(i.getArgument(0));
         });
@@ -97,7 +189,7 @@ class LessonAudioWriterProtocolIT extends AudioPostgresTestSupport {
     void submitWinsAndUploadCannotWritePendingRevision() throws Exception {
         try (var gate = gateUpload()) {
             var uploading = workers.submit(this::upload); gate.entered();
-            content.submitCourse(draft.teacher(), draft.courseId());
+            submissions.submit(draft.teacher().getId(), draft.courseId());
             gate.close(); conflict(uploading);
             assertMirrored(LessonAudioState.empty());
             assertThat(jdbc.queryForObject("select status from course_revisions where id=?", String.class, draft.revisionId())).isEqualTo("PENDING_REVIEW");
@@ -105,23 +197,22 @@ class LessonAudioWriterProtocolIT extends AudioPostgresTestSupport {
     }
 
     @Test
-    void uploadWinsWhileSubmitEnrichmentPausedAndStaleEnrichmentNeverApplies() throws Exception {
+    void acceptedSubmissionBlocksUploadWhileEnrichmentIsPaused() throws Exception {
         try (Gate gate = new Gate()) {
             doAnswer(i -> {
                 outsideTransaction(); gate.entered.countDown(); await(gate.release); return response(i.getArgument(0));
-            }).when(knowledge).enrichKnowledgePoints(any());
-            var submit = workers.submit(() -> content.submitCourse(draft.teacher(), draft.courseId()));
-            gate.entered(); upload(); gate.close(); conflict(submit);
-            assertMirrored(state("new"));
-            assertThat(jdbc.queryForObject("select status from course_revisions where id=?", String.class, draft.revisionId())).isEqualTo("DRAFT");
-            assertThat(jdbc.queryForObject("select knowledge_point from question_revisions where lesson_revision_id=?", String.class, draft.revisionLessonId())).isEqualTo("daily-routine");
+            }).when(knowledge).enrichKnowledgePoints(any(), org.mockito.ArgumentMatchers.eq(com.learne.backend.teacher.content.enrichment.EnrichmentContract.V1));
+            var submit = workers.submit(() -> submissions.submit(draft.teacher().getId(), draft.courseId()));
+            gate.entered(); conflict(this::upload); gate.close(); get(submit);
+            assertMirrored(LessonAudioState.empty());
+            assertThat(jdbc.queryForObject("select status from course_revisions where id=?", String.class, draft.revisionId())).isEqualTo("PENDING_REVIEW");
         }
     }
 
     @Test
     void submitAfterUploadUsesFreshAudio() throws Exception {
         upload();
-        content.submitCourse(draft.teacher(), draft.courseId());
+        submissions.submit(draft.teacher().getId(), draft.courseId());
         assertMirrored(state("new"));
         assertThat(jdbc.queryForObject("select status from course_revisions where id=?", String.class, draft.revisionId())).isEqualTo("PENDING_REVIEW");
     }
@@ -131,7 +222,7 @@ class LessonAudioWriterProtocolIT extends AudioPostgresTestSupport {
         try (var gate = gateUpload()) {
             var uploading = workers.submit(() -> audio.upload(draft.teacher(), AudioTargetKind.LIVE,
                     draft.liveLessonId(), file("new"))); gate.entered();
-            content.submitCourse(draft.teacher(), draft.courseId());
+            submissions.submit(draft.teacher().getId(), draft.courseId());
             courseBlocks(() -> content.createEditRevision(draft.teacher(), draft.courseId()));
             gate.close(); conflict(uploading);
             assertThat(jdbc.queryForObject("select status from course_revisions where id=?", String.class, draft.revisionId())).isEqualTo("SUPERSEDED");
@@ -145,7 +236,7 @@ class LessonAudioWriterProtocolIT extends AudioPostgresTestSupport {
     @ValueSource(strings = {"approve-course", "approve-revision", "reject-course", "reject-revision"})
     void adminPathsWaitOnCourseBeforeTakingRevisionLock(String path) throws Exception {
         upload();
-        content.submitCourse(draft.teacher(), draft.courseId());
+        submissions.submit(draft.teacher().getId(), draft.courseId());
         User admin = admin();
         courseBlocks(() -> review(path, admin));
         boolean approve = path.startsWith("approve");
@@ -157,7 +248,7 @@ class LessonAudioWriterProtocolIT extends AudioPostgresTestSupport {
     @ParameterizedTest
     @ValueSource(strings = {"approve-course", "approve-revision", "reject-course", "reject-revision"})
     void supersededRevisionCannotBePublishedOrReviewed(String path) {
-        content.submitCourse(draft.teacher(), draft.courseId());
+        submissions.submit(draft.teacher().getId(), draft.courseId());
         content.createEditRevision(draft.teacher(), draft.courseId());
         User admin = admin();
         assertThatThrownBy(() -> review(path, admin)).isInstanceOf(com.learne.backend.shared.api.ApiException.class);
@@ -168,7 +259,7 @@ class LessonAudioWriterProtocolIT extends AudioPostgresTestSupport {
     @ParameterizedTest
     @ValueSource(strings = {"approve-course", "approve-revision", "reject-course", "reject-revision"})
     void adminRevalidatesAfterWaitingForUncommittedSupersedingWriter(String path) throws Exception {
-        content.submitCourse(draft.teacher(), draft.courseId());
+        submissions.submit(draft.teacher().getId(), draft.courseId());
         User admin = admin();
         AtomicInteger writerPid = new AtomicInteger(), adminPid = new AtomicInteger();
         try (Gate beforeCommit = new Gate(); Gate adminAtCourse = new Gate()) {
@@ -254,13 +345,13 @@ class LessonAudioWriterProtocolIT extends AudioPostgresTestSupport {
     @ValueSource(strings = {"clone-first", "cleanup-before-clone", "publish-first", "cleanup-before-publish"})
     void cleanupVersusCloneOrPublishRetainsReferencedAsset(String order) throws Exception {
         seedAudio("kept");
-        content.submitCourse(draft.teacher(), draft.courseId());
+        submissions.submit(draft.teacher().getId(), draft.courseId());
         User admin = admin();
         Callable<?> writer = () -> {
             if (order.contains("clone")) return content.createEditRevision(draft.teacher(), draft.courseId());
             return adminReview.approveRevision(admin, draft.revisionId());
         };
-        Callable<?> cleaning = () -> { cleanup.tryCleanup(draft.courseId(), java.util.List.of(state("kept"))); return true; };
+        Callable<?> cleaning = () -> { media.enqueueAndDrain(draft.courseId(), java.util.List.of(state("kept"))); return true; };
         if (order.startsWith("cleanup")) courseRace(cleaning, writer);
         else courseRace(writer, cleaning);
         verify(storage, never()).delete(eq(state("kept").publicId()), any());

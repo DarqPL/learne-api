@@ -276,7 +276,7 @@ class RateLimitHttpContractTests {
         mockMvc.perform(get("/test/rate-limit/rejected").param("delay", "1001")
                         .header(HttpHeaders.ORIGIN, "http://localhost:5173"))
                 .andExpect(status().isTooManyRequests())
-                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "Retry-After"));
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "Retry-After, Location"));
     }
 
     @RestController

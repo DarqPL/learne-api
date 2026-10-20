@@ -40,7 +40,9 @@ import org.springframework.test.web.servlet.MvcResult;
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 @SpringBootTest
-class StudentCatalogQueryOptimizationTests {
+class StudentCatalogQueryOptimizationTests extends com.learne.backend.testsupport.SubmissionHttpPostgresSupport {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.learne.backend.admin.content.service.ReviewDecisionService reviewDecisions;
     @Autowired private UserRepository userRepository;
     @Autowired private CourseRepository courseRepository;
     @Autowired private CourseEntitlementRepository courseEntitlementRepository;
@@ -55,7 +57,7 @@ class StudentCatalogQueryOptimizationTests {
     @BeforeEach
     void setUp() {
         TestDatabaseCleaner.clean(jdbcTemplate, cacheManager);
-        when(courseKnowledgePointClient.enrichKnowledgePoints(any())).thenAnswer(invocation -> {
+        when(courseKnowledgePointClient.enrichKnowledgePoints(any(), org.mockito.ArgumentMatchers.eq(com.learne.backend.teacher.content.enrichment.EnrichmentContract.V1))).thenAnswer(invocation -> {
             CourseKnowledgePointRequest request = invocation.getArgument(0);
             return new CourseKnowledgePointResponse(request.questions().stream()
                     .map(question -> new CourseKnowledgePointResponse.Item(
@@ -204,10 +206,7 @@ class StudentCatalogQueryOptimizationTests {
     }
 
     private void approveCourse(String teacherToken, String adminToken, long courseId) throws Exception {
-        mockMvc.perform(post("/api/teacher/content/courses/%d/submit".formatted(courseId))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PENDING_REVIEW"));
+        submitAndProcess(mockMvc, teacherToken, courseId);
 
         mockMvc.perform(post("/api/admin/content/courses/%d/approve".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))

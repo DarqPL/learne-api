@@ -1,36 +1,27 @@
 package com.learne.backend.admin.user.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import com.learne.backend.domain.auth.User;
+import com.learne.backend.mail.model.*;
+import com.learne.backend.mail.service.MailJobProducer;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.*;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
+import org.springframework.transaction.annotation.*;
 
 @Service
 public class TeacherInvitationMailService {
-    private final JavaMailSender mailSender;
-    private final String mailFrom;
+    private final MailJobProducer producer;
+    public TeacherInvitationMailService(MailJobProducer producer) { this.producer = producer; }
 
-    @Autowired
-    public TeacherInvitationMailService(JavaMailSender mailSender, @Value("${app.mail.from:}") String mailFrom) {
-        this.mailSender = mailSender;
-        this.mailFrom = mailFrom;
-    }
-
-    public TeacherInvitationMailService(JavaMailSender mailSender) {
-        this(mailSender, "");
-    }
-
-    public void sendTeacherInvitation(String email, String fullName, String temporaryPassword) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        if (StringUtils.hasText(mailFrom)) {
-            message.setFrom(mailFrom);
-        }
-        message.setTo(email);
-        message.setSubject("LearnE teacher account created");
-        message.setText("Hello " + fullName + ", your LearnE teacher account has been created. "
-                + "Your temporary password is " + temporaryPassword + ". Please change it after signing in.");
-        mailSender.send(message);
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void sendTeacherInvitation(User user, String password, UUID generation, Instant deadline) {
+        var payload = new MailPayload(user.getId(), user.getEmail(), user.getFullName(),
+                MailTemplate.TEACHER_INVITATION, generation.toString(), deadline,
+                null, null, null, null, null, Map.of());
+        byte[] secret = password.getBytes(StandardCharsets.UTF_8);
+        try { producer.enqueue(MailTemplate.TEACHER_INVITATION.jobType(),
+                "teacher-invitation:" + user.getId() + ":" + generation, payload, secret); }
+        finally { Arrays.fill(secret, (byte) 0); }
     }
 }
