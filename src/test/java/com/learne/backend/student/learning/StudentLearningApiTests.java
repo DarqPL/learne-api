@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -123,6 +124,97 @@ class StudentLearningApiTests extends com.learne.backend.testsupport.SubmissionH
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/student/courses").header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void mistakeReviewLifecycleIsOwnerScopedAndIdempotentWithoutProgressSideEffects() throws Exception {
+        User admin = saveUser("review-admin@example.com", UserRole.ADMIN);
+        User teacher = saveUser("review-teacher@example.com", UserRole.TEACHER);
+        User student = saveUser("review-student@example.com", UserRole.STUDENT);
+        User otherStudent = saveUser("review-other@example.com", UserRole.STUDENT);
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String studentToken = loginAndGetAccessToken(student.getEmail());
+        String otherStudentToken = loginAndGetAccessToken(otherStudent.getEmail());
+        long courseId = createApprovedCourseWithTwoLessons(teacherToken, adminToken);
+        long enrollmentId = enrollAndGetId(studentToken, courseId);
+        long lessonId = firstLessonId(enrollmentId);
+        long questionId = firstQuestionId(lessonId);
+        long wrongOptionId = wrongOptionId(questionId);
+        long correctOptionId = correctOptionId(questionId);
+        long otherQuestionOptionId = wrongOptionId(firstQuestionId(secondLessonId(enrollmentId)));
+
+        mockMvc.perform(post("/api/student/enrollments/%d/lessons/%d/quiz/submit".formatted(enrollmentId, lessonId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"answers":[{"questionId":%d,"selectedOptionId":%d}]}
+                                """.formatted(questionId, wrongOptionId)))
+                .andExpect(status().isOk());
+        int xpBeforeReview = userStatsRepository.findByUser(student).map(UserStats::getTotalXp).orElse(0);
+
+        MvcResult createResult = mockMvc.perform(post("/api/student/mistake-review/sessions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sessionId").isNumber())
+                .andExpect(jsonPath("$.questionCount").value(1))
+                .andExpect(jsonPath("$.questions[0].questionId").value(questionId))
+                .andExpect(jsonPath("$.questions[0].correctAnswer").doesNotExist())
+                .andReturn();
+        long sessionId = objectMapper.readTree(createResult.getResponse().getContentAsString())
+                .get("sessionId").asLong();
+
+        mockMvc.perform(get("/api/student/mistake-review/sessions/%d".formatted(sessionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherStudentToken))
+                .andExpect(status().isNotFound());
+
+        String submitPayload = """
+                {"answers":[{"questionId":%d,"selectedOptionId":%d}]}
+                """.formatted(questionId, correctOptionId);
+        mockMvc.perform(post("/api/student/mistake-review/sessions/%d/submit".formatted(sessionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"answers":[{"questionId":%d,"selectedOptionId":%d}]}
+                                """.formatted(questionId, otherQuestionOptionId)))
+                .andExpect(status().isBadRequest());
+        MvcResult submitResult = mockMvc.perform(post("/api/student/mistake-review/sessions/%d/submit".formatted(sessionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(submitPayload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answers[0].correct").value(true))
+                .andReturn();
+
+        mockMvc.perform(post("/api/student/mistake-review/sessions/%d/submit".formatted(sessionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(submitPayload))
+                .andExpect(status().isOk())
+                .andExpect(content().json(submitResult.getResponse().getContentAsString()));
+
+        mockMvc.perform(post("/api/student/mistake-review/sessions/%d/submit".formatted(sessionId))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"answers":[{"questionId":%d,"selectedOptionId":%d}]}
+                                """.formatted(questionId, wrongOptionId)))
+                .andExpect(status().isConflict());
+        assertEquals(xpBeforeReview, userStatsRepository.findByUser(student).orElseThrow().getTotalXp());
+    }
+
+    @Test
+    void regularQuizAnswersExposeSharedAnswerEventOrder() {
+        Integer columns = jdbcTemplate.queryForObject(
+                """
+                select count(*)
+                from information_schema.columns
+                where table_name = 'question_answers'
+                  and column_name = 'answer_event_order'
+                """,
+                Integer.class);
+
+        assertEquals(1, columns);
     }
 
     @Test

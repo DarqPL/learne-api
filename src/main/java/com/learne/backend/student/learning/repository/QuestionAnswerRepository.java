@@ -10,7 +10,19 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface QuestionAnswerRepository extends JpaRepository<QuestionAnswer, Long> {
+    @Query(value = "select nextval('answer_event_order_seq')", nativeQuery = true)
+    Long nextAnswerEventOrder();
+
     List<QuestionAnswer> findByQuizAttemptOrderByQuestionOrderIndexAscQuestionIdAsc(QuizAttempt quizAttempt);
+
+    @Query("""
+            select answer from QuestionAnswer answer
+            join fetch answer.quizAttempt attempt
+            join fetch answer.question question
+            where attempt.user = :user
+            order by answer.answerEventOrder desc
+            """)
+    List<QuestionAnswer> findByUserOrderByAnswerEventOrderDesc(@Param("user") User user);
 
     @Query("""
             select answer from QuestionAnswer answer

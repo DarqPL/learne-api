@@ -303,6 +303,7 @@ public class StudentLearningService {
             answer.setEarnedXp(0);
             answer.setGradingMethod(answerResult.gradingMethod());
             answer.setFeedback(answerResult.feedback());
+            answer.setAnswerEventOrder(questionAnswerRepository.nextAnswerEventOrder());
             attempt.getAnswers().add(answer);
         }
         QuizAttempt savedAttempt = quizAttemptRepository.save(attempt);
