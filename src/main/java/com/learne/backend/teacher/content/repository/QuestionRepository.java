@@ -35,6 +35,16 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
 
     @Query("""
             select distinct question from Question question
+            join fetch question.lesson lesson
+            join fetch lesson.topic topic
+            join fetch topic.course course
+            left join fetch question.options options
+            where question.id in :ids
+            """)
+    List<Question> findAllByIdWithContent(@Param("ids") List<Long> ids);
+
+    @Query("""
+            select distinct question from Question question
             left join fetch question.options options
             join question.lesson lesson
             join lesson.topic topic

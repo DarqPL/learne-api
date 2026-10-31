@@ -15,10 +15,12 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.DynamicInsert;
 import java.time.Instant;
 
 @Entity
 @Table(name = "question_answers")
+@DynamicInsert
 public class QuestionAnswer {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -61,6 +63,9 @@ public class QuestionAnswer {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "answer_event_order", nullable = false)
+    private Long answerEventOrder;
+
     @PrePersist
     void prePersist() {
         createdAt = Instant.now();
@@ -87,5 +92,7 @@ public class QuestionAnswer {
     public void setGradingMethod(GradingMethod gradingMethod) { this.gradingMethod = gradingMethod; }
     public String getFeedback() { return feedback; }
     public void setFeedback(String feedback) { this.feedback = feedback; }
+    public Long getAnswerEventOrder() { return answerEventOrder; }
+    public void setAnswerEventOrder(Long answerEventOrder) { this.answerEventOrder = answerEventOrder; }
     public Instant getCreatedAt() { return createdAt; }
 }

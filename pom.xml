@@ -197,6 +197,7 @@
 					<exclude>V24__*.sql</exclude>
 					<exclude>V25__*.sql</exclude>
 					<exclude>V26__*.sql</exclude>
+					<exclude>V27__*.sql</exclude>
 				</excludes>
 			</testResource>
 		</testResources>

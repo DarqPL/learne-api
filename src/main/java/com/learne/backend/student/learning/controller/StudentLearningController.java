@@ -20,12 +20,14 @@ import com.learne.backend.student.learning.dto.StudentLearningPathResponse;
 import com.learne.backend.student.learning.dto.StudentQuizAttemptResponse;
 import com.learne.backend.student.learning.dto.StudentQuizResponse;
 import com.learne.backend.student.learning.dto.StudentStatsResponse;
+import com.learne.backend.student.learning.dto.MistakeReviewDtos;
 import com.learne.backend.shared.pagination.CursorPageResponse;
 import com.learne.backend.student.learning.service.StudentCourseRecommendationService;
 import com.learne.backend.student.learning.service.StudentLearningReadCacheService;
 import com.learne.backend.student.learning.service.StudentLearningPathService;
 import com.learne.backend.student.learning.service.StudentLearningService;
 import com.learne.backend.student.learning.service.StudentPlacementService;
+import com.learne.backend.student.learning.service.StudentMistakeReviewService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.security.core.Authentication;
@@ -45,17 +47,20 @@ class StudentLearningController {
     private final StudentLearningPathService studentLearningPathService;
     private final StudentPlacementService studentPlacementService;
     private final StudentCourseRecommendationService studentCourseRecommendationService;
+    private final StudentMistakeReviewService studentMistakeReviewService;
 
     StudentLearningController(StudentLearningService studentLearningService,
                                StudentLearningReadCacheService studentLearningReadCacheService,
                                StudentLearningPathService studentLearningPathService,
                                StudentPlacementService studentPlacementService,
-                               StudentCourseRecommendationService studentCourseRecommendationService) {
+                               StudentCourseRecommendationService studentCourseRecommendationService,
+                               StudentMistakeReviewService studentMistakeReviewService) {
         this.studentLearningService = studentLearningService;
         this.studentLearningReadCacheService = studentLearningReadCacheService;
         this.studentLearningPathService = studentLearningPathService;
         this.studentPlacementService = studentPlacementService;
         this.studentCourseRecommendationService = studentCourseRecommendationService;
+        this.studentMistakeReviewService = studentMistakeReviewService;
     }
 
     @GetMapping("/courses")
@@ -118,6 +123,34 @@ class StudentLearningController {
                                          @Valid @RequestBody SubmitQuizRequest request,
                                          Authentication authentication) {
         return studentLearningService.submitLessonQuiz(currentUser(authentication), enrollmentId, lessonId, request);
+    }
+
+    @GetMapping("/mistake-review/questions")
+    CursorPageResponse<MistakeReviewDtos.Question> listMistakeReviewQuestions(
+            Authentication authentication,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String cursor) {
+        return studentMistakeReviewService.listQuestions(currentUser(authentication), size, cursor);
+    }
+
+    @PostMapping("/mistake-review/sessions")
+    MistakeReviewDtos.CreateResponse createMistakeReviewSession(Authentication authentication) {
+        return studentMistakeReviewService.createSession(currentUser(authentication));
+    }
+
+    @PostMapping("/mistake-review/sessions/{sessionId}/submit")
+    MistakeReviewDtos.Result submitMistakeReviewSession(
+            @PathVariable Long sessionId,
+            @RequestBody MistakeReviewDtos.SubmitRequest request,
+            Authentication authentication) {
+        return studentMistakeReviewService.submit(currentUser(authentication), sessionId, request);
+    }
+
+    @GetMapping("/mistake-review/sessions/{sessionId}")
+    MistakeReviewDtos.SessionResponse getMistakeReviewSession(
+            @PathVariable Long sessionId,
+            Authentication authentication) {
+        return studentMistakeReviewService.getSession(currentUser(authentication), sessionId);
     }
 
     @GetMapping("/quiz-attempts/{attemptId}")
