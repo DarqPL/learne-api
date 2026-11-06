@@ -1,0 +1,172 @@
+{
+  "batchId": "grammar-a1-batch-2",
+  "courses": [
+    {
+      "teacherEmail": "pham.linh.chi@learne.local",
+      "name": "A1 Grammar: Spot the Error with Pham Linh Chi",
+      "description": "Error detection and correction practice for essential A1 articles and demonstratives.",
+      "type": "GRAMMAR",
+      "level": "A1",
+      "topics": [
+        {
+          "name": "Spot the Error: A and An",
+          "description": "Choose a or an before familiar singular count nouns.",
+          "lessons": [
+            {
+              "title": "Articles: A or An?",
+              "description": "Find and correct simple article errors with familiar singular nouns.",
+              "content": "Use a before a consonant sound: a book, a teacher. Use an before a vowel sound: an apple, an umbrella. Use an article with one singular count noun.",
+              "skillType": "GRAMMAR",
+              "questions": [
+                {
+                  "questionText": "Find the error: She has a apple.",
+                  "explanation": "Apple begins with a vowel sound, so use an: She has an apple.",
+                  "correctAnswer": "She has an apple.",
+                  "knowledgePoint": "a and an with singular nouns",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "She has an apple.", "isCorrect": true},
+                    {"text": "She has a apples.", "isCorrect": false},
+                    {"text": "She have an apple.", "isCorrect": false},
+                    {"text": "She has the apple.", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "Choose the correction: I see an dog.",
+                  "explanation": "Dog begins with a consonant sound, so use a: I see a dog.",
+                  "correctAnswer": "I see a dog.",
+                  "knowledgePoint": "a and an with consonant sounds",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "I see a dog.", "isCorrect": true},
+                    {"text": "I see an dogs.", "isCorrect": false},
+                    {"text": "I sees a dog.", "isCorrect": false},
+                    {"text": "I see a dogs.", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "Which sentence is correct?",
+                  "explanation": "Use an before umbrella because it starts with a vowel sound.",
+                  "correctAnswer": "He needs an umbrella.",
+                  "knowledgePoint": "an before vowel sounds",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "He needs an umbrella.", "isCorrect": true},
+                    {"text": "He needs a umbrella.", "isCorrect": false},
+                    {"text": "He need an umbrella.", "isCorrect": false},
+                    {"text": "He needs an umbrellas.", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "Find the error: They buy an book.",
+                  "explanation": "Book begins with a consonant sound, so use a: They buy a book.",
+                  "correctAnswer": "They buy a book.",
+                  "knowledgePoint": "a before consonant sounds",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "They buy a book.", "isCorrect": true},
+                    {"text": "They buys a book.", "isCorrect": false},
+                    {"text": "They buy an books.", "isCorrect": false},
+                    {"text": "They buy the book.", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "Choose the correct sentence about one orange.",
+                  "explanation": "Orange begins with a vowel sound, so the singular noun takes an.",
+                  "correctAnswer": "There is an orange.",
+                  "knowledgePoint": "articles with singular count nouns",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "There is an orange.", "isCorrect": true},
+                    {"text": "There is a orange.", "isCorrect": false},
+                    {"text": "There are an orange.", "isCorrect": false},
+                    {"text": "There is an oranges.", "isCorrect": false}
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Spot the Error: This and These",
+          "description": "Match this and these with singular and plural nouns.",
+          "lessons": [
+            {
+              "title": "Demonstratives: This or These?",
+              "description": "Find and correct agreement errors with this, these, and nearby objects.",
+              "content": "Use this with one thing: this pen. Use these with more than one thing: these pens. The noun after this is singular, and the noun after these is plural.",
+              "skillType": "GRAMMAR",
+              "questions": [
+                {
+                  "questionText": "Find the error: This shoes are new.",
+                  "explanation": "Shoes is plural, so use these: These shoes are new.",
+                  "correctAnswer": "These shoes are new.",
+                  "knowledgePoint": "these with plural nouns",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "These shoes are new.", "isCorrect": true},
+                    {"text": "This shoe are new.", "isCorrect": false},
+                    {"text": "These shoes is new.", "isCorrect": false},
+                    {"text": "This shoes is new.", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "Choose the correction: These pencil is red.",
+                  "explanation": "Pencil is one singular item, so use this and is: This pencil is red.",
+                  "correctAnswer": "This pencil is red.",
+                  "knowledgePoint": "this with singular nouns",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "This pencil is red.", "isCorrect": true},
+                    {"text": "These pencils is red.", "isCorrect": false},
+                    {"text": "This pencil are red.", "isCorrect": false},
+                    {"text": "These pencil are red.", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "Which sentence is correct for two books?",
+                  "explanation": "Two books is plural, so use these and are.",
+                  "correctAnswer": "These books are heavy.",
+                  "knowledgePoint": "demonstrative and be agreement",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "These books are heavy.", "isCorrect": true},
+                    {"text": "This books is heavy.", "isCorrect": false},
+                    {"text": "These book is heavy.", "isCorrect": false},
+                    {"text": "This book are heavy.", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "Find the error: These chair is near the door.",
+                  "explanation": "One chair is singular, so use this and is: This chair is near the door.",
+                  "correctAnswer": "This chair is near the door.",
+                  "knowledgePoint": "singular demonstratives and nouns",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "This chair is near the door.", "isCorrect": true},
+                    {"text": "These chairs are near the door.", "isCorrect": false},
+                    {"text": "This chair are near the door.", "isCorrect": false},
+                    {"text": "These chair is near the door.", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "Choose the correct sentence for three keys.",
+                  "explanation": "Three keys is plural, so use these and are.",
+                  "correctAnswer": "These keys are mine.",
+                  "knowledgePoint": "plural noun agreement",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "These keys are mine.", "isCorrect": true},
+                    {"text": "This key is mine.", "isCorrect": false},
+                    {"text": "These key is mine.", "isCorrect": false},
+                    {"text": "This keys are mine.", "isCorrect": false}
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

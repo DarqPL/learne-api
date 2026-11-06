@@ -1,0 +1,99 @@
+{
+  "batchId": "grammar-a1-batch-1",
+  "courses": [
+    {
+      "teacherEmail": "nguyen.minh.ha@learne.local",
+      "name": "A1 Grammar: Clear Rules with Nguyen Minh Ha",
+      "description": "Rule-first A1 grammar with worked examples and controlled practice for everyday life.",
+      "type": "GRAMMAR",
+      "level": "A1",
+      "topics": [
+        {
+          "name": "Clear Rules: People and Pronouns",
+          "description": "Build a reliable subject-pronoun foundation before making sentences.",
+          "lessons": [
+            {
+              "title": "Personal Pronouns: Name the Person",
+              "description": "Learn I, you, he, she, it, we, and they with clear rules and familiar examples.",
+              "content": "Use I for the speaker, you for the listener, he for a man or boy, she for a woman or girl, it for a thing or animal, we for the speaker and another person, and they for more than one person. Examples: I carry a bag. She reads a book. They live nearby.",
+              "skillType": "GRAMMAR",
+              "questions": [
+                {"questionText": "___ am in the kitchen.", "explanation": "I is the subject pronoun for the speaker.", "correctAnswer": "I", "knowledgePoint": "subject pronouns", "difficulty": "easy", "options": [{"text": "I", "isCorrect": true}, {"text": "He", "isCorrect": false}, {"text": "They", "isCorrect": false}, {"text": "It", "isCorrect": false}]},
+                {"questionText": "Mai is my sister. ___ is kind.", "explanation": "Use she for one female person.", "correctAnswer": "She", "knowledgePoint": "subject pronouns", "difficulty": "easy", "options": [{"text": "She", "isCorrect": true}, {"text": "He", "isCorrect": false}, {"text": "We", "isCorrect": false}, {"text": "It", "isCorrect": false}]},
+                {"questionText": "Tom and I are classmates. ___ study together.", "explanation": "We means the speaker and another person.", "correctAnswer": "We", "knowledgePoint": "subject pronouns", "difficulty": "easy", "options": [{"text": "We", "isCorrect": true}, {"text": "They", "isCorrect": false}, {"text": "He", "isCorrect": false}, {"text": "You", "isCorrect": false}]},
+                {"questionText": "The keys are on the desk. ___ are not in my bag.", "explanation": "They refers to more than one thing.", "correctAnswer": "They", "knowledgePoint": "subject pronouns", "difficulty": "easy", "options": [{"text": "They", "isCorrect": true}, {"text": "It", "isCorrect": false}, {"text": "She", "isCorrect": false}, {"text": "I", "isCorrect": false}]},
+                {"questionText": "Anna, can ___ open the window, please?", "explanation": "You is the pronoun for the person being spoken to.", "correctAnswer": "you", "knowledgePoint": "subject pronouns", "difficulty": "easy", "options": [{"text": "you", "isCorrect": true}, {"text": "he", "isCorrect": false}, {"text": "we", "isCorrect": false}, {"text": "they", "isCorrect": false}]}
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Clear Rules: The Verb Be",
+          "description": "Practice affirmative, negative, and question forms of be.",
+          "lessons": [
+            {
+              "title": "Present Be: Statements and Questions",
+              "description": "Use am, is, and are in short everyday statements, negatives, and questions.",
+              "content": "Use am with I, is with he, she, and it, and are with you, we, and they. Add not for a negative: She is not late. Put be before the subject in a question: Are they ready? Contractions include I'm, isn't, and aren't.",
+              "skillType": "GRAMMAR",
+              "questions": [
+                {"questionText": "I ___ ready for class.", "explanation": "The present form of be used with I is am.", "correctAnswer": "am", "knowledgePoint": "be with I", "difficulty": "easy", "options": [{"text": "am", "isCorrect": true}, {"text": "is", "isCorrect": false}, {"text": "are", "isCorrect": false}, {"text": "be", "isCorrect": false}]},
+                {"questionText": "The shop ___ open today.", "explanation": "A singular thing uses is.", "correctAnswer": "is", "knowledgePoint": "be with singular subjects", "difficulty": "easy", "options": [{"text": "is", "isCorrect": true}, {"text": "am", "isCorrect": false}, {"text": "are", "isCorrect": false}, {"text": "not", "isCorrect": false}]},
+                {"questionText": "We ___ not late for the meeting.", "explanation": "We takes are, and not makes the sentence negative.", "correctAnswer": "are", "knowledgePoint": "negative be forms", "difficulty": "easy", "options": [{"text": "are", "isCorrect": true}, {"text": "is", "isCorrect": false}, {"text": "am", "isCorrect": false}, {"text": "be", "isCorrect": false}]},
+                {"questionText": "___ she your new teacher?", "explanation": "A question with she begins with is.", "correctAnswer": "Is", "knowledgePoint": "be questions", "difficulty": "easy", "options": [{"text": "Is", "isCorrect": true}, {"text": "Are", "isCorrect": false}, {"text": "Am", "isCorrect": false}, {"text": "Be", "isCorrect": false}]},
+                {"questionText": "They are not busy. The short form is: ___", "explanation": "Are not contracts to aren't.", "correctAnswer": "They aren't busy.", "knowledgePoint": "be contractions", "difficulty": "easy", "options": [{"text": "They aren't busy.", "isCorrect": true}, {"text": "They isn't busy.", "isCorrect": false}, {"text": "They amn't busy.", "isCorrect": false}, {"text": "They not are busy.", "isCorrect": false}]}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "teacherEmail": "tran.quoc.anh@learne.local",
+      "name": "A1 Grammar: English in Everyday Dialogues with Tran Quoc Anh",
+      "description": "Situation-led A1 grammar through short dialogues, pattern noticing, and simple exchanges.",
+      "type": "GRAMMAR",
+      "level": "A1",
+      "topics": [
+        {
+          "name": "Dialogue Patterns: Who Is Speaking?",
+          "description": "Notice pronouns in short conversations at home, school, and work.",
+          "lessons": [
+            {
+              "title": "Meet the People: Pronouns in Conversation",
+              "description": "Follow short exchanges and replace names with the correct subject pronoun.",
+              "content": "Notice the speaker in each exchange. When Linh says, 'I am a student,' I means Linh. When Nam answers, 'You are my friend,' you means the listener. For two people together use we; for a group use they. Example: 'Where are the bags?' 'They are here.'",
+              "skillType": "GRAMMAR",
+              "questions": [
+                {"questionText": "Linh says, “___ am a student.”", "explanation": "The speaker uses I to talk about herself.", "correctAnswer": "I", "knowledgePoint": "pronouns in dialogue", "difficulty": "easy", "options": [{"text": "I", "isCorrect": true}, {"text": "She", "isCorrect": false}, {"text": "You", "isCorrect": false}, {"text": "They", "isCorrect": false}]},
+                {"questionText": "Nam says to you, “___ are my friend.”", "explanation": "Nam uses you for the person he is speaking to.", "correctAnswer": "You", "knowledgePoint": "pronouns in dialogue", "difficulty": "easy", "options": [{"text": "You", "isCorrect": true}, {"text": "He", "isCorrect": false}, {"text": "We", "isCorrect": false}, {"text": "It", "isCorrect": false}]},
+                {"questionText": "Lan and I are at the bus stop. ___ are waiting.", "explanation": "The speaker and Lan are together, so we is correct.", "correctAnswer": "We", "knowledgePoint": "pronouns in dialogue", "difficulty": "easy", "options": [{"text": "We", "isCorrect": true}, {"text": "They", "isCorrect": false}, {"text": "She", "isCorrect": false}, {"text": "You", "isCorrect": false}]},
+                {"questionText": "A: Where are the children? B: ___ are in the garden.", "explanation": "They replaces the plural noun children.", "correctAnswer": "They", "knowledgePoint": "pronouns in dialogue", "difficulty": "easy", "options": [{"text": "They", "isCorrect": true}, {"text": "He", "isCorrect": false}, {"text": "It", "isCorrect": false}, {"text": "I", "isCorrect": false}]},
+                {"questionText": "A: Where is the radio? B: ___ is on the table.", "explanation": "It replaces the singular thing, the radio.", "correctAnswer": "It", "knowledgePoint": "pronouns in dialogue", "difficulty": "easy", "options": [{"text": "It", "isCorrect": true}, {"text": "They", "isCorrect": false}, {"text": "We", "isCorrect": false}, {"text": "She", "isCorrect": false}]}
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Dialogue Patterns: Be in Real Exchanges",
+          "description": "Notice am, is, and are while people ask and answer simple questions.",
+          "lessons": [
+            {
+              "title": "At the Café: Be in Short Exchanges",
+              "description": "Use affirmative, negative, and question forms of be in friendly café conversations.",
+              "content": "Listen for the subject before be. 'I am hungry' uses am; 'The coffee is hot' uses is; 'We are early' uses are. In a question, be comes first: 'Are you ready?' In a negative reply, use not: 'No, I am not.'",
+              "skillType": "GRAMMAR",
+              "questions": [
+                {"questionText": "A: How ___ you today? B: I am fine.", "explanation": "The question addresses you, so it uses are.", "correctAnswer": "are", "knowledgePoint": "be in questions", "difficulty": "easy", "options": [{"text": "are", "isCorrect": true}, {"text": "was", "isCorrect": false}, {"text": "were", "isCorrect": false}, {"text": "be", "isCorrect": false}]},
+                {"questionText": "A: Is the soup hot? B: Yes, it ___.", "explanation": "It takes the present form is.", "correctAnswer": "is", "knowledgePoint": "be in answers", "difficulty": "easy", "options": [{"text": "is", "isCorrect": true}, {"text": "looks", "isCorrect": false}, {"text": "tastes", "isCorrect": false}, {"text": "not", "isCorrect": false}]},
+                {"questionText": "A: Are you tired? B: No, I ___ not.", "explanation": "The negative answer with I uses am not.", "correctAnswer": "am", "knowledgePoint": "negative be in dialogue", "difficulty": "easy", "options": [{"text": "am", "isCorrect": true}, {"text": "feel", "isCorrect": false}, {"text": "seem", "isCorrect": false}, {"text": "be", "isCorrect": false}]},
+                {"questionText": "A: Who is at the door? B: We ___ here.", "explanation": "We takes are in the present tense.", "correctAnswer": "are", "knowledgePoint": "be with we", "difficulty": "easy", "options": [{"text": "are", "isCorrect": true}, {"text": "is", "isCorrect": false}, {"text": "am", "isCorrect": false}, {"text": "not", "isCorrect": false}]},
+                {"questionText": "A: Are they ready? B: No, they ___.", "explanation": "They are not ready is the negative answer.", "correctAnswer": "aren't ready", "knowledgePoint": "negative contractions", "difficulty": "easy", "options": [{"text": "aren't ready", "isCorrect": true}, {"text": "isn't ready", "isCorrect": false}, {"text": "am not ready", "isCorrect": false}, {"text": "not are ready", "isCorrect": false}]}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

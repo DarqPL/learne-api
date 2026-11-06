@@ -1,0 +1,339 @@
+{
+  "batchId": "grammar-a1-batch-3",
+  "courses": [
+    {
+      "teacherEmail": "le.hoang.nam@learne.local",
+      "name": "A1 Grammar: Discover Daily Routines with Le Hoang Nam",
+      "description": "Guided discovery practice for present simple routines, third-person endings, negatives, and questions.",
+      "type": "GRAMMAR",
+      "level": "A1",
+      "topics": [
+        {
+          "name": "Notice the Routine Pattern",
+          "description": "Notice present simple affirmative patterns in daily schedules.",
+          "lessons": [
+            {
+              "title": "Daily Routines and Third-Person Endings",
+              "description": "Use daily schedules to notice when a verb takes s or es.",
+              "content": "Look at the pattern before naming the rule: I walk to school, but Maya walks to school. He watches TV after dinner. With he, she, or it, most present simple verbs take -s; verbs such as watch take -es.",
+              "skillType": "GRAMMAR",
+              "questions": [
+                {
+                  "questionText": "Mina ___ breakfast at seven every morning.",
+                  "explanation": "Mina is one person, so the present simple verb takes -s: Mina eats breakfast.",
+                  "correctAnswer": "eats",
+                  "knowledgePoint": "third-person singular present simple",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "eats", "isCorrect": true},
+                    {"text": "eat", "isCorrect": false},
+                    {"text": "eating", "isCorrect": false},
+                    {"text": "eated", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "Choose the sentence that matches Leo's schedule.",
+                  "explanation": "Leo is he, so the verb go takes -es: Leo goes to work at eight.",
+                  "correctAnswer": "Leo goes to work at eight.",
+                  "knowledgePoint": "goes with he, she, or it",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "Leo goes to work at eight.", "isCorrect": true},
+                    {"text": "Leo go to work at eight.", "isCorrect": false},
+                    {"text": "Leo going to work at eight.", "isCorrect": false},
+                    {"text": "Leo gos to work at eight.", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "On her timetable, Sara ___ the bus at seven.",
+                  "explanation": "Sara is one person, so catch changes to catches in the present simple.",
+                  "correctAnswer": "catches",
+                  "knowledgePoint": "es after verbs ending in ch",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "catches", "isCorrect": true},
+                    {"text": "catch", "isCorrect": false},
+                    {"text": "catchs", "isCorrect": false},
+                    {"text": "catching", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "Which sentence is correct for one student named Tom?",
+                  "explanation": "For he, she, or it, read becomes reads in the present simple.",
+                  "correctAnswer": "Tom reads a book at night.",
+                  "knowledgePoint": "s with regular present simple verbs",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "Tom reads a book at night.", "isCorrect": true},
+                    {"text": "Tom read a book at night.", "isCorrect": false},
+                    {"text": "Tom reading a book at night.", "isCorrect": false},
+                    {"text": "Tom reades a book at night.", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "The schedule says: We ___ English on Monday.",
+                  "explanation": "We is more than one person, so the base verb study is used without -s.",
+                  "correctAnswer": "study",
+                  "knowledgePoint": "base verb with we",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "study", "isCorrect": true},
+                    {"text": "studies", "isCorrect": false},
+                    {"text": "studying", "isCorrect": false},
+                    {"text": "studys", "isCorrect": false}
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Ask About the Schedule",
+          "description": "Build present simple negatives and questions with do and does.",
+          "lessons": [
+            {
+              "title": "Do and Does in Daily Questions",
+              "description": "Complete simple negative and question task cards about routines.",
+              "content": "Notice the helper first: Does Ana play tennis? No, she does not play tennis. After does or does not, use the base verb play, not plays. Use do with I, you, we, and they.",
+              "skillType": "GRAMMAR",
+              "questions": [
+                {
+                  "questionText": "Task card: Ben does not ___ coffee in the morning.",
+                  "explanation": "After does not, use the base verb drink: Ben does not drink coffee.",
+                  "correctAnswer": "drink",
+                  "knowledgePoint": "base verb after does not",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "drink", "isCorrect": true},
+                    {"text": "drinks", "isCorrect": false},
+                    {"text": "drinking", "isCorrect": false},
+                    {"text": "drank", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "Task card: ___ your parents work on Saturday?",
+                  "explanation": "Your parents means they, so use do to begin the present simple question.",
+                  "correctAnswer": "Do",
+                  "knowledgePoint": "do in questions with they",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "Do", "isCorrect": true},
+                    {"text": "Does", "isCorrect": false},
+                    {"text": "Are", "isCorrect": false},
+                    {"text": "Is", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "Choose the question for one person, Emma.",
+                  "explanation": "Emma is she, so use does, followed by the base verb like.",
+                  "correctAnswer": "Does Emma like tea?",
+                  "knowledgePoint": "does with a singular subject",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "Does Emma like tea?", "isCorrect": true},
+                    {"text": "Do Emma likes tea?", "isCorrect": false},
+                    {"text": "Does Emma likes tea?", "isCorrect": false},
+                    {"text": "Is Emma like tea?", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "Task card: I ___ not watch TV before school.",
+                  "explanation": "With I, use do not and the base verb watch.",
+                  "correctAnswer": "do",
+                  "knowledgePoint": "do not with I",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "do", "isCorrect": true},
+                    {"text": "does", "isCorrect": false},
+                    {"text": "am", "isCorrect": false},
+                    {"text": "is", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "A schedule asks about one child: What ___ Noah do after lunch?",
+                  "explanation": "Noah is one person, so use does; the main verb stays in the base form do.",
+                  "correctAnswer": "does",
+                  "knowledgePoint": "does in wh- questions",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "does", "isCorrect": true},
+                    {"text": "do", "isCorrect": false},
+                    {"text": "is", "isCorrect": false},
+                    {"text": "has", "isCorrect": false}
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "teacherEmail": "doan.thu.trang@learne.local",
+      "name": "A1 Grammar: My Family and Things with Doan Thu Trang",
+      "description": "Task-card practice for possessive adjectives and affirmative have and has with familiar family items.",
+      "type": "GRAMMAR",
+      "level": "A1",
+      "topics": [
+        {
+          "name": "Family Task Cards",
+          "description": "Match my, your, his, and her with familiar singular people and things.",
+          "lessons": [
+            {
+              "title": "Whose Bag Is It?",
+              "description": "Complete short family task cards with the correct possessive adjective.",
+              "content": "Use my for the speaker, your for the listener, his for one male person, and her for one female person. The possessive adjective comes before the singular noun: her book, his bike.",
+              "skillType": "GRAMMAR",
+              "questions": [
+                {
+                  "questionText": "Task card: I am Mai. This is ___ pencil.",
+                  "explanation": "Mai is speaking about a pencil that belongs to Mai, so use my.",
+                  "correctAnswer": "my",
+                  "knowledgePoint": "my with a singular possession",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "my", "isCorrect": true},
+                    {"text": "your", "isCorrect": false},
+                    {"text": "his", "isCorrect": false},
+                    {"text": "her", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "You show Nam a phone. Say: Is this ___ phone?",
+                  "explanation": "The phone belongs to the listener, so use your.",
+                  "correctAnswer": "your",
+                  "knowledgePoint": "your with the listener's possession",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "your", "isCorrect": true},
+                    {"text": "my", "isCorrect": false},
+                    {"text": "his", "isCorrect": false},
+                    {"text": "her", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "This is Minh. The blue bike belongs to Minh. It is ___ bike.",
+                  "explanation": "Minh is one male person, so use his before bike.",
+                  "correctAnswer": "his",
+                  "knowledgePoint": "his for a male person's possession",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "his", "isCorrect": true},
+                    {"text": "her", "isCorrect": false},
+                    {"text": "my", "isCorrect": false},
+                    {"text": "your", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "Lan has a red hat. Point to it: It is ___ hat.",
+                  "explanation": "Lan is one female person, so use her before hat.",
+                  "correctAnswer": "her",
+                  "knowledgePoint": "her for a female person's possession",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "her", "isCorrect": true},
+                    {"text": "his", "isCorrect": false},
+                    {"text": "my", "isCorrect": false},
+                    {"text": "your", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "A card shows your sister and a book. Choose the sentence.",
+                  "explanation": "The book belongs to your sister, so her comes before book.",
+                  "correctAnswer": "This is her book.",
+                  "knowledgePoint": "her with familiar singular nouns",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "This is her book.", "isCorrect": true},
+                    {"text": "This is his book.", "isCorrect": false},
+                    {"text": "This is my book.", "isCorrect": false},
+                    {"text": "This is your book.", "isCorrect": false}
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "What Does the Family Have?",
+          "description": "Use have and has to describe family members and familiar possessions.",
+          "lessons": [
+            {
+              "title": "Family Possession Cards",
+              "description": "Complete affirmative task cards with have or has.",
+              "content": "Use has with he, she, and one person. Use have with I, you, we, and they. Look at the person on the card before choosing: My brother has a kite, but we have a ball.",
+              "skillType": "GRAMMAR",
+              "questions": [
+                {
+                  "questionText": "My brother ___ a small kite.",
+                  "explanation": "My brother is one person, so use has.",
+                  "correctAnswer": "has",
+                  "knowledgePoint": "has with one family member",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "has", "isCorrect": true},
+                    {"text": "have", "isCorrect": false},
+                    {"text": "having", "isCorrect": false},
+                    {"text": "haves", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "We ___ two pictures of our family.",
+                  "explanation": "We uses the base form have, even when the possession is more than one item.",
+                  "correctAnswer": "have",
+                  "knowledgePoint": "have with we",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "have", "isCorrect": true},
+                    {"text": "has", "isCorrect": false},
+                    {"text": "haves", "isCorrect": false},
+                    {"text": "having", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "Task card: Hoa ___ a new school bag.",
+                  "explanation": "Hoa is one person, so the affirmative form is has.",
+                  "correctAnswer": "has",
+                  "knowledgePoint": "has with a singular name",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "has", "isCorrect": true},
+                    {"text": "have", "isCorrect": false},
+                    {"text": "had", "isCorrect": false},
+                    {"text": "is", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "You and your sister ___ a red ball.",
+                  "explanation": "You and your sister means two people, so use have.",
+                  "correctAnswer": "have",
+                  "knowledgePoint": "have with a plural subject",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "have", "isCorrect": true},
+                    {"text": "has", "isCorrect": false},
+                    {"text": "are", "isCorrect": false},
+                    {"text": "having", "isCorrect": false}
+                  ]
+                },
+                {
+                  "questionText": "The card shows Dad. Choose the complete sentence.",
+                  "explanation": "Dad is one person, so use has: Dad has a camera.",
+                  "correctAnswer": "Dad has a camera.",
+                  "knowledgePoint": "has in an affirmative family sentence",
+                  "difficulty": "easy",
+                  "options": [
+                    {"text": "Dad has a camera.", "isCorrect": true},
+                    {"text": "Dad have a camera.", "isCorrect": false},
+                    {"text": "Dad haves a camera.", "isCorrect": false},
+                    {"text": "Dad having a camera.", "isCorrect": false}
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
