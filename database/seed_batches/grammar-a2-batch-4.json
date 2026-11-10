@@ -1,0 +1,1126 @@
+{
+  "batchId": "grammar-a2-batch-4",
+  "topicId": "future-going-to-will",
+  "topicName": "Future Plans and Predictions",
+  "course": {
+    "teacherEmail": "nguyen.minh.ha@learne.local",
+    "name": "A2 Grammar: Everyday Accuracy with Nguyen Minh Ha",
+    "type": "GRAMMAR",
+    "level": "A2"
+  },
+  "topicDescription": "Use going to and will for plans, predictions, offers, and promises.",
+  "lessons": [
+    {
+      "title": "Going to for Plans and Intentions",
+      "objective": "Use be going to for plans made before speaking.",
+      "description": "Going to links a present subject with a prior plan or intention.",
+      "content": "Use am, is, or are going to plus the base verb for a planned future action.",
+      "examples": [
+        "I am going to visit my aunt on Saturday.",
+        "They are going to study tonight."
+      ],
+      "commonErrors": [
+        "Do not use will after going to.",
+        "Match am, is, or are with the subject."
+      ],
+      "guidedPractice": "Underline the planned time, then choose the correct be form and base verb.",
+      "summary": "Going to describes a plan or intention decided before now.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We made a plan to visit my aunt. We ___ soon.",
+          "correctAnswer": "are going to visit my aunt",
+          "explanation": "The earlier plan shows that going to is correct.",
+          "knowledgePoint": "going to for prior plans",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "are going to visit my aunt",
+              "isCorrect": true
+            },
+            {
+              "text": "will travel",
+              "isCorrect": false
+            },
+            {
+              "text": "travelled",
+              "isCorrect": false
+            },
+            {
+              "text": "are travelling",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We made a plan to start a course. We ___ soon.",
+          "correctAnswer": "are going to start a course",
+          "explanation": "The earlier plan shows that going to is correct.",
+          "knowledgePoint": "going to for prior plans",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "are going to start a course",
+              "isCorrect": true
+            },
+            {
+              "text": "will travel",
+              "isCorrect": false
+            },
+            {
+              "text": "travelled",
+              "isCorrect": false
+            },
+            {
+              "text": "are travelling",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We made a plan to buy a desk. We ___ soon.",
+          "correctAnswer": "are going to buy a desk",
+          "explanation": "The earlier plan shows that going to is correct.",
+          "knowledgePoint": "going to for prior plans",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "are going to buy a desk",
+              "isCorrect": true
+            },
+            {
+              "text": "will travel",
+              "isCorrect": false
+            },
+            {
+              "text": "travelled",
+              "isCorrect": false
+            },
+            {
+              "text": "are travelling",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We made a plan to cook dinner. We ___ soon.",
+          "correctAnswer": "are going to cook dinner",
+          "explanation": "The earlier plan shows that going to is correct.",
+          "knowledgePoint": "going to for prior plans",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "are going to cook dinner",
+              "isCorrect": true
+            },
+            {
+              "text": "will travel",
+              "isCorrect": false
+            },
+            {
+              "text": "travelled",
+              "isCorrect": false
+            },
+            {
+              "text": "are travelling",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We made a plan to paint the room. We ___ soon.",
+          "correctAnswer": "are going to paint the room",
+          "explanation": "The earlier plan shows that going to is correct.",
+          "knowledgePoint": "going to for prior plans",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "are going to paint the room",
+              "isCorrect": true
+            },
+            {
+              "text": "will travel",
+              "isCorrect": false
+            },
+            {
+              "text": "travelled",
+              "isCorrect": false
+            },
+            {
+              "text": "are travelling",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We made a plan to save money. We ___ soon.",
+          "correctAnswer": "are going to save money",
+          "explanation": "The earlier plan shows that going to is correct.",
+          "knowledgePoint": "going to for prior plans",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "are going to save money",
+              "isCorrect": true
+            },
+            {
+              "text": "will travel",
+              "isCorrect": false
+            },
+            {
+              "text": "travelled",
+              "isCorrect": false
+            },
+            {
+              "text": "are travelling",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We made a plan to learn to swim. We ___ soon.",
+          "correctAnswer": "are going to learn to swim",
+          "explanation": "The earlier plan shows that going to is correct.",
+          "knowledgePoint": "going to for prior plans",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "are going to learn to swim",
+              "isCorrect": true
+            },
+            {
+              "text": "will travel",
+              "isCorrect": false
+            },
+            {
+              "text": "travelled",
+              "isCorrect": false
+            },
+            {
+              "text": "are travelling",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We made a plan to take the early bus. We ___ soon.",
+          "correctAnswer": "are going to take the early bus",
+          "explanation": "The earlier plan shows that going to is correct.",
+          "knowledgePoint": "going to for prior plans",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "are going to take the early bus",
+              "isCorrect": true
+            },
+            {
+              "text": "will travel",
+              "isCorrect": false
+            },
+            {
+              "text": "travelled",
+              "isCorrect": false
+            },
+            {
+              "text": "are travelling",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We made a plan to clean the kitchen. We ___ soon.",
+          "correctAnswer": "are going to clean the kitchen",
+          "explanation": "The earlier plan shows that going to is correct.",
+          "knowledgePoint": "going to for prior plans",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "are going to clean the kitchen",
+              "isCorrect": true
+            },
+            {
+              "text": "will travel",
+              "isCorrect": false
+            },
+            {
+              "text": "travelled",
+              "isCorrect": false
+            },
+            {
+              "text": "are travelling",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We made a plan to send the form. We ___ soon.",
+          "correctAnswer": "are going to send the form",
+          "explanation": "The earlier plan shows that going to is correct.",
+          "knowledgePoint": "going to for prior plans",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "are going to send the form",
+              "isCorrect": true
+            },
+            {
+              "text": "will travel",
+              "isCorrect": false
+            },
+            {
+              "text": "travelled",
+              "isCorrect": false
+            },
+            {
+              "text": "are travelling",
+              "isCorrect": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Going to for Evidence-Based Predictions",
+      "objective": "Use going to for a prediction based on visible evidence.",
+      "description": "Present evidence can make a future result seem likely.",
+      "content": "Use be going to when what you can see or know now points to a future event.",
+      "examples": [
+        "Look at the clouds. It is going to rain.",
+        "The child is tired, so she is going to sleep."
+      ],
+      "commonErrors": [
+        "Do not use a past form after going to.",
+        "Use the subject's correct be form."
+      ],
+      "guidedPractice": "Identify the evidence first, then choose going to for the likely result.",
+      "summary": "Going to can predict a result when present evidence supports it.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The sky is very dark. What is likely to happen? ___ soon.",
+          "correctAnswer": "It is going to rain",
+          "explanation": "The present evidence in the first sentence supports it is going to rain.",
+          "knowledgePoint": "going to with present evidence",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "It is going to rain",
+              "isCorrect": true
+            },
+            {
+              "text": "It will rain",
+              "isCorrect": false
+            },
+            {
+              "text": "it rains",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Look at that full glass near the edge. What is likely to happen? ___ soon.",
+          "correctAnswer": "It is going to fall",
+          "explanation": "The present evidence in the first sentence supports it is going to fall.",
+          "knowledgePoint": "going to with present evidence",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "It is going to fall",
+              "isCorrect": true
+            },
+            {
+              "text": "It will fall",
+              "isCorrect": false
+            },
+            {
+              "text": "it fell",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The baby is rubbing her eyes. What is likely to happen? ___ soon.",
+          "correctAnswer": "She is going to sleep",
+          "explanation": "The present evidence in the first sentence supports she is going to sleep.",
+          "knowledgePoint": "going to with present evidence",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "She is going to sleep",
+              "isCorrect": true
+            },
+            {
+              "text": "She will sleep",
+              "isCorrect": false
+            },
+            {
+              "text": "she slept",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The team is 5-0 ahead with one minute left. What is likely to happen? ___ soon.",
+          "correctAnswer": "They are going to win",
+          "explanation": "The present evidence in the first sentence supports they are going to win.",
+          "knowledgePoint": "going to with present evidence",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "They are going to win",
+              "isCorrect": true
+            },
+            {
+              "text": "They will win",
+              "isCorrect": false
+            },
+            {
+              "text": "they won",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The bus is moving away from us. What is likely to happen? ___ soon.",
+          "correctAnswer": "We are going to miss it",
+          "explanation": "The present evidence in the first sentence supports we are going to miss it.",
+          "knowledgePoint": "going to with present evidence",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "We are going to miss it",
+              "isCorrect": true
+            },
+            {
+              "text": "We will miss it",
+              "isCorrect": false
+            },
+            {
+              "text": "we missed it",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "That box is too high and shaking. What is likely to happen? ___ soon.",
+          "correctAnswer": "It is going to drop",
+          "explanation": "The present evidence in the first sentence supports it is going to drop.",
+          "knowledgePoint": "going to with present evidence",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "It is going to drop",
+              "isCorrect": true
+            },
+            {
+              "text": "It will drop",
+              "isCorrect": false
+            },
+            {
+              "text": "it dropped",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The soup is boiling over. What is likely to happen? ___ soon.",
+          "correctAnswer": "It is going to spill",
+          "explanation": "The present evidence in the first sentence supports it is going to spill.",
+          "knowledgePoint": "going to with present evidence",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "It is going to spill",
+              "isCorrect": true
+            },
+            {
+              "text": "It will spill",
+              "isCorrect": false
+            },
+            {
+              "text": "it spilled",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Mia has no coat and the temperature is falling. What is likely to happen? ___ soon.",
+          "correctAnswer": "She is going to feel cold",
+          "explanation": "The present evidence in the first sentence supports she is going to feel cold.",
+          "knowledgePoint": "going to with present evidence",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "She is going to feel cold",
+              "isCorrect": true
+            },
+            {
+              "text": "She will feel cold",
+              "isCorrect": false
+            },
+            {
+              "text": "she felt cold",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The plant has no water and its leaves are dry. What is likely to happen? ___ soon.",
+          "correctAnswer": "It is going to die",
+          "explanation": "The present evidence in the first sentence supports it is going to die.",
+          "knowledgePoint": "going to with present evidence",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "It is going to die",
+              "isCorrect": true
+            },
+            {
+              "text": "It will die",
+              "isCorrect": false
+            },
+            {
+              "text": "it died",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The runner is far in front of everyone. What is likely to happen? ___ soon.",
+          "correctAnswer": "He is going to win",
+          "explanation": "The present evidence in the first sentence supports he is going to win.",
+          "knowledgePoint": "going to with present evidence",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "He is going to win",
+              "isCorrect": true
+            },
+            {
+              "text": "He will win",
+              "isCorrect": false
+            },
+            {
+              "text": "he won",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Will for Decisions, Offers, and Promises",
+      "objective": "Use will for a decision made at speaking time, an offer, or a promise.",
+      "description": "Will often responds to a new situation rather than a plan made earlier.",
+      "content": "Use will plus the base verb for quick decisions, offers, and promises.",
+      "examples": [
+        "The phone is ringing. I will answer it.",
+        "I will help you with that bag."
+      ],
+      "commonErrors": [
+        "Do not add to after will.",
+        "Do not use will to describe every prior plan."
+      ],
+      "guidedPractice": "Look for a new situation, an offer, or a promise made now.",
+      "summary": "Will expresses a spontaneous decision, offer, or promise.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The phone is ringing. This is a new situation, so I ___ now.",
+          "correctAnswer": "I will answer it",
+          "explanation": "The speaker decides at the moment, so i will answer it is correct.",
+          "knowledgePoint": "will for spontaneous decisions",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "I will answer it",
+              "isCorrect": true
+            },
+            {
+              "text": "I am going to answer it",
+              "isCorrect": false
+            },
+            {
+              "text": "I answered it",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "You look tired. This is a new situation, so I ___ now.",
+          "correctAnswer": "I will carry your bag",
+          "explanation": "The speaker decides at the moment, so i will carry your bag is correct.",
+          "knowledgePoint": "will for spontaneous decisions",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "I will carry your bag",
+              "isCorrect": true
+            },
+            {
+              "text": "I am going to carry your bag",
+              "isCorrect": false
+            },
+            {
+              "text": "I carried your bag",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Your friend asks for help. This is a new situation, so I ___ now.",
+          "correctAnswer": "I will help you",
+          "explanation": "The speaker decides at the moment, so i will help you is correct.",
+          "knowledgePoint": "will for spontaneous decisions",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "I will help you",
+              "isCorrect": true
+            },
+            {
+              "text": "I am going to help you",
+              "isCorrect": false
+            },
+            {
+              "text": "I helped you",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The room is cold. This is a new situation, so I ___ now.",
+          "correctAnswer": "I will close the window",
+          "explanation": "The speaker decides at the moment, so i will close the window is correct.",
+          "knowledgePoint": "will for spontaneous decisions",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "I will close the window",
+              "isCorrect": true
+            },
+            {
+              "text": "I am going to close the window",
+              "isCorrect": false
+            },
+            {
+              "text": "I closed the window",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Someone needs a pen. This is a new situation, so I ___ now.",
+          "correctAnswer": "I will lend you one",
+          "explanation": "The speaker decides at the moment, so i will lend you one is correct.",
+          "knowledgePoint": "will for spontaneous decisions",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "I will lend you one",
+              "isCorrect": true
+            },
+            {
+              "text": "I am going to lend you one",
+              "isCorrect": false
+            },
+            {
+              "text": "I lent you one",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The child is crying. This is a new situation, so I ___ now.",
+          "correctAnswer": "I will get some water",
+          "explanation": "The speaker decides at the moment, so i will get some water is correct.",
+          "knowledgePoint": "will for spontaneous decisions",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "I will get some water",
+              "isCorrect": true
+            },
+            {
+              "text": "I am going to get some water",
+              "isCorrect": false
+            },
+            {
+              "text": "I got some water",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "A guest arrives unexpectedly. This is a new situation, so I ___ now.",
+          "correctAnswer": "I will make some tea",
+          "explanation": "The speaker decides at the moment, so i will make some tea is correct.",
+          "knowledgePoint": "will for spontaneous decisions",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "I will make some tea",
+              "isCorrect": true
+            },
+            {
+              "text": "I am going to make some tea",
+              "isCorrect": false
+            },
+            {
+              "text": "I made some tea",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "You drop your books. This is a new situation, so I ___ now.",
+          "correctAnswer": "I will pick them up",
+          "explanation": "The speaker decides at the moment, so i will pick them up is correct.",
+          "knowledgePoint": "will for spontaneous decisions",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "I will pick them up",
+              "isCorrect": true
+            },
+            {
+              "text": "I am going to pick them up",
+              "isCorrect": false
+            },
+            {
+              "text": "I picked them up",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The light is on. This is a new situation, so I ___ now.",
+          "correctAnswer": "I will turn it off",
+          "explanation": "The speaker decides at the moment, so i will turn it off is correct.",
+          "knowledgePoint": "will for spontaneous decisions",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "I will turn it off",
+              "isCorrect": true
+            },
+            {
+              "text": "I am going to turn it off",
+              "isCorrect": false
+            },
+            {
+              "text": "I turned it off",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Your classmate asks a question. This is a new situation, so I ___ now.",
+          "correctAnswer": "I will explain it",
+          "explanation": "The speaker decides at the moment, so i will explain it is correct.",
+          "knowledgePoint": "will for spontaneous decisions",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "I will explain it",
+              "isCorrect": true
+            },
+            {
+              "text": "I am going to explain it",
+              "isCorrect": false
+            },
+            {
+              "text": "I explained it",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Choosing Will or Going to",
+      "objective": "Choose will or going to from a clear everyday context.",
+      "description": "The context tells us whether the idea is a prior plan, evidence-based prediction, or decision now.",
+      "content": "Use going to for earlier plans and present evidence; use will for offers, promises, and decisions made now.",
+      "examples": [
+        "We planned it, so we are going to meet.",
+        "The phone rings, so I will answer it."
+      ],
+      "commonErrors": [
+        "Do not choose only by the time word.",
+        "Check whether the plan existed before the conversation."
+      ],
+      "guidedPractice": "Label each context plan, evidence, or decision now before choosing the form.",
+      "summary": "Going to and will have different uses in clear contexts.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We planned it last week. Choose the best completion: We ___ tomorrow.",
+          "correctAnswer": "are going to meet",
+          "explanation": "The cue shows the intended use, so are going to meet fits best.",
+          "knowledgePoint": "will and going to contrast",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "are going to meet",
+              "isCorrect": true
+            },
+            {
+              "text": "will meet",
+              "isCorrect": false
+            },
+            {
+              "text": "met",
+              "isCorrect": false
+            },
+            {
+              "text": "are meeting yesterday",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I decide now to help you. Choose the best completion: I ___ now.",
+          "correctAnswer": "will help",
+          "explanation": "The cue shows the intended use, so will help fits best.",
+          "knowledgePoint": "will and going to contrast",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "will help",
+              "isCorrect": true
+            },
+            {
+              "text": "will meet",
+              "isCorrect": false
+            },
+            {
+              "text": "met",
+              "isCorrect": false
+            },
+            {
+              "text": "are meeting yesterday",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Look at those clouds. Choose the best completion: It ___ soon.",
+          "correctAnswer": "is going to rain",
+          "explanation": "The cue shows the intended use, so is going to rain fits best.",
+          "knowledgePoint": "will and going to contrast",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "is going to rain",
+              "isCorrect": true
+            },
+            {
+              "text": "will meet",
+              "isCorrect": false
+            },
+            {
+              "text": "met",
+              "isCorrect": false
+            },
+            {
+              "text": "are meeting yesterday",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I promise to call tonight. Choose the best completion: I ___ tonight.",
+          "correctAnswer": "will call",
+          "explanation": "The cue shows the intended use, so will call fits best.",
+          "knowledgePoint": "will and going to contrast",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "will call",
+              "isCorrect": true
+            },
+            {
+              "text": "will meet",
+              "isCorrect": false
+            },
+            {
+              "text": "met",
+              "isCorrect": false
+            },
+            {
+              "text": "are meeting yesterday",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "She bought paint yesterday. Choose the best completion: She ___ the room.",
+          "correctAnswer": "is going to paint",
+          "explanation": "The cue shows the intended use, so is going to paint fits best.",
+          "knowledgePoint": "will and going to contrast",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "is going to paint",
+              "isCorrect": true
+            },
+            {
+              "text": "will meet",
+              "isCorrect": false
+            },
+            {
+              "text": "met",
+              "isCorrect": false
+            },
+            {
+              "text": "are meeting yesterday",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The kettle is shaking. Choose the best completion: It ___ over.",
+          "correctAnswer": "is going to boil over",
+          "explanation": "The cue shows the intended use, so is going to boil over fits best.",
+          "knowledgePoint": "will and going to contrast",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "is going to boil over",
+              "isCorrect": true
+            },
+            {
+              "text": "will meet",
+              "isCorrect": false
+            },
+            {
+              "text": "met",
+              "isCorrect": false
+            },
+            {
+              "text": "are meeting yesterday",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The doorbell rings. Choose the best completion: I ___ it.",
+          "correctAnswer": "will open",
+          "explanation": "The cue shows the intended use, so will open fits best.",
+          "knowledgePoint": "will and going to contrast",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "will open",
+              "isCorrect": true
+            },
+            {
+              "text": "will meet",
+              "isCorrect": false
+            },
+            {
+              "text": "met",
+              "isCorrect": false
+            },
+            {
+              "text": "are meeting yesterday",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "They arranged a holiday. Choose the best completion: They ___ next month.",
+          "correctAnswer": "are going to travel",
+          "explanation": "The cue shows the intended use, so are going to travel fits best.",
+          "knowledgePoint": "will and going to contrast",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "are going to travel",
+              "isCorrect": true
+            },
+            {
+              "text": "will meet",
+              "isCorrect": false
+            },
+            {
+              "text": "met",
+              "isCorrect": false
+            },
+            {
+              "text": "are meeting yesterday",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "He offers to carry the box. Choose the best completion: He ___ it.",
+          "correctAnswer": "will carry",
+          "explanation": "The cue shows the intended use, so will carry fits best.",
+          "knowledgePoint": "will and going to contrast",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "will carry",
+              "isCorrect": true
+            },
+            {
+              "text": "will meet",
+              "isCorrect": false
+            },
+            {
+              "text": "met",
+              "isCorrect": false
+            },
+            {
+              "text": "are meeting yesterday",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The child is holding a broken cup. Choose the best completion: It ___ soon.",
+          "correctAnswer": "is going to drop it",
+          "explanation": "The cue shows the intended use, so is going to drop it fits best.",
+          "knowledgePoint": "will and going to contrast",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "is going to drop it",
+              "isCorrect": true
+            },
+            {
+              "text": "will meet",
+              "isCorrect": false
+            },
+            {
+              "text": "met",
+              "isCorrect": false
+            },
+            {
+              "text": "are meeting yesterday",
+              "isCorrect": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

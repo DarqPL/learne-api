@@ -1,0 +1,1126 @@
+{
+  "batchId": "grammar-a2-batch-6",
+  "topicId": "comparatives-superlatives-modifiers",
+  "topicName": "Comparatives and Superlatives",
+  "course": {
+    "teacherEmail": "nguyen.minh.ha@learne.local",
+    "name": "A2 Grammar: Everyday Accuracy with Nguyen Minh Ha",
+    "type": "GRAMMAR",
+    "level": "A2"
+  },
+  "topicDescription": "Compare people, places, and things with common adjective forms and modifiers.",
+  "lessons": [
+    {
+      "title": "Comparatives with Short Adjectives",
+      "objective": "Form comparative adjectives with -er, including common spelling changes.",
+      "description": "Short adjectives usually take -er before than.",
+      "content": "Add -er to many short adjectives; change y to i before -er and double a final consonant when needed.",
+      "examples": [
+        "This road is wider than that road.",
+        "English is easier than maths for me."
+      ],
+      "commonErrors": [
+        "Do not use the superlative when comparing two things.",
+        "Change happy to happier, not happyer."
+      ],
+      "guidedPractice": "Identify the two things, then form the comparative adjective.",
+      "summary": "Use adjective-er plus than for many comparisons between two things.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "A bicycle is ___ than a car for short trips.",
+          "correctAnswer": "cheaper",
+          "explanation": "Two things are compared, so the -er comparative cheaper is correct.",
+          "knowledgePoint": "short adjective comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "cheaper",
+              "isCorrect": true
+            },
+            {
+              "text": "cheapest",
+              "isCorrect": false
+            },
+            {
+              "text": "more cheaper",
+              "isCorrect": false
+            },
+            {
+              "text": "the cheaper",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "This bag is ___ than that one.",
+          "correctAnswer": "lighter",
+          "explanation": "Two things are compared, so the -er comparative lighter is correct.",
+          "knowledgePoint": "short adjective comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "lighter",
+              "isCorrect": true
+            },
+            {
+              "text": "lightest",
+              "isCorrect": false
+            },
+            {
+              "text": "more lighter",
+              "isCorrect": false
+            },
+            {
+              "text": "the lighter",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Today is ___ than yesterday.",
+          "correctAnswer": "colder",
+          "explanation": "Two things are compared, so the -er comparative colder is correct.",
+          "knowledgePoint": "short adjective comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "colder",
+              "isCorrect": true
+            },
+            {
+              "text": "coldest",
+              "isCorrect": false
+            },
+            {
+              "text": "more colder",
+              "isCorrect": false
+            },
+            {
+              "text": "the colder",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "My new room is ___ than my old room.",
+          "correctAnswer": "larger",
+          "explanation": "Two things are compared, so the -er comparative larger is correct.",
+          "knowledgePoint": "short adjective comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "larger",
+              "isCorrect": true
+            },
+            {
+              "text": "largest",
+              "isCorrect": false
+            },
+            {
+              "text": "more larger",
+              "isCorrect": false
+            },
+            {
+              "text": "the larger",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The blue road is ___ than the red road.",
+          "correctAnswer": "wider",
+          "explanation": "Two things are compared, so the -er comparative wider is correct.",
+          "knowledgePoint": "short adjective comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "wider",
+              "isCorrect": true
+            },
+            {
+              "text": "widest",
+              "isCorrect": false
+            },
+            {
+              "text": "more wider",
+              "isCorrect": false
+            },
+            {
+              "text": "the wider",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "This exercise is ___ than the last one.",
+          "correctAnswer": "easier",
+          "explanation": "Two things are compared, so the -er comparative easier is correct.",
+          "knowledgePoint": "short adjective comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "easier",
+              "isCorrect": true
+            },
+            {
+              "text": "easiest",
+              "isCorrect": false
+            },
+            {
+              "text": "more easier",
+              "isCorrect": false
+            },
+            {
+              "text": "the easier",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The second test is ___ than the first.",
+          "correctAnswer": "harder",
+          "explanation": "Two things are compared, so the -er comparative harder is correct.",
+          "knowledgePoint": "short adjective comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "harder",
+              "isCorrect": true
+            },
+            {
+              "text": "hardest",
+              "isCorrect": false
+            },
+            {
+              "text": "more harder",
+              "isCorrect": false
+            },
+            {
+              "text": "the harder",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "A train is ___ than a bus.",
+          "correctAnswer": "faster",
+          "explanation": "Two things are compared, so the -er comparative faster is correct.",
+          "knowledgePoint": "short adjective comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "faster",
+              "isCorrect": true
+            },
+            {
+              "text": "fastest",
+              "isCorrect": false
+            },
+            {
+              "text": "more faster",
+              "isCorrect": false
+            },
+            {
+              "text": "the faster",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "This box is ___ than that box.",
+          "correctAnswer": "heavier",
+          "explanation": "Two things are compared, so the -er comparative heavier is correct.",
+          "knowledgePoint": "short adjective comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "heavier",
+              "isCorrect": true
+            },
+            {
+              "text": "heaviest",
+              "isCorrect": false
+            },
+            {
+              "text": "more heavier",
+              "isCorrect": false
+            },
+            {
+              "text": "the heavier",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The new phone is ___ than my old phone.",
+          "correctAnswer": "nicer",
+          "explanation": "Two things are compared, so the -er comparative nicer is correct.",
+          "knowledgePoint": "short adjective comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "nicer",
+              "isCorrect": true
+            },
+            {
+              "text": "nicest",
+              "isCorrect": false
+            },
+            {
+              "text": "more nicer",
+              "isCorrect": false
+            },
+            {
+              "text": "the nicer",
+              "isCorrect": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Comparatives with More and Less",
+      "objective": "Use more or less with longer adjectives to compare two things.",
+      "description": "Longer adjectives usually take more or less before the adjective.",
+      "content": "Use more ... than for a higher quality and less ... than for a lower quality.",
+      "examples": [
+        "The train is more comfortable than the bus.",
+        "This route is less dangerous than that road."
+      ],
+      "commonErrors": [
+        "Do not add -er to most long adjectives.",
+        "Keep than after the comparative when the second item is named."
+      ],
+      "guidedPractice": "Count the adjective syllables, then choose more or less and add than.",
+      "summary": "Use more or less plus a longer adjective for a comparison.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The train is ___ than the bus.",
+          "correctAnswer": "more comfortable",
+          "explanation": "more comfortable is the standard comparative form for this longer adjective.",
+          "knowledgePoint": "more and less comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "more comfortable",
+              "isCorrect": true
+            },
+            {
+              "text": "comfortabler",
+              "isCorrect": false
+            },
+            {
+              "text": "the more comfortable",
+              "isCorrect": false
+            },
+            {
+              "text": "very more comfortable",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "This lesson is ___ than the last one.",
+          "correctAnswer": "more interesting",
+          "explanation": "more interesting is the standard comparative form for this longer adjective.",
+          "knowledgePoint": "more and less comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "more interesting",
+              "isCorrect": true
+            },
+            {
+              "text": "interestinger",
+              "isCorrect": false
+            },
+            {
+              "text": "the more interesting",
+              "isCorrect": false
+            },
+            {
+              "text": "very more interesting",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "A park is ___ than a busy road.",
+          "correctAnswer": "less dangerous",
+          "explanation": "less dangerous is the standard comparative form for this longer adjective.",
+          "knowledgePoint": "more and less comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "less dangerous",
+              "isCorrect": true
+            },
+            {
+              "text": "dangerouser",
+              "isCorrect": false
+            },
+            {
+              "text": "the less dangerous",
+              "isCorrect": false
+            },
+            {
+              "text": "very less dangerous",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The blue sofa is ___ than the red one.",
+          "correctAnswer": "more expensive",
+          "explanation": "more expensive is the standard comparative form for this longer adjective.",
+          "knowledgePoint": "more and less comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "more expensive",
+              "isCorrect": true
+            },
+            {
+              "text": "expensiver",
+              "isCorrect": false
+            },
+            {
+              "text": "the more expensive",
+              "isCorrect": false
+            },
+            {
+              "text": "very more expensive",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "This explanation is ___ than that one.",
+          "correctAnswer": "more useful",
+          "explanation": "more useful is the standard comparative form for this longer adjective.",
+          "knowledgePoint": "more and less comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "more useful",
+              "isCorrect": true
+            },
+            {
+              "text": "usefuler",
+              "isCorrect": false
+            },
+            {
+              "text": "the more useful",
+              "isCorrect": false
+            },
+            {
+              "text": "very more useful",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The new route is ___ than the old route.",
+          "correctAnswer": "less convenient",
+          "explanation": "less convenient is the standard comparative form for this longer adjective.",
+          "knowledgePoint": "more and less comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "less convenient",
+              "isCorrect": true
+            },
+            {
+              "text": "convenienter",
+              "isCorrect": false
+            },
+            {
+              "text": "the less convenient",
+              "isCorrect": false
+            },
+            {
+              "text": "very less convenient",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Her answer is ___ than mine.",
+          "correctAnswer": "more careful",
+          "explanation": "more careful is the standard comparative form for this longer adjective.",
+          "knowledgePoint": "more and less comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "more careful",
+              "isCorrect": true
+            },
+            {
+              "text": "carefuler",
+              "isCorrect": false
+            },
+            {
+              "text": "the more careful",
+              "isCorrect": false
+            },
+            {
+              "text": "very more careful",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "This hotel is ___ than the hostel.",
+          "correctAnswer": "more modern",
+          "explanation": "more modern is the standard comparative form for this longer adjective.",
+          "knowledgePoint": "more and less comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "more modern",
+              "isCorrect": true
+            },
+            {
+              "text": "moderner",
+              "isCorrect": false
+            },
+            {
+              "text": "the more modern",
+              "isCorrect": false
+            },
+            {
+              "text": "very more modern",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "A quiet café is ___ than a crowded café.",
+          "correctAnswer": "more relaxing",
+          "explanation": "more relaxing is the standard comparative form for this longer adjective.",
+          "knowledgePoint": "more and less comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "more relaxing",
+              "isCorrect": true
+            },
+            {
+              "text": "relaxinger",
+              "isCorrect": false
+            },
+            {
+              "text": "the more relaxing",
+              "isCorrect": false
+            },
+            {
+              "text": "very more relaxing",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The second plan is ___ than the first.",
+          "correctAnswer": "less practical",
+          "explanation": "less practical is the standard comparative form for this longer adjective.",
+          "knowledgePoint": "more and less comparatives",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "less practical",
+              "isCorrect": true
+            },
+            {
+              "text": "practicaler",
+              "isCorrect": false
+            },
+            {
+              "text": "the less practical",
+              "isCorrect": false
+            },
+            {
+              "text": "very less practical",
+              "isCorrect": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Superlatives and the",
+      "objective": "Use -est or most with the to identify one item at the top or bottom of a group.",
+      "description": "A superlative compares one person or thing with a stated group.",
+      "content": "Use the plus -est with many short adjectives and the most or least with longer adjectives.",
+      "examples": [
+        "This is the smallest room.",
+        "It is the most comfortable chair in the office."
+      ],
+      "commonErrors": [
+        "Do not omit the before a superlative.",
+        "Use a group such as in the class or in the town."
+      ],
+      "guidedPractice": "Find the comparison group, then choose the form with the.",
+      "summary": "Superlatives use the and identify one extreme member of a group.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Mount Everest is ___ mountain in the world.",
+          "correctAnswer": "the highest",
+          "explanation": "The sentence names a group, so the superlative the highest is required.",
+          "knowledgePoint": "superlatives with the",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "the highest",
+              "isCorrect": true
+            },
+            {
+              "text": "higher",
+              "isCorrect": false
+            },
+            {
+              "text": "most highest",
+              "isCorrect": false
+            },
+            {
+              "text": "a highest",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "This is ___ room in the house.",
+          "correctAnswer": "the smallest",
+          "explanation": "The sentence names a group, so the superlative the smallest is required.",
+          "knowledgePoint": "superlatives with the",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "the smallest",
+              "isCorrect": true
+            },
+            {
+              "text": "smaller",
+              "isCorrect": false
+            },
+            {
+              "text": "most smallest",
+              "isCorrect": false
+            },
+            {
+              "text": "a smallest",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Sunday was ___ day of the week.",
+          "correctAnswer": "the busiest",
+          "explanation": "The sentence names a group, so the superlative the busiest is required.",
+          "knowledgePoint": "superlatives with the",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "the busiest",
+              "isCorrect": true
+            },
+            {
+              "text": "busier",
+              "isCorrect": false
+            },
+            {
+              "text": "most busiest",
+              "isCorrect": false
+            },
+            {
+              "text": "a busiest",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "That was ___ film in the festival.",
+          "correctAnswer": "the longest",
+          "explanation": "The sentence names a group, so the superlative the longest is required.",
+          "knowledgePoint": "superlatives with the",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "the longest",
+              "isCorrect": true
+            },
+            {
+              "text": "longer",
+              "isCorrect": false
+            },
+            {
+              "text": "most longest",
+              "isCorrect": false
+            },
+            {
+              "text": "a longest",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "She is ___ runner on the team.",
+          "correctAnswer": "the fastest",
+          "explanation": "The sentence names a group, so the superlative the fastest is required.",
+          "knowledgePoint": "superlatives with the",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "the fastest",
+              "isCorrect": true
+            },
+            {
+              "text": "faster",
+              "isCorrect": false
+            },
+            {
+              "text": "most fastest",
+              "isCorrect": false
+            },
+            {
+              "text": "a fastest",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "This is ___ question in the test.",
+          "correctAnswer": "the easiest",
+          "explanation": "The sentence names a group, so the superlative the easiest is required.",
+          "knowledgePoint": "superlatives with the",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "the easiest",
+              "isCorrect": true
+            },
+            {
+              "text": "easier",
+              "isCorrect": false
+            },
+            {
+              "text": "most easiest",
+              "isCorrect": false
+            },
+            {
+              "text": "a easiest",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "January is ___ month here.",
+          "correctAnswer": "the coldest",
+          "explanation": "The sentence names a group, so the superlative the coldest is required.",
+          "knowledgePoint": "superlatives with the",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "the coldest",
+              "isCorrect": true
+            },
+            {
+              "text": "colder",
+              "isCorrect": false
+            },
+            {
+              "text": "most coldest",
+              "isCorrect": false
+            },
+            {
+              "text": "a coldest",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "This is ___ street in our town.",
+          "correctAnswer": "the widest",
+          "explanation": "The sentence names a group, so the superlative the widest is required.",
+          "knowledgePoint": "superlatives with the",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "the widest",
+              "isCorrect": true
+            },
+            {
+              "text": "wider",
+              "isCorrect": false
+            },
+            {
+              "text": "most widest",
+              "isCorrect": false
+            },
+            {
+              "text": "a widest",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "He chose ___ chair in the room.",
+          "correctAnswer": "the most comfortable",
+          "explanation": "The sentence names a group, so the superlative the most comfortable is required.",
+          "knowledgePoint": "superlatives with the",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "the most comfortable",
+              "isCorrect": true
+            },
+            {
+              "text": "more comfortable",
+              "isCorrect": false
+            },
+            {
+              "text": "most most comfortable",
+              "isCorrect": false
+            },
+            {
+              "text": "a most comfortable",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "That is ___ restaurant near the station.",
+          "correctAnswer": "the most popular",
+          "explanation": "The sentence names a group, so the superlative the most popular is required.",
+          "knowledgePoint": "superlatives with the",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "the most popular",
+              "isCorrect": true
+            },
+            {
+              "text": "more popular",
+              "isCorrect": false
+            },
+            {
+              "text": "most most popular",
+              "isCorrect": false
+            },
+            {
+              "text": "a most popular",
+              "isCorrect": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Irregular Forms and Comparison Modifiers",
+      "objective": "Use better, worse, the best, the worst, and common comparative modifiers.",
+      "description": "Some adjectives are irregular, and modifiers show the size of a difference.",
+      "content": "Use better and worse for comparative meaning, the best and the worst for a group, and a bit, much, or far before comparatives.",
+      "examples": [
+        "This plan is much better than the old one.",
+        "It is the worst day of the week."
+      ],
+      "commonErrors": [
+        "Do not use the best when comparing only two items.",
+        "Use much, far, or a bit before the comparative, not the superlative."
+      ],
+      "guidedPractice": "Decide whether the sentence compares two items or ranks a group before choosing the form.",
+      "summary": "Irregular adjectives and modifiers make comparisons more precise.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "This coffee is ___ than the one yesterday.",
+          "correctAnswer": "better",
+          "explanation": "The comparison context makes better the correct form.",
+          "knowledgePoint": "irregular comparatives and modifiers",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "better",
+              "isCorrect": true
+            },
+            {
+              "text": "best",
+              "isCorrect": false
+            },
+            {
+              "text": "more better",
+              "isCorrect": false
+            },
+            {
+              "text": "the better",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "That was ___ meal of the trip.",
+          "correctAnswer": "the best",
+          "explanation": "The comparison context makes the best the correct form.",
+          "knowledgePoint": "irregular comparatives and modifiers",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "the best",
+              "isCorrect": true
+            },
+            {
+              "text": "better",
+              "isCorrect": false
+            },
+            {
+              "text": "more the best",
+              "isCorrect": false
+            },
+            {
+              "text": "the the best",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The traffic is ___ today than yesterday.",
+          "correctAnswer": "worse",
+          "explanation": "The comparison context makes worse the correct form.",
+          "knowledgePoint": "irregular comparatives and modifiers",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "worse",
+              "isCorrect": true
+            },
+            {
+              "text": "worst",
+              "isCorrect": false
+            },
+            {
+              "text": "more worse",
+              "isCorrect": false
+            },
+            {
+              "text": "the worse",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "This is ___ seat on the bus.",
+          "correctAnswer": "the worst",
+          "explanation": "The comparison context makes the worst the correct form.",
+          "knowledgePoint": "irregular comparatives and modifiers",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "the worst",
+              "isCorrect": true
+            },
+            {
+              "text": "worse",
+              "isCorrect": false
+            },
+            {
+              "text": "more the worst",
+              "isCorrect": false
+            },
+            {
+              "text": "the the worst",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The library is ___ quieter than the café.",
+          "correctAnswer": "much",
+          "explanation": "The comparison context makes much the correct form.",
+          "knowledgePoint": "irregular comparatives and modifiers",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "much",
+              "isCorrect": true
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "more much",
+              "isCorrect": false
+            },
+            {
+              "text": "the much",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "My new shoes are ___ more comfortable than the old ones.",
+          "correctAnswer": "far",
+          "explanation": "The comparison context makes far the correct form.",
+          "knowledgePoint": "irregular comparatives and modifiers",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "far",
+              "isCorrect": true
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "more far",
+              "isCorrect": false
+            },
+            {
+              "text": "the far",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "This bag is ___ heavier than that one.",
+          "correctAnswer": "a bit",
+          "explanation": "The comparison context makes a bit the correct form.",
+          "knowledgePoint": "irregular comparatives and modifiers",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "a bit",
+              "isCorrect": true
+            },
+            {
+              "text": "a lot of",
+              "isCorrect": false
+            },
+            {
+              "text": "more a bit",
+              "isCorrect": false
+            },
+            {
+              "text": "the a bit",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The blue route is ___ shorter than the red route.",
+          "correctAnswer": "much",
+          "explanation": "The comparison context makes much the correct form.",
+          "knowledgePoint": "irregular comparatives and modifiers",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "much",
+              "isCorrect": true
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "more much",
+              "isCorrect": false
+            },
+            {
+              "text": "the much",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "This task is ___ easier than the first task.",
+          "correctAnswer": "far",
+          "explanation": "The comparison context makes far the correct form.",
+          "knowledgePoint": "irregular comparatives and modifiers",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "far",
+              "isCorrect": true
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "more far",
+              "isCorrect": false
+            },
+            {
+              "text": "the far",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Today is ___ warmer than last week.",
+          "correctAnswer": "a bit",
+          "explanation": "The comparison context makes a bit the correct form.",
+          "knowledgePoint": "irregular comparatives and modifiers",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "a bit",
+              "isCorrect": true
+            },
+            {
+              "text": "a lot of",
+              "isCorrect": false
+            },
+            {
+              "text": "more a bit",
+              "isCorrect": false
+            },
+            {
+              "text": "the a bit",
+              "isCorrect": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

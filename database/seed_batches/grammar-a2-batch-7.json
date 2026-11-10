@@ -1,0 +1,1136 @@
+{
+  "course": {
+    "name": "A2 Grammar: Everyday Accuracy with Nguyen Minh Ha",
+    "description": "A practical A2 grammar pilot course.",
+    "teacherEmail": "nguyen.minh.ha@learne.local",
+    "level": "A2",
+    "type": "GRAMMAR",
+    "status": "DRAFT",
+    "pricingType": "FREE"
+  },
+  "topicId": "modals-obligation-advice-permission",
+  "topicName": "Modals for Obligation, Advice, and Permission",
+  "topicDescription": "Use common modal verbs to express obligation, prohibition, advice, permission, and polite requests.",
+  "prerequisites": [
+    "present-simple-present-continuous",
+    "past-simple",
+    "past-continuous-interrupted-events",
+    "future-going-to-will",
+    "countable-uncountable-quantifiers",
+    "comparatives-superlatives-modifiers"
+  ],
+  "lessons": [
+    {
+      "title": "Must and have to for obligation and rules",
+      "description": "Use must and have to for strong obligations and rules.",
+      "objective": "Use must and have to for strong obligations and rules.",
+      "content": "Must expresses a strong speaker obligation. Have to expresses an external rule or requirement. Use must or have to with the base verb.",
+      "examples": [
+        "You must wear a helmet.",
+        "I have to show my ID at the entrance."
+      ],
+      "commonErrors": [
+        "She musts wear a helmet. -> She must wear a helmet.",
+        "He has to studies. -> He has to study."
+      ],
+      "guidedPractice": "Underline the source of each obligation, then choose must for a speaker decision or have to for an outside rule.",
+      "summary": "Must and have to are followed by the base verb and describe necessary actions.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The school rule says students ___ wear an ID badge.",
+          "options": [
+            {
+              "text": "must to",
+              "isCorrect": false
+            },
+            {
+              "text": "have to",
+              "isCorrect": true
+            },
+            {
+              "text": "has to",
+              "isCorrect": false
+            },
+            {
+              "text": "having to",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "have to",
+          "explanation": "The school rule is an external requirement, so use have to with the base verb.",
+          "knowledgePoint": "external obligation",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I decided that I ___ finish this report tonight.",
+          "options": [
+            {
+              "text": "should",
+              "isCorrect": false
+            },
+            {
+              "text": "has to",
+              "isCorrect": false
+            },
+            {
+              "text": "must",
+              "isCorrect": true
+            },
+            {
+              "text": "must to",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "must",
+          "explanation": "The speaker gives a strong personal obligation, so must is the strongest modal choice.",
+          "knowledgePoint": "strong obligation",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Mina ___ take the bus because her car is at the garage.",
+          "options": [
+            {
+              "text": "have to",
+              "isCorrect": false
+            },
+            {
+              "text": "has to",
+              "isCorrect": true
+            },
+            {
+              "text": "must to",
+              "isCorrect": false
+            },
+            {
+              "text": "having to",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "has to",
+          "explanation": "Mina is one person, so the present form is has to.",
+          "knowledgePoint": "third-person have to",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "You ___ bring your passport to the visa appointment.",
+          "options": [
+            {
+              "text": "must",
+              "isCorrect": true
+            },
+            {
+              "text": "must to",
+              "isCorrect": false
+            },
+            {
+              "text": "have",
+              "isCorrect": false
+            },
+            {
+              "text": "has",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "must",
+          "explanation": "A necessary action is expressed with must plus the base verb bring.",
+          "knowledgePoint": "must + base verb",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We ___ pay the electricity bill by Friday.",
+          "options": [
+            {
+              "text": "has to",
+              "isCorrect": false
+            },
+            {
+              "text": "have to",
+              "isCorrect": true
+            },
+            {
+              "text": "must to",
+              "isCorrect": false
+            },
+            {
+              "text": "having",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "have to",
+          "explanation": "We takes have to, and the base verb pay follows it.",
+          "knowledgePoint": "have to + base verb",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The doctor says Leo ___ drink more water every day.",
+          "options": [
+            {
+              "text": "have to",
+              "isCorrect": false
+            },
+            {
+              "text": "has to",
+              "isCorrect": true
+            },
+            {
+              "text": "must to",
+              "isCorrect": false
+            },
+            {
+              "text": "having to",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "has to",
+          "explanation": "Leo is third-person singular, so use has to.",
+          "knowledgePoint": "third-person obligation",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I ___ call the hotel now because our flight changed.",
+          "options": [
+            {
+              "text": "must",
+              "isCorrect": true
+            },
+            {
+              "text": "must to",
+              "isCorrect": false
+            },
+            {
+              "text": "has",
+              "isCorrect": false
+            },
+            {
+              "text": "have",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "must",
+          "explanation": "The speaker decides this action is necessary, so must is correct.",
+          "knowledgePoint": "personal obligation",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Visitors ___ sign in at the front desk.",
+          "options": [
+            {
+              "text": "has to",
+              "isCorrect": false
+            },
+            {
+              "text": "must to",
+              "isCorrect": false
+            },
+            {
+              "text": "have to",
+              "isCorrect": true
+            },
+            {
+              "text": "having",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "have to",
+          "explanation": "A general visitor rule uses have to with the base verb sign.",
+          "knowledgePoint": "rules",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "She ___ submit the form before the interview.",
+          "options": [
+            {
+              "text": "have to",
+              "isCorrect": false
+            },
+            {
+              "text": "has to",
+              "isCorrect": true
+            },
+            {
+              "text": "must to",
+              "isCorrect": false
+            },
+            {
+              "text": "having to",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "has to",
+          "explanation": "She takes has to for an external requirement.",
+          "knowledgePoint": "has to",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "You ___ keep your receipt for a refund.",
+          "options": [
+            {
+              "text": "have to",
+              "isCorrect": false
+            },
+            {
+              "text": "has to",
+              "isCorrect": false
+            },
+            {
+              "text": "must",
+              "isCorrect": true
+            },
+            {
+              "text": "must to",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "must",
+          "explanation": "The instruction is a strong necessity, so must keep is correct.",
+          "knowledgePoint": "must + base verb",
+          "difficulty": "medium"
+        }
+      ]
+    },
+    {
+      "title": "Mustn't and don't have to",
+      "description": "Distinguish prohibition from the absence of obligation.",
+      "objective": "Distinguish prohibition from the absence of obligation.",
+      "content": "Mustn't means an action is prohibited. Don't have to means an action is optional or unnecessary. They do not have the same meaning.",
+      "examples": [
+        "You mustn't touch that switch.",
+        "You don't have to come early."
+      ],
+      "commonErrors": [
+        "You don't have to park here. -> You mustn't park here for a prohibition.",
+        "He doesn't have to wears a tie. -> He doesn't have to wear a tie."
+      ],
+      "guidedPractice": "Decide whether each situation says no or not necessary before choosing mustn't or don't have to.",
+      "summary": "Mustn't means do not do it; don't have to means you may choose not to do it.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The sign says 'No swimming.' You ___ swim here.",
+          "options": [
+            {
+              "text": "don't have to",
+              "isCorrect": false
+            },
+            {
+              "text": "mustn't",
+              "isCorrect": true
+            },
+            {
+              "text": "must",
+              "isCorrect": false
+            },
+            {
+              "text": "have to",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "mustn't",
+          "explanation": "Swimming is prohibited, so mustn't is required.",
+          "knowledgePoint": "prohibition",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The meeting is optional. You ___ attend.",
+          "options": [
+            {
+              "text": "mustn't",
+              "isCorrect": false
+            },
+            {
+              "text": "don't have to",
+              "isCorrect": true
+            },
+            {
+              "text": "hasn't to",
+              "isCorrect": false
+            },
+            {
+              "text": "must to",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "don't have to",
+          "explanation": "An optional meeting is not necessary, so don't have to is correct.",
+          "knowledgePoint": "no obligation",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "You ___ use your phone during the exam.",
+          "options": [
+            {
+              "text": "don't have to",
+              "isCorrect": false
+            },
+            {
+              "text": "mustn't",
+              "isCorrect": true
+            },
+            {
+              "text": "have to not",
+              "isCorrect": false
+            },
+            {
+              "text": "must",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "mustn't",
+          "explanation": "Exam rules prohibit phone use, so mustn't is correct.",
+          "knowledgePoint": "prohibition",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We already bought food, so you ___ bring anything.",
+          "options": [
+            {
+              "text": "mustn't",
+              "isCorrect": false
+            },
+            {
+              "text": "don't have to",
+              "isCorrect": true
+            },
+            {
+              "text": "must",
+              "isCorrect": false
+            },
+            {
+              "text": "has to",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "don't have to",
+          "explanation": "Bringing food is unnecessary, not forbidden, so use don't have to.",
+          "knowledgePoint": "no obligation",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Passengers ___ open the emergency door during the flight.",
+          "options": [
+            {
+              "text": "don't have to",
+              "isCorrect": false
+            },
+            {
+              "text": "mustn't",
+              "isCorrect": true
+            },
+            {
+              "text": "have to",
+              "isCorrect": false
+            },
+            {
+              "text": "must",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "mustn't",
+          "explanation": "Safety rules prohibit opening the door, so mustn't is correct.",
+          "knowledgePoint": "prohibition",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "You ___ pay for this museum tour; it is free today.",
+          "options": [
+            {
+              "text": "mustn't",
+              "isCorrect": false
+            },
+            {
+              "text": "don't have to",
+              "isCorrect": true
+            },
+            {
+              "text": "must",
+              "isCorrect": false
+            },
+            {
+              "text": "has to",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "don't have to",
+          "explanation": "Payment is unnecessary because the tour is free, so don't have to is correct.",
+          "knowledgePoint": "no obligation",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Children ___ play near the road.",
+          "options": [
+            {
+              "text": "don't have to",
+              "isCorrect": false
+            },
+            {
+              "text": "mustn't",
+              "isCorrect": true
+            },
+            {
+              "text": "must",
+              "isCorrect": false
+            },
+            {
+              "text": "have to",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "mustn't",
+          "explanation": "Playing there is forbidden for safety, so mustn't is correct.",
+          "knowledgePoint": "prohibition",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "She ___ cook tonight because we ordered pizza.",
+          "options": [
+            {
+              "text": "mustn't",
+              "isCorrect": false
+            },
+            {
+              "text": "doesn't have to",
+              "isCorrect": true
+            },
+            {
+              "text": "must",
+              "isCorrect": false
+            },
+            {
+              "text": "has to",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "doesn't have to",
+          "explanation": "Cooking is unnecessary, so third-person doesn't have to is correct.",
+          "knowledgePoint": "third-person no obligation",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "You ___ tell anyone this password.",
+          "options": [
+            {
+              "text": "don't have to",
+              "isCorrect": false
+            },
+            {
+              "text": "mustn't",
+              "isCorrect": true
+            },
+            {
+              "text": "have to",
+              "isCorrect": false
+            },
+            {
+              "text": "must",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "mustn't",
+          "explanation": "The instruction forbids sharing the password, so mustn't is correct.",
+          "knowledgePoint": "prohibition",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I ___ wear a jacket; the room is warm.",
+          "options": [
+            {
+              "text": "mustn't",
+              "isCorrect": false
+            },
+            {
+              "text": "don't have to",
+              "isCorrect": true
+            },
+            {
+              "text": "must",
+              "isCorrect": false
+            },
+            {
+              "text": "has to",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "don't have to",
+          "explanation": "A jacket is not necessary, so don't have to is correct.",
+          "knowledgePoint": "no obligation",
+          "difficulty": "medium"
+        }
+      ]
+    },
+    {
+      "title": "Should and shouldn't for advice",
+      "description": "Give and understand advice with should and shouldn't.",
+      "objective": "Give and understand advice with should and shouldn't.",
+      "content": "Use should plus the base verb for good advice. Use shouldn't plus the base verb for advice about an unhelpful or unsafe action.",
+      "examples": [
+        "You should rest today.",
+        "You shouldn't skip breakfast."
+      ],
+      "commonErrors": [
+        "You should to call her. -> You should call her.",
+        "She shoulds leave. -> She should leave."
+      ],
+      "guidedPractice": "Identify the problem, then choose positive advice or advice against an action.",
+      "summary": "Should gives advice, and shouldn't gives negative advice; both use the base verb.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I have a headache. You think I ___ drink some water.",
+          "options": [
+            {
+              "text": "should",
+              "isCorrect": true
+            },
+            {
+              "text": "should to",
+              "isCorrect": false
+            },
+            {
+              "text": "shoulds",
+              "isCorrect": false
+            },
+            {
+              "text": "am should",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "should",
+          "explanation": "Positive advice uses should plus the base verb drink.",
+          "knowledgePoint": "should + base verb",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "You ___ stay up so late before an exam.",
+          "options": [
+            {
+              "text": "should",
+              "isCorrect": false
+            },
+            {
+              "text": "shouldn't",
+              "isCorrect": true
+            },
+            {
+              "text": "should to",
+              "isCorrect": false
+            },
+            {
+              "text": "don't should",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "shouldn't",
+          "explanation": "Staying up late is bad advice, so shouldn't is correct.",
+          "knowledgePoint": "negative advice",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Tom feels tired. He ___ take a short break.",
+          "options": [
+            {
+              "text": "should",
+              "isCorrect": true
+            },
+            {
+              "text": "shoulds",
+              "isCorrect": false
+            },
+            {
+              "text": "should to",
+              "isCorrect": false
+            },
+            {
+              "text": "is should",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "should",
+          "explanation": "Advice for Tom uses should take.",
+          "knowledgePoint": "advice",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We ___ eat too much salt.",
+          "options": [
+            {
+              "text": "should",
+              "isCorrect": false
+            },
+            {
+              "text": "shouldn't",
+              "isCorrect": true
+            },
+            {
+              "text": "should to",
+              "isCorrect": false
+            },
+            {
+              "text": "not should",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "shouldn't",
+          "explanation": "The advice is against eating too much salt, so shouldn't is correct.",
+          "knowledgePoint": "shouldn't",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Your train leaves at six. You ___ leave home early.",
+          "options": [
+            {
+              "text": "should",
+              "isCorrect": true
+            },
+            {
+              "text": "should to",
+              "isCorrect": false
+            },
+            {
+              "text": "shoulds",
+              "isCorrect": false
+            },
+            {
+              "text": "are should",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "should",
+          "explanation": "Early departure is sensible advice, so should leave is correct.",
+          "knowledgePoint": "advice",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "She has a fever. She ___ go to work today.",
+          "options": [
+            {
+              "text": "should",
+              "isCorrect": false
+            },
+            {
+              "text": "shouldn't",
+              "isCorrect": true
+            },
+            {
+              "text": "should to",
+              "isCorrect": false
+            },
+            {
+              "text": "does should",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "shouldn't",
+          "explanation": "With a fever, the advice is not to go to work.",
+          "knowledgePoint": "negative advice",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "You want to improve your English. You ___ practise every day.",
+          "options": [
+            {
+              "text": "should",
+              "isCorrect": true
+            },
+            {
+              "text": "shouldn't",
+              "isCorrect": false
+            },
+            {
+              "text": "should to",
+              "isCorrect": false
+            },
+            {
+              "text": "shoulds",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "should",
+          "explanation": "Daily practice is positive advice, so should practise is correct.",
+          "knowledgePoint": "should + base verb",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "He is driving. He ___ use his phone.",
+          "options": [
+            {
+              "text": "should",
+              "isCorrect": false
+            },
+            {
+              "text": "shouldn't",
+              "isCorrect": true
+            },
+            {
+              "text": "should to",
+              "isCorrect": false
+            },
+            {
+              "text": "doesn't should",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "shouldn't",
+          "explanation": "Using a phone while driving is unsafe, so shouldn't use is correct.",
+          "knowledgePoint": "safety advice",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I am late for class. I ___ call my teacher.",
+          "options": [
+            {
+              "text": "should",
+              "isCorrect": true
+            },
+            {
+              "text": "shouldn't",
+              "isCorrect": false
+            },
+            {
+              "text": "should to",
+              "isCorrect": false
+            },
+            {
+              "text": "am should",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "should",
+          "explanation": "Calling the teacher is sensible advice in this situation.",
+          "knowledgePoint": "advice",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "They want to save money. They ___ buy coffee every morning.",
+          "options": [
+            {
+              "text": "should",
+              "isCorrect": false
+            },
+            {
+              "text": "shouldn't",
+              "isCorrect": true
+            },
+            {
+              "text": "should to",
+              "isCorrect": false
+            },
+            {
+              "text": "are should",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "shouldn't",
+          "explanation": "To save money, the advice is against buying coffee every morning.",
+          "knowledgePoint": "negative advice",
+          "difficulty": "medium"
+        }
+      ]
+    },
+    {
+      "title": "Can and could for permission and polite requests",
+      "description": "Ask for permission and make polite requests with can and could.",
+      "objective": "Ask for permission and make polite requests with can and could.",
+      "content": "Can asks for permission in everyday situations. Could makes a more polite request. Both are followed by the base verb.",
+      "examples": [
+        "Can I use your pen?",
+        "Could you open the window, please?"
+      ],
+      "commonErrors": [
+        "Could you to help me? -> Could you help me?",
+        "Can I to leave? -> Can I leave?"
+      ],
+      "guidedPractice": "Choose can for ordinary permission and could when asking another person politely to do something.",
+      "summary": "Can is common for permission; could makes requests more polite; both take the base verb.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "___ I borrow your dictionary, please?",
+          "options": [
+            {
+              "text": "Can",
+              "isCorrect": true
+            },
+            {
+              "text": "Could to",
+              "isCorrect": false
+            },
+            {
+              "text": "Am can",
+              "isCorrect": false
+            },
+            {
+              "text": "Do can",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "Can",
+          "explanation": "Can I borrow...? is a natural everyday permission question.",
+          "knowledgePoint": "can for permission",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "___ you carry this box for me, please?",
+          "options": [
+            {
+              "text": "Could",
+              "isCorrect": true
+            },
+            {
+              "text": "Could to",
+              "isCorrect": false
+            },
+            {
+              "text": "Are could",
+              "isCorrect": false
+            },
+            {
+              "text": "Do could",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "Could",
+          "explanation": "Could you carry...? is a polite request with the base verb.",
+          "knowledgePoint": "polite request",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Students ___ use the library after class.",
+          "options": [
+            {
+              "text": "can",
+              "isCorrect": true
+            },
+            {
+              "text": "can to",
+              "isCorrect": false
+            },
+            {
+              "text": "are can",
+              "isCorrect": false
+            },
+            {
+              "text": "do can",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "can",
+          "explanation": "Can expresses permission and is followed by use.",
+          "knowledgePoint": "permission",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Could you ___ the address again?",
+          "options": [
+            {
+              "text": "repeat",
+              "isCorrect": true
+            },
+            {
+              "text": "to repeat",
+              "isCorrect": false
+            },
+            {
+              "text": "repeated",
+              "isCorrect": false
+            },
+            {
+              "text": "repeating",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "repeat",
+          "explanation": "Could is followed by the base verb repeat.",
+          "knowledgePoint": "could + base verb",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "___ I sit next to you on the bus?",
+          "options": [
+            {
+              "text": "Can",
+              "isCorrect": true
+            },
+            {
+              "text": "Can to",
+              "isCorrect": false
+            },
+            {
+              "text": "Am can",
+              "isCorrect": false
+            },
+            {
+              "text": "Do can",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "Can",
+          "explanation": "Can I sit...? asks for ordinary permission.",
+          "knowledgePoint": "can for permission",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Could you ___ the door quietly?",
+          "options": [
+            {
+              "text": "close",
+              "isCorrect": true
+            },
+            {
+              "text": "to close",
+              "isCorrect": false
+            },
+            {
+              "text": "closed",
+              "isCorrect": false
+            },
+            {
+              "text": "closing",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "close",
+          "explanation": "A polite could request uses the base verb close.",
+          "knowledgePoint": "polite request",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "You ___ take one brochure from the table.",
+          "options": [
+            {
+              "text": "can",
+              "isCorrect": true
+            },
+            {
+              "text": "could to",
+              "isCorrect": false
+            },
+            {
+              "text": "are can",
+              "isCorrect": false
+            },
+            {
+              "text": "can to",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "can",
+          "explanation": "Can states that the action is permitted.",
+          "knowledgePoint": "permission",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "___ you send me the file today, please?",
+          "options": [
+            {
+              "text": "Could",
+              "isCorrect": true
+            },
+            {
+              "text": "Could to",
+              "isCorrect": false
+            },
+            {
+              "text": "Do could",
+              "isCorrect": false
+            },
+            {
+              "text": "Are could",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "Could",
+          "explanation": "Could you send...? is a polite request.",
+          "knowledgePoint": "polite request",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Can I ___ your charger for an hour?",
+          "options": [
+            {
+              "text": "use",
+              "isCorrect": true
+            },
+            {
+              "text": "to use",
+              "isCorrect": false
+            },
+            {
+              "text": "used",
+              "isCorrect": false
+            },
+            {
+              "text": "using",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "use",
+          "explanation": "Can I is followed by the base verb use.",
+          "knowledgePoint": "can + base verb",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Could you ___ more slowly so I can understand?",
+          "options": [
+            {
+              "text": "speak",
+              "isCorrect": true
+            },
+            {
+              "text": "to speak",
+              "isCorrect": false
+            },
+            {
+              "text": "spoke",
+              "isCorrect": false
+            },
+            {
+              "text": "speaking",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "speak",
+          "explanation": "Could you speak...? is the correct polite request form.",
+          "knowledgePoint": "could + base verb",
+          "difficulty": "medium"
+        }
+      ]
+    }
+  ]
+}

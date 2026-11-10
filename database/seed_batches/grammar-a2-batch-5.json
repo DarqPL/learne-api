@@ -1,0 +1,1128 @@
+{
+  "batchId": "grammar-a2-batch-5",
+  "topicId": "countable-uncountable-quantifiers",
+  "topicName": "Countable and Uncountable Nouns",
+  "course": {
+    "teacherEmail": "nguyen.minh.ha@learne.local",
+    "name": "A2 Grammar: Everyday Accuracy with Nguyen Minh Ha",
+    "type": "GRAMMAR",
+    "level": "A2"
+  },
+  "topicDescription": "Use noun types and quantifiers accurately in everyday situations.",
+  "lessons": [
+    {
+      "title": "Common Countable and Uncountable Nouns",
+      "objective": "Distinguish singular and plural countable nouns from uncountable nouns.",
+      "description": "Countable nouns can have a number; uncountable nouns describe a substance or mass.",
+      "content": "Use a or an with one countable item, plural forms with numbers, and no plural -s for common uncountable substances.",
+      "examples": [
+        "I bought an apple.",
+        "We need some rice."
+      ],
+      "commonErrors": [
+        "Do not say two milks for the substance.",
+        "Use a or an only with a singular countable noun."
+      ],
+      "guidedPractice": "Ask whether the noun can be counted as separate items before choosing its form.",
+      "summary": "Countable nouns have singular and plural forms; uncountable nouns usually do not.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Which phrase is correct for one apple?",
+          "correctAnswer": "an apple",
+          "explanation": "an apple matches the noun type.",
+          "knowledgePoint": "countable and uncountable nouns",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "an apple",
+              "isCorrect": true
+            },
+            {
+              "text": "apples",
+              "isCorrect": false
+            },
+            {
+              "text": "one apple",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Which phrase is correct for one rice?",
+          "correctAnswer": "some rice",
+          "explanation": "some rice matches the noun type.",
+          "knowledgePoint": "countable and uncountable nouns",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "some rice",
+              "isCorrect": true
+            },
+            {
+              "text": "rice",
+              "isCorrect": false
+            },
+            {
+              "text": "one rice",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Which phrase is correct for one chair?",
+          "correctAnswer": "a chair",
+          "explanation": "a chair matches the noun type.",
+          "knowledgePoint": "countable and uncountable nouns",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "a chair",
+              "isCorrect": true
+            },
+            {
+              "text": "chairs",
+              "isCorrect": false
+            },
+            {
+              "text": "one chair",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Which phrase is correct for one water?",
+          "correctAnswer": "some water",
+          "explanation": "some water matches the noun type.",
+          "knowledgePoint": "countable and uncountable nouns",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "some water",
+              "isCorrect": true
+            },
+            {
+              "text": "water",
+              "isCorrect": false
+            },
+            {
+              "text": "one water",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Which phrase is correct for one book?",
+          "correctAnswer": "a book",
+          "explanation": "a book matches the noun type.",
+          "knowledgePoint": "countable and uncountable nouns",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "a book",
+              "isCorrect": true
+            },
+            {
+              "text": "books",
+              "isCorrect": false
+            },
+            {
+              "text": "one book",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Which phrase is correct for one bread?",
+          "correctAnswer": "some bread",
+          "explanation": "some bread matches the noun type.",
+          "knowledgePoint": "countable and uncountable nouns",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "some bread",
+              "isCorrect": true
+            },
+            {
+              "text": "bread",
+              "isCorrect": false
+            },
+            {
+              "text": "one bread",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Which phrase is correct for one egg?",
+          "correctAnswer": "an egg",
+          "explanation": "an egg matches the noun type.",
+          "knowledgePoint": "countable and uncountable nouns",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "an egg",
+              "isCorrect": true
+            },
+            {
+              "text": "eggs",
+              "isCorrect": false
+            },
+            {
+              "text": "one egg",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Which phrase is correct for one milk?",
+          "correctAnswer": "some milk",
+          "explanation": "some milk matches the noun type.",
+          "knowledgePoint": "countable and uncountable nouns",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "some milk",
+              "isCorrect": true
+            },
+            {
+              "text": "milk",
+              "isCorrect": false
+            },
+            {
+              "text": "one milk",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Which phrase is correct for one bottle?",
+          "correctAnswer": "a bottle",
+          "explanation": "a bottle matches the noun type.",
+          "knowledgePoint": "countable and uncountable nouns",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "a bottle",
+              "isCorrect": true
+            },
+            {
+              "text": "bottles",
+              "isCorrect": false
+            },
+            {
+              "text": "one bottle",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Which phrase is correct for one cheese?",
+          "correctAnswer": "some cheese",
+          "explanation": "some cheese matches the noun type.",
+          "knowledgePoint": "countable and uncountable nouns",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "some cheese",
+              "isCorrect": true
+            },
+            {
+              "text": "cheese",
+              "isCorrect": false
+            },
+            {
+              "text": "one cheese",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Some and Any",
+      "objective": "Use some and any in affirmative, negative, and question contexts.",
+      "description": "Some is common in affirmative statements and offers; any is common in negatives and most questions.",
+      "content": "Put some before plural countable or uncountable nouns in positive statements. Use any after not and in information questions.",
+      "examples": [
+        "There are some apples.",
+        "There isn't any bread.",
+        "Do you have any rice?"
+      ],
+      "commonErrors": [
+        "Do not use some in a normal negative statement.",
+        "Do not forget the noun after some or any."
+      ],
+      "guidedPractice": "Identify whether the sentence is positive, negative, or a question.",
+      "summary": "Some and any show an unspecified quantity in different sentence types.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "There are ___ apples in the bag.",
+          "correctAnswer": "some",
+          "explanation": "This is a positive context, so some is correct.",
+          "knowledgePoint": "some and any",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "some",
+              "isCorrect": true
+            },
+            {
+              "text": "any",
+              "isCorrect": false
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "There isn't ___ bread on the table.",
+          "correctAnswer": "any",
+          "explanation": "This is a negative or question context, so any is correct.",
+          "knowledgePoint": "some and any",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "any",
+              "isCorrect": true
+            },
+            {
+              "text": "some",
+              "isCorrect": false
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Do we have ___ eggs?",
+          "correctAnswer": "any",
+          "explanation": "This is a negative or question context, so any is correct.",
+          "knowledgePoint": "some and any",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "any",
+              "isCorrect": true
+            },
+            {
+              "text": "some",
+              "isCorrect": false
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I bought ___ cheese.",
+          "correctAnswer": "some",
+          "explanation": "This is a positive context, so some is correct.",
+          "knowledgePoint": "some and any",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "some",
+              "isCorrect": true
+            },
+            {
+              "text": "any",
+              "isCorrect": false
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "She doesn't need ___ water.",
+          "correctAnswer": "any",
+          "explanation": "This is a negative or question context, so any is correct.",
+          "knowledgePoint": "some and any",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "any",
+              "isCorrect": true
+            },
+            {
+              "text": "some",
+              "isCorrect": false
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Would you like ___ rice?",
+          "correctAnswer": "some",
+          "explanation": "This is a positive context, so some is correct.",
+          "knowledgePoint": "some and any",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "some",
+              "isCorrect": true
+            },
+            {
+              "text": "any",
+              "isCorrect": false
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "They have ___ chairs for guests.",
+          "correctAnswer": "some",
+          "explanation": "This is a positive context, so some is correct.",
+          "knowledgePoint": "some and any",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "some",
+              "isCorrect": true
+            },
+            {
+              "text": "any",
+              "isCorrect": false
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Are there ___ books in the box?",
+          "correctAnswer": "any",
+          "explanation": "This is a negative or question context, so any is correct.",
+          "knowledgePoint": "some and any",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "any",
+              "isCorrect": true
+            },
+            {
+              "text": "some",
+              "isCorrect": false
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We need ___ milk for breakfast.",
+          "correctAnswer": "some",
+          "explanation": "This is a positive context, so some is correct.",
+          "knowledgePoint": "some and any",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "some",
+              "isCorrect": true
+            },
+            {
+              "text": "any",
+              "isCorrect": false
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "He has not got ___ money.",
+          "correctAnswer": "any",
+          "explanation": "This is a negative or question context, so any is correct.",
+          "knowledgePoint": "some and any",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "any",
+              "isCorrect": true
+            },
+            {
+              "text": "some",
+              "isCorrect": false
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Much, Many, and a Lot of",
+      "objective": "Match quantity expressions with countable and uncountable nouns.",
+      "description": "Many goes with plural countable nouns, much with uncountable nouns, and a lot of works with both.",
+      "content": "Use many for separate items, much for substances or ideas, and a lot of in positive everyday statements.",
+      "examples": [
+        "How many chairs are there?",
+        "How much water do you need?",
+        "We have a lot of work."
+      ],
+      "commonErrors": [
+        "Do not use much with plural countable nouns.",
+        "Do not use many with an uncountable substance."
+      ],
+      "guidedPractice": "Circle the noun and label it countable or uncountable before choosing the quantity word.",
+      "summary": "Many counts items, much measures an uncountable amount, and a lot of works with both.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "There are ___ people at the station.",
+          "correctAnswer": "many",
+          "explanation": "The noun type in the sentence matches many.",
+          "knowledgePoint": "much many and a lot of",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "many",
+              "isCorrect": true
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            },
+            {
+              "text": "some",
+              "isCorrect": false
+            },
+            {
+              "text": "any",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We do not have ___ time.",
+          "correctAnswer": "much",
+          "explanation": "The noun type in the sentence matches much.",
+          "knowledgePoint": "much many and a lot of",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "much",
+              "isCorrect": true
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "some",
+              "isCorrect": false
+            },
+            {
+              "text": "any",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "She drinks ___ water every day.",
+          "correctAnswer": "a lot of",
+          "explanation": "The noun type in the sentence matches a lot of.",
+          "knowledgePoint": "much many and a lot of",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "a lot of",
+              "isCorrect": true
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "some",
+              "isCorrect": false
+            },
+            {
+              "text": "any",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "How ___ books did you buy?",
+          "correctAnswer": "many",
+          "explanation": "The noun type in the sentence matches many.",
+          "knowledgePoint": "much many and a lot of",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "many",
+              "isCorrect": true
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            },
+            {
+              "text": "some",
+              "isCorrect": false
+            },
+            {
+              "text": "any",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "How ___ coffee is left?",
+          "correctAnswer": "much",
+          "explanation": "The noun type in the sentence matches much.",
+          "knowledgePoint": "much many and a lot of",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "much",
+              "isCorrect": true
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "some",
+              "isCorrect": false
+            },
+            {
+              "text": "any",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "They have ___ homework tonight.",
+          "correctAnswer": "a lot of",
+          "explanation": "The noun type in the sentence matches a lot of.",
+          "knowledgePoint": "much many and a lot of",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "a lot of",
+              "isCorrect": true
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "some",
+              "isCorrect": false
+            },
+            {
+              "text": "any",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "There are not ___ cars here.",
+          "correctAnswer": "many",
+          "explanation": "The noun type in the sentence matches many.",
+          "knowledgePoint": "much many and a lot of",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "many",
+              "isCorrect": true
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            },
+            {
+              "text": "some",
+              "isCorrect": false
+            },
+            {
+              "text": "any",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "He does not eat ___ meat.",
+          "correctAnswer": "much",
+          "explanation": "The noun type in the sentence matches much.",
+          "knowledgePoint": "much many and a lot of",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "much",
+              "isCorrect": true
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "some",
+              "isCorrect": false
+            },
+            {
+              "text": "any",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I saw ___ birds in the park.",
+          "correctAnswer": "a lot of",
+          "explanation": "The noun type in the sentence matches a lot of.",
+          "knowledgePoint": "much many and a lot of",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "a lot of",
+              "isCorrect": true
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            },
+            {
+              "text": "some",
+              "isCorrect": false
+            },
+            {
+              "text": "any",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "How ___ bags do we need?",
+          "correctAnswer": "many",
+          "explanation": "The noun type in the sentence matches many.",
+          "knowledgePoint": "much many and a lot of",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "many",
+              "isCorrect": true
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            },
+            {
+              "text": "some",
+              "isCorrect": false
+            },
+            {
+              "text": "any",
+              "isCorrect": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Food and Shopping Quantities",
+      "objective": "Choose suitable quantifiers in everyday food and shopping contexts.",
+      "description": "Shopping questions make noun type and sentence polarity clear.",
+      "content": "Read both the noun and the sentence type before choosing some, any, much, many, or a lot of.",
+      "examples": [
+        "How many onions do we need?",
+        "How much oil is left?"
+      ],
+      "commonErrors": [
+        "Remember that bottles are countable but water is uncountable.",
+        "Use many with plural food items."
+      ],
+      "guidedPractice": "Name the noun type, then check whether the shopping sentence is positive, negative, or a question.",
+      "summary": "Everyday quantity choices depend on noun type and sentence context.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "At the market, I need ___ bananas.",
+          "correctAnswer": "some",
+          "explanation": "The shopping context and noun make some the suitable quantifier.",
+          "knowledgePoint": "quantifiers in shopping",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "some",
+              "isCorrect": true
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The recipe needs ___ flour.",
+          "correctAnswer": "some",
+          "explanation": "The shopping context and noun make some the suitable quantifier.",
+          "knowledgePoint": "quantifiers in shopping",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "some",
+              "isCorrect": true
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "There are ___ tomatoes in the basket.",
+          "correctAnswer": "many",
+          "explanation": "The shopping context and noun make many the suitable quantifier.",
+          "knowledgePoint": "quantifiers in shopping",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "many",
+              "isCorrect": true
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 2",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Is there ___ juice in the fridge?",
+          "correctAnswer": "any",
+          "explanation": "The shopping context and noun make any the suitable quantifier.",
+          "knowledgePoint": "quantifiers in shopping",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "any",
+              "isCorrect": true
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We bought ___ cheese for the party.",
+          "correctAnswer": "a lot of",
+          "explanation": "The shopping context and noun make a lot of the suitable quantifier.",
+          "knowledgePoint": "quantifiers in shopping",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "a lot of",
+              "isCorrect": true
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "How ___ onions should I cut?",
+          "correctAnswer": "many",
+          "explanation": "The shopping context and noun make many the suitable quantifier.",
+          "knowledgePoint": "quantifiers in shopping",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "many",
+              "isCorrect": true
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 2",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "How ___ oil do we need?",
+          "correctAnswer": "much",
+          "explanation": "The shopping context and noun make much the suitable quantifier.",
+          "knowledgePoint": "quantifiers in shopping",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "much",
+              "isCorrect": true
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 2",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "There isn't ___ sugar left.",
+          "correctAnswer": "much",
+          "explanation": "The shopping context and noun make much the suitable quantifier.",
+          "knowledgePoint": "quantifiers in shopping",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "much",
+              "isCorrect": true
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 2",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Please put ___ apples in the bag.",
+          "correctAnswer": "some",
+          "explanation": "The shopping context and noun make some the suitable quantifier.",
+          "knowledgePoint": "quantifiers in shopping",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "some",
+              "isCorrect": true
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Are there ___ bottles of water?",
+          "correctAnswer": "any",
+          "explanation": "The shopping context and noun make any the suitable quantifier.",
+          "knowledgePoint": "quantifiers in shopping",
+          "difficulty": "easy",
+          "options": [
+            {
+              "text": "any",
+              "isCorrect": true
+            },
+            {
+              "text": "much",
+              "isCorrect": false
+            },
+            {
+              "text": "many",
+              "isCorrect": false
+            },
+            {
+              "text": "not enough information 1",
+              "isCorrect": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

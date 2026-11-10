@@ -1,0 +1,1132 @@
+{
+  "course": {
+    "name": "A2 Grammar: Everyday Accuracy with Nguyen Minh Ha",
+    "description": "A practical A2 grammar pilot course.",
+    "teacherEmail": "nguyen.minh.ha@learne.local",
+    "level": "A2",
+    "type": "GRAMMAR",
+    "status": "DRAFT",
+    "pricingType": "FREE"
+  },
+  "topicId": "present-perfect-life-experience",
+  "topicName": "Present Perfect for Experience and Unfinished Time",
+  "topicDescription": "Use the present perfect for life experience, recent actions, unfinished time, and clear contrasts with finished past time.",
+  "prerequisites": [
+    "modals-obligation-advice-permission"
+  ],
+  "lessons": [
+    {
+      "title": "Have or has plus the past participle",
+      "description": "Form affirmative and negative present perfect sentences.",
+      "objective": "Form affirmative and negative present perfect sentences.",
+      "content": "The present perfect uses have or has plus a past participle. Use have with I, you, we, and they; use has with he, she, and it.",
+      "examples": [
+        "I have finished my homework.",
+        "She has seen that film."
+      ],
+      "commonErrors": [
+        "He have finished. -> He has finished.",
+        "They have went home. -> They have gone home."
+      ],
+      "guidedPractice": "Choose have or has for the subject, then select the correct past participle.",
+      "summary": "Present perfect form is subject + have/has + past participle.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I ___ finished my homework.",
+          "options": [
+            {
+              "text": "has",
+              "isCorrect": false
+            },
+            {
+              "text": "have",
+              "isCorrect": true
+            },
+            {
+              "text": "am",
+              "isCorrect": false
+            },
+            {
+              "text": "did",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "have",
+          "explanation": "I takes have in the present perfect: have finished.",
+          "knowledgePoint": "have + past participle",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "She ___ visited the new library.",
+          "options": [
+            {
+              "text": "have",
+              "isCorrect": false
+            },
+            {
+              "text": "has",
+              "isCorrect": true
+            },
+            {
+              "text": "is",
+              "isCorrect": false
+            },
+            {
+              "text": "did",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "has",
+          "explanation": "She takes has, followed by the past participle visited.",
+          "knowledgePoint": "has + past participle",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "They have ___ the bus.",
+          "options": [
+            {
+              "text": "take",
+              "isCorrect": false
+            },
+            {
+              "text": "took",
+              "isCorrect": false
+            },
+            {
+              "text": "taken",
+              "isCorrect": true
+            },
+            {
+              "text": "taking",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "taken",
+          "explanation": "Taken is the past participle needed after have.",
+          "knowledgePoint": "irregular past participle",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "He has ___ his keys.",
+          "options": [
+            {
+              "text": "lose",
+              "isCorrect": false
+            },
+            {
+              "text": "lost",
+              "isCorrect": true
+            },
+            {
+              "text": "losing",
+              "isCorrect": false
+            },
+            {
+              "text": "losed",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "lost",
+          "explanation": "Lost is the past participle of lose.",
+          "knowledgePoint": "irregular past participle",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We ___ cleaned the kitchen.",
+          "options": [
+            {
+              "text": "has",
+              "isCorrect": false
+            },
+            {
+              "text": "have",
+              "isCorrect": true
+            },
+            {
+              "text": "are",
+              "isCorrect": false
+            },
+            {
+              "text": "did",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "have",
+          "explanation": "We takes have in the present perfect.",
+          "knowledgePoint": "have",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Anna has ___ a letter to her friend.",
+          "options": [
+            {
+              "text": "write",
+              "isCorrect": false
+            },
+            {
+              "text": "wrote",
+              "isCorrect": false
+            },
+            {
+              "text": "written",
+              "isCorrect": true
+            },
+            {
+              "text": "writing",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "written",
+          "explanation": "Written is the past participle of write.",
+          "knowledgePoint": "irregular past participle",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "You have ___ this exercise correctly.",
+          "options": [
+            {
+              "text": "do",
+              "isCorrect": false
+            },
+            {
+              "text": "did",
+              "isCorrect": false
+            },
+            {
+              "text": "done",
+              "isCorrect": true
+            },
+            {
+              "text": "doing",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "done",
+          "explanation": "Done is the past participle of do.",
+          "knowledgePoint": "irregular past participle",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "My brother ___ eaten breakfast.",
+          "options": [
+            {
+              "text": "have",
+              "isCorrect": false
+            },
+            {
+              "text": "has",
+              "isCorrect": true
+            },
+            {
+              "text": "is",
+              "isCorrect": false
+            },
+            {
+              "text": "did",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "has",
+          "explanation": "My brother is third-person singular, so use has eaten.",
+          "knowledgePoint": "has",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I have ___ that book twice.",
+          "options": [
+            {
+              "text": "read",
+              "isCorrect": true
+            },
+            {
+              "text": "reads",
+              "isCorrect": false
+            },
+            {
+              "text": "reading",
+              "isCorrect": false
+            },
+            {
+              "text": "red",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "read",
+          "explanation": "Read is the past participle of read, pronounced like red here.",
+          "knowledgePoint": "past participle",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The children have ___ the picture.",
+          "options": [
+            {
+              "text": "draw",
+              "isCorrect": false
+            },
+            {
+              "text": "drew",
+              "isCorrect": false
+            },
+            {
+              "text": "drawn",
+              "isCorrect": true
+            },
+            {
+              "text": "drawing",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "drawn",
+          "explanation": "Drawn is the past participle after have.",
+          "knowledgePoint": "irregular past participle",
+          "difficulty": "medium"
+        }
+      ]
+    },
+    {
+      "title": "Ever and never for life experience",
+      "description": "Ask about and describe experiences with ever and never.",
+      "objective": "Ask about and describe experiences with ever and never.",
+      "content": "Use Have/Has ... ever...? to ask if an experience happened at any time in a person's life. Use never for an experience that has not happened.",
+      "examples": [
+        "Have you ever ridden a horse?",
+        "I have never flown in a plane."
+      ],
+      "commonErrors": [
+        "Did you ever visited...? -> Have you ever visited...?",
+        "I have never went. -> I have never gone."
+      ],
+      "guidedPractice": "Use ever in questions and never in negative statements without adding not.",
+      "summary": "Ever asks about any past experience; never means not at any time and is followed by a past participle.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Have you ___ eaten sushi?",
+          "options": [
+            {
+              "text": "ever",
+              "isCorrect": true
+            },
+            {
+              "text": "never",
+              "isCorrect": false
+            },
+            {
+              "text": "already",
+              "isCorrect": false
+            },
+            {
+              "text": "yet",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "ever",
+          "explanation": "Ever is used in a present perfect question about life experience.",
+          "knowledgePoint": "ever in questions",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I have ___ climbed a mountain.",
+          "options": [
+            {
+              "text": "ever",
+              "isCorrect": false
+            },
+            {
+              "text": "never",
+              "isCorrect": true
+            },
+            {
+              "text": "yet",
+              "isCorrect": false
+            },
+            {
+              "text": "just",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "never",
+          "explanation": "Never says the experience has not happened at any time.",
+          "knowledgePoint": "never",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Has Maria ever ___ a famous person?",
+          "options": [
+            {
+              "text": "meet",
+              "isCorrect": false
+            },
+            {
+              "text": "met",
+              "isCorrect": true
+            },
+            {
+              "text": "meeting",
+              "isCorrect": false
+            },
+            {
+              "text": "meets",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "met",
+          "explanation": "Met is the past participle of meet after has ever.",
+          "knowledgePoint": "ever + past participle",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We have never ___ abroad.",
+          "options": [
+            {
+              "text": "travel",
+              "isCorrect": false
+            },
+            {
+              "text": "travelled",
+              "isCorrect": true
+            },
+            {
+              "text": "travelling",
+              "isCorrect": false
+            },
+            {
+              "text": "travels",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "travelled",
+          "explanation": "Travelled is the past participle after have never.",
+          "knowledgePoint": "never + past participle",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Have they ever ___ a horse?",
+          "options": [
+            {
+              "text": "ride",
+              "isCorrect": false
+            },
+            {
+              "text": "rode",
+              "isCorrect": false
+            },
+            {
+              "text": "ridden",
+              "isCorrect": true
+            },
+            {
+              "text": "riding",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "ridden",
+          "explanation": "Ridden is the past participle of ride.",
+          "knowledgePoint": "irregular past participle",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "He has never ___ Indian food.",
+          "options": [
+            {
+              "text": "try",
+              "isCorrect": false
+            },
+            {
+              "text": "tried",
+              "isCorrect": true
+            },
+            {
+              "text": "trying",
+              "isCorrect": false
+            },
+            {
+              "text": "tries",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "tried",
+          "explanation": "Tried is the past participle after has never.",
+          "knowledgePoint": "past participle",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Have you ever ___ in a school play?",
+          "options": [
+            {
+              "text": "act",
+              "isCorrect": false
+            },
+            {
+              "text": "acted",
+              "isCorrect": true
+            },
+            {
+              "text": "acting",
+              "isCorrect": false
+            },
+            {
+              "text": "acts",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "acted",
+          "explanation": "Acted is the regular past participle used in this experience question.",
+          "knowledgePoint": "life experience",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I have never ___ a helicopter.",
+          "options": [
+            {
+              "text": "fly",
+              "isCorrect": false
+            },
+            {
+              "text": "flew",
+              "isCorrect": false
+            },
+            {
+              "text": "flown",
+              "isCorrect": true
+            },
+            {
+              "text": "flying",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "flown",
+          "explanation": "Flown is the past participle of fly.",
+          "knowledgePoint": "irregular past participle",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Has your sister ever ___ a prize?",
+          "options": [
+            {
+              "text": "win",
+              "isCorrect": false
+            },
+            {
+              "text": "won",
+              "isCorrect": true
+            },
+            {
+              "text": "winning",
+              "isCorrect": false
+            },
+            {
+              "text": "wins",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "won",
+          "explanation": "Won is the past participle of win.",
+          "knowledgePoint": "irregular past participle",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Have you ever ___ lost in a new city?",
+          "options": [
+            {
+              "text": "get",
+              "isCorrect": false
+            },
+            {
+              "text": "got",
+              "isCorrect": false
+            },
+            {
+              "text": "gotten",
+              "isCorrect": true
+            },
+            {
+              "text": "getting",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "gotten",
+          "explanation": "Gotten is the past participle in this experience question.",
+          "knowledgePoint": "ever + past participle",
+          "difficulty": "medium"
+        }
+      ]
+    },
+    {
+      "title": "Just, already, yet, and unfinished time",
+      "description": "Use present perfect time words for recent actions and unfinished periods.",
+      "objective": "Use present perfect time words for recent actions and unfinished periods.",
+      "content": "Use just for a recent action, already for an earlier-than-expected action, and yet in questions and negatives. Use the present perfect with today, this week, and other unfinished periods.",
+      "examples": [
+        "She has just arrived.",
+        "Have you finished yet?",
+        "I have already eaten."
+      ],
+      "commonErrors": [
+        "I just have finished. -> I have just finished.",
+        "Did you finish yet? -> Have you finished yet?"
+      ],
+      "guidedPractice": "Place just and already between have/has and the participle; place yet at the end of questions and negatives.",
+      "summary": "Just, already, and yet describe a present result or an unfinished time period.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "The bus has ___ left, so we need to wait.",
+          "options": [
+            {
+              "text": "just",
+              "isCorrect": true
+            },
+            {
+              "text": "yet",
+              "isCorrect": false
+            },
+            {
+              "text": "ever",
+              "isCorrect": false
+            },
+            {
+              "text": "never",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "just",
+          "explanation": "Just describes an action that happened very recently.",
+          "knowledgePoint": "just",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Have you finished your project ___?",
+          "options": [
+            {
+              "text": "already",
+              "isCorrect": false
+            },
+            {
+              "text": "just",
+              "isCorrect": false
+            },
+            {
+              "text": "yet",
+              "isCorrect": true
+            },
+            {
+              "text": "ever",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "yet",
+          "explanation": "Yet goes at the end of a present perfect question.",
+          "knowledgePoint": "yet in questions",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "She has ___ sent the email, so check your inbox.",
+          "options": [
+            {
+              "text": "yet",
+              "isCorrect": false
+            },
+            {
+              "text": "already",
+              "isCorrect": true
+            },
+            {
+              "text": "ever",
+              "isCorrect": false
+            },
+            {
+              "text": "never",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "already",
+          "explanation": "Already shows the email was sent before now or earlier than expected.",
+          "knowledgePoint": "already",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I haven't called the doctor ___.",
+          "options": [
+            {
+              "text": "already",
+              "isCorrect": false
+            },
+            {
+              "text": "just",
+              "isCorrect": false
+            },
+            {
+              "text": "yet",
+              "isCorrect": true
+            },
+            {
+              "text": "ever",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "yet",
+          "explanation": "Yet goes at the end of a negative present perfect sentence.",
+          "knowledgePoint": "yet in negatives",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We ___ have lunch today, so we can eat now.",
+          "options": [
+            {
+              "text": "have already",
+              "isCorrect": true
+            },
+            {
+              "text": "already have",
+              "isCorrect": false
+            },
+            {
+              "text": "has already",
+              "isCorrect": false
+            },
+            {
+              "text": "did already",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "have already",
+          "explanation": "We have already eaten is the correct present perfect order.",
+          "knowledgePoint": "already word order",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "He has ___ arrived at the station.",
+          "options": [
+            {
+              "text": "yet",
+              "isCorrect": false
+            },
+            {
+              "text": "just",
+              "isCorrect": true
+            },
+            {
+              "text": "ever",
+              "isCorrect": false
+            },
+            {
+              "text": "never",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "just",
+          "explanation": "Just fits a very recent arrival.",
+          "knowledgePoint": "just",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I have read three articles ___ this week.",
+          "options": [
+            {
+              "text": "already",
+              "isCorrect": true
+            },
+            {
+              "text": "yet",
+              "isCorrect": false
+            },
+            {
+              "text": "never",
+              "isCorrect": false
+            },
+            {
+              "text": "ever",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "already",
+          "explanation": "This week is unfinished and already shows completed progress in it.",
+          "knowledgePoint": "unfinished time",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Have you seen the new teacher ___ today?",
+          "options": [
+            {
+              "text": "already",
+              "isCorrect": false
+            },
+            {
+              "text": "yet",
+              "isCorrect": true
+            },
+            {
+              "text": "never",
+              "isCorrect": false
+            },
+            {
+              "text": "just",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "yet",
+          "explanation": "Yet is natural at the end of a question about an unfinished day.",
+          "knowledgePoint": "yet",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "They haven't finished the test ___.",
+          "options": [
+            {
+              "text": "already",
+              "isCorrect": false
+            },
+            {
+              "text": "just",
+              "isCorrect": false
+            },
+            {
+              "text": "yet",
+              "isCorrect": true
+            },
+            {
+              "text": "ever",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "yet",
+          "explanation": "Yet marks an action expected before the unfinished situation ends.",
+          "knowledgePoint": "yet in negatives",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I have ___ cleaned my room, so it is tidy now.",
+          "options": [
+            {
+              "text": "yet",
+              "isCorrect": false
+            },
+            {
+              "text": "already",
+              "isCorrect": true
+            },
+            {
+              "text": "ever",
+              "isCorrect": false
+            },
+            {
+              "text": "never",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "already",
+          "explanation": "Already indicates the cleaning is complete before now.",
+          "knowledgePoint": "already",
+          "difficulty": "medium"
+        }
+      ]
+    },
+    {
+      "title": "Present perfect and past simple time contrasts",
+      "description": "Choose between present perfect and past simple with clear time references.",
+      "objective": "Choose between present perfect and past simple with clear time references.",
+      "content": "Use present perfect for an unfinished period or a present result without a finished time. Use past simple with finished times such as yesterday, last year, or in 2020.",
+      "examples": [
+        "I have visited Hue this year.",
+        "I visited Hue last year."
+      ],
+      "commonErrors": [
+        "I have seen him yesterday. -> I saw him yesterday.",
+        "She went to Paris this year. -> She has been to Paris this year when the year is unfinished."
+      ],
+      "guidedPractice": "Circle the time expression. Finished past time selects past simple; unfinished time or a present result selects present perfect.",
+      "summary": "Finished time uses past simple; unfinished time and present experience use present perfect.",
+      "questions": [
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I ___ my keys yesterday, but I found them later.",
+          "options": [
+            {
+              "text": "have lost",
+              "isCorrect": false
+            },
+            {
+              "text": "lost",
+              "isCorrect": true
+            },
+            {
+              "text": "lose",
+              "isCorrect": false
+            },
+            {
+              "text": "has lost",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "lost",
+          "explanation": "Yesterday is finished, so use the past simple lost.",
+          "knowledgePoint": "past simple with finished time",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "She ___ three emails this morning, and it is still morning.",
+          "options": [
+            {
+              "text": "sent",
+              "isCorrect": false
+            },
+            {
+              "text": "has sent",
+              "isCorrect": true
+            },
+            {
+              "text": "send",
+              "isCorrect": false
+            },
+            {
+              "text": "was sending",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "has sent",
+          "explanation": "This morning is still unfinished, so present perfect has sent is correct.",
+          "knowledgePoint": "present perfect with unfinished time",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "We ___ that museum in 2022.",
+          "options": [
+            {
+              "text": "have visited",
+              "isCorrect": false
+            },
+            {
+              "text": "visited",
+              "isCorrect": true
+            },
+            {
+              "text": "visit",
+              "isCorrect": false
+            },
+            {
+              "text": "has visited",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "visited",
+          "explanation": "In 2022 is a finished past time, so use visited.",
+          "knowledgePoint": "past simple",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Have you ___ your homework yet?",
+          "options": [
+            {
+              "text": "finish",
+              "isCorrect": false
+            },
+            {
+              "text": "finished",
+              "isCorrect": true
+            },
+            {
+              "text": "finished yesterday",
+              "isCorrect": false
+            },
+            {
+              "text": "finishing",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "finished",
+          "explanation": "Yet asks about a present result, so use have + finished.",
+          "knowledgePoint": "present perfect",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "He ___ to Da Nang last summer.",
+          "options": [
+            {
+              "text": "has gone",
+              "isCorrect": false
+            },
+            {
+              "text": "went",
+              "isCorrect": true
+            },
+            {
+              "text": "goes",
+              "isCorrect": false
+            },
+            {
+              "text": "have gone",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "went",
+          "explanation": "Last summer is finished, so the past simple went is correct.",
+          "knowledgePoint": "finished time",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I ___ two cups of tea today, and it is only noon.",
+          "options": [
+            {
+              "text": "drank",
+              "isCorrect": false
+            },
+            {
+              "text": "have drunk",
+              "isCorrect": true
+            },
+            {
+              "text": "drink",
+              "isCorrect": false
+            },
+            {
+              "text": "has drunk",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "have drunk",
+          "explanation": "Today is unfinished, so have drunk is correct.",
+          "knowledgePoint": "unfinished time",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "They ___ the film on Saturday night.",
+          "options": [
+            {
+              "text": "have watched",
+              "isCorrect": false
+            },
+            {
+              "text": "watched",
+              "isCorrect": true
+            },
+            {
+              "text": "watch",
+              "isCorrect": false
+            },
+            {
+              "text": "has watched",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "watched",
+          "explanation": "Saturday night is a finished time reference, so use watched.",
+          "knowledgePoint": "past simple",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "My sister ___ her room this week.",
+          "options": [
+            {
+              "text": "cleaned",
+              "isCorrect": false
+            },
+            {
+              "text": "has cleaned",
+              "isCorrect": true
+            },
+            {
+              "text": "clean",
+              "isCorrect": false
+            },
+            {
+              "text": "was clean",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "has cleaned",
+          "explanation": "This week is unfinished, so present perfect has cleaned is correct.",
+          "knowledgePoint": "present perfect with this week",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "I ___ that book three years ago.",
+          "options": [
+            {
+              "text": "have read",
+              "isCorrect": false
+            },
+            {
+              "text": "read",
+              "isCorrect": true
+            },
+            {
+              "text": "am reading",
+              "isCorrect": false
+            },
+            {
+              "text": "has read",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "read",
+          "explanation": "Three years ago is finished, so use the past simple read.",
+          "knowledgePoint": "past simple with ago",
+          "difficulty": "easy"
+        },
+        {
+          "type": "MULTIPLE_CHOICE",
+          "questionText": "Our team ___ four games this month.",
+          "options": [
+            {
+              "text": "won",
+              "isCorrect": false
+            },
+            {
+              "text": "has won",
+              "isCorrect": true
+            },
+            {
+              "text": "wins yesterday",
+              "isCorrect": false
+            },
+            {
+              "text": "was win",
+              "isCorrect": false
+            }
+          ],
+          "correctAnswer": "has won",
+          "explanation": "This month is unfinished, so has won connects the result to now.",
+          "knowledgePoint": "unfinished time",
+          "difficulty": "medium"
+        }
+      ]
+    }
+  ]
+}

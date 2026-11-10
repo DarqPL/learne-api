@@ -1,0 +1,70 @@
+{
+  "course": {
+    "teacherEmail": "nguyen.minh.ha@learne.local",
+    "name": "A2 Grammar: Everyday Accuracy with Nguyen Minh Ha",
+    "description": "A cumulative A2 grammar pilot for accurate everyday communication.",
+    "type": "GRAMMAR",
+    "level": "A2"
+  },
+  "teacherEmail": "nguyen.minh.ha@learne.local",
+  "type": "GRAMMAR",
+  "level": "A2",
+  "topics": [
+    {
+      "id": "present-simple-present-continuous",
+      "orderIndex": 1,
+      "name": "Present Simple and Present Continuous",
+      "objective": "Choose and form the present simple or present continuous for routines, facts, and actions happening now.",
+      "prerequisites": []
+    },
+    {
+      "id": "past-simple",
+      "orderIndex": 2,
+      "name": "Past Simple",
+      "objective": "Describe completed past events with regular verbs and common irregular verbs in affirmative, negative, and question forms.",
+      "prerequisites": ["present-simple-present-continuous"]
+    },
+    {
+      "id": "past-continuous-interrupted-events",
+      "orderIndex": 3,
+      "name": "Past Continuous and Interrupted Events",
+      "objective": "Combine past continuous and past simple to describe an ongoing past action interrupted by another event.",
+      "prerequisites": ["present-simple-present-continuous", "past-simple"]
+    },
+    {
+      "id": "future-going-to-will",
+      "orderIndex": 4,
+      "name": "Future Plans and Predictions",
+      "objective": "Use going to and will to express plans, intentions, offers, and simple predictions.",
+      "prerequisites": ["past-simple", "past-continuous-interrupted-events"]
+    },
+    {
+      "id": "countable-uncountable-quantifiers",
+      "orderIndex": 5,
+      "name": "Countable and Uncountable Nouns",
+      "objective": "Classify common nouns and choose some, any, much, many, or a lot of in everyday statements and questions.",
+      "prerequisites": ["present-simple-present-continuous", "future-going-to-will"]
+    },
+    {
+      "id": "comparatives-superlatives-modifiers",
+      "orderIndex": 6,
+      "name": "Comparatives and Superlatives",
+      "objective": "Compare people, places, and things with comparative and superlative adjectives and common modifiers.",
+      "prerequisites": ["countable-uncountable-quantifiers"]
+    },
+    {
+      "id": "modals-obligation-advice-permission",
+      "orderIndex": 7,
+      "name": "Modals for Obligation, Advice, and Permission",
+      "objective": "Use must, have to, should, can, and could to express rules, advice, requests, and permission.",
+      "prerequisites": ["future-going-to-will", "comparatives-superlatives-modifiers"]
+    },
+    {
+      "id": "present-perfect-life-experience",
+      "orderIndex": 8,
+      "name": "Present Perfect for Experience and Unfinished Time",
+      "objective": "Use the present perfect for life experience and unfinished time and contrast it with the past simple in clear A2 contexts.",
+      "prerequisites": ["past-simple", "modals-obligation-advice-permission"]
+    }
+  ]
+}
