@@ -17,6 +17,7 @@ import com.learne.backend.monetization.enums.PaymentProvider;
 import com.learne.backend.monetization.repository.OrderRepository;
 import com.learne.backend.testsupport.TestDatabaseCleaner;
 import java.time.Instant;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,10 +56,11 @@ class StudentOrderApiTests {
         Order order = savePendingCourseOrder(student);
         String token = loginAndGetAccessToken(student.getEmail());
 
-        mockMvc.perform(get("/api/student/orders/%d".formatted(order.getId()))
+        mockMvc.perform(get("/api/student/orders/%s".formatted(order.getPublicId()))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(order.getId()))
+                .andExpect(jsonPath("$.publicId").value(order.getPublicId().toString()))
                 .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"));
     }
 
@@ -69,9 +71,20 @@ class StudentOrderApiTests {
         Order order = savePendingCourseOrder(owner);
         String token = loginAndGetAccessToken(other.getEmail());
 
-        mockMvc.perform(get("/api/student/orders/%d".formatted(order.getId()))
+        mockMvc.perform(get("/api/student/orders/%s".formatted(order.getPublicId()))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void malformedPublicIdReturnsTheSameNotFoundResponse() throws Exception {
+        User student = saveUser("student@example.com", UserRole.STUDENT);
+        String token = loginAndGetAccessToken(student.getEmail());
+
+        mockMvc.perform(get("/api/student/orders/not-a-uuid")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Order not found."));
     }
 
     private Order savePendingCourseOrder(User student) {

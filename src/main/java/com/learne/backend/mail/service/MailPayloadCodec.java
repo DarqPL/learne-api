@@ -34,7 +34,10 @@ public final class MailPayloadCodec {
             var payload = mapper.readerFor(MailPayload.class).with(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                     .readValue(json);
             MailPayload result = (MailPayload) payload;
-            validate(type, result, false);
+            boolean legacyPayment = type == JobType.PAYMENT_CONFIRMATION_MAIL
+                    && result.template() == MailTemplate.PAYMENT_CONFIRMATION
+                    && result.values().keySet().equals(Set.of("amountVnd", "itemDescription", "paidAt"));
+            validate(type, result, false, legacyPayment);
             return result;
         } catch (RuntimeException ignored) { throw invalid(); }
     }
@@ -58,10 +61,14 @@ public final class MailPayloadCodec {
 
     public static void validate(MailPayload payload) {
         if (payload == null || payload.template() == null) throw invalid();
-        validate(payload.template().jobType(), payload, false);
+        validate(payload.template().jobType(), payload, false, false);
     }
 
     private static void validate(JobType type, MailPayload p, boolean canonicalize) {
+        validate(type, p, canonicalize, false);
+    }
+
+    private static void validate(JobType type, MailPayload p, boolean canonicalize, boolean legacyPayment) {
         try {
             if (p == null || p.template() == null || p.template().jobType() != type) throw invalid();
             text(p.recipientEmail(), 320, false); text(p.recipientName(), 255, false);
@@ -87,7 +94,9 @@ public final class MailPayloadCodec {
             } else if (p.orderId() != null) throw invalid();
             Set<String> keys = switch (p.template()) {
                 case REGISTRATION_OTP, PASSWORD_RESET, TEACHER_INVITATION -> Set.of();
-                case PAYMENT_CONFIRMATION -> Set.of("amountVnd", "itemDescription", "paidAt");
+                case PAYMENT_CONFIRMATION -> legacyPayment
+                        ? Set.of("amountVnd", "itemDescription", "paidAt")
+                        : Set.of("amountVnd", "itemDescription", "paidAt", "orderPublicId");
                 case COURSE_PENDING_REVIEW -> Set.of("courseName", "teacherName", "submittedAt");
                 case COURSE_REVIEW_RESULT -> Set.of("courseName", "decision", "rejectionReason", "reviewedAt");
             };
@@ -103,6 +112,7 @@ public final class MailPayloadCodec {
                 String amount = p.values().get("amountVnd");
                 if (!amount.matches("0|[1-9][0-9]{0,18}") || Long.parseLong(amount) < 0) throw invalid();
                 Instant.parse(p.values().get("paidAt"));
+                if (!legacyPayment && !UUID.fromString(p.values().get("orderPublicId")).toString().equals(p.values().get("orderPublicId"))) throw invalid();
             }
             if (p.template() == MailTemplate.COURSE_PENDING_REVIEW) Instant.parse(p.values().get("submittedAt"));
             if (p.template() == MailTemplate.COURSE_REVIEW_RESULT) {

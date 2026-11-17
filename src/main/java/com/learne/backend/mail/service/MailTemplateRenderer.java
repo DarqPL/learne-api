@@ -60,7 +60,7 @@ public final class MailTemplateRenderer {
                 subject = "LearnE payment confirmation";
                 body = values.get("itemDescription") + "\nAmount: "
                         + NumberFormat.getIntegerInstance(Locale.forLanguageTag("vi-VN")).format(Long.parseLong(values.get("amountVnd")))
-                        + " VND\nPaid at: " + values.get("paidAt") + "\n" + base + "/student/payment/orders/" + p.orderId();
+                        + " VND\nPaid at: " + values.get("paidAt") + "\n" + base + "/student/payment/orders/" + values.get("orderPublicId");
             }
             case COURSE_PENDING_REVIEW -> {
                 subject = "LearnE course pending review";

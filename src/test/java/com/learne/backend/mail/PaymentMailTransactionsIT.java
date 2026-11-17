@@ -41,7 +41,8 @@ class PaymentMailTransactionsIT extends MailPostgresTestSupport {
     void seed(boolean plan, long amount) {
         jdbc.update("insert into users(id,email,password_hash,full_name,role) values(7,'student@example.test','hash','Buyer','STUDENT'),(8,'teacher@example.test','hash','Teacher','TEACHER')");
         jdbc.update("insert into courses(id,teacher_id,name,type,level,status) values(11,8,'Mutable course','COMPREHENSIVE','A1','DRAFT')");
-        jdbc.update("insert into orders(id,user_id,order_type,status,original_amount_vnd,final_amount_vnd,payment_provider,payment_reference,expires_at) values(13,7,?,'PENDING_PAYMENT',?,?,'SEPAY','LEARNEM6',?)",
+        jdbc.update("insert into orders(id,user_id,public_id,order_type,status,original_amount_vnd,final_amount_vnd,payment_provider,payment_reference,expires_at) values(13,7,?,?,'PENDING_PAYMENT',?,?,'SEPAY','LEARNEM6',?)",
+                UUID.fromString("11111111-1111-4111-8111-111111111111"),
                 plan ? "PLAN_SUBSCRIPTION" : "COURSE_PURCHASE", amount, amount, java.sql.Timestamp.from(paidAt.plusSeconds(86400)));
         jdbc.update("insert into order_items(order_id,product_type,course_id,plan_code,item_name_snapshot,unit_amount_vnd,quantity,total_amount_vnd) values(13,?,?,?,?,?,1,?)",
                 plan ? "PLAN" : "COURSE", plan ? null : 11L, plan ? "PRO" : null, "Historical title", amount, amount);

@@ -29,13 +29,15 @@ class JobRetryCommandIT extends JobsPostgresTestSupport {
     }
     private UUID notice() {
         long user=jdbc.queryForObject("INSERT INTO users(email,password_hash,full_name,role) VALUES('retry@example.test','test','Retry','STUDENT') RETURNING id",Long.class);
+        UUID publicId = UUID.fromString("11111111-1111-4111-8111-111111111111");
         long order=jdbc.queryForObject("""
-                INSERT INTO orders(user_id,order_type,status,original_amount_vnd,final_amount_vnd,payment_provider,expires_at)
-                VALUES(?,'COURSE_PURCHASE','PAID',100,100,'INTERNAL',clock_timestamp()+interval '1 day') RETURNING id
-                """,Long.class,user);
+                INSERT INTO orders(user_id,public_id,order_type,status,original_amount_vnd,final_amount_vnd,payment_provider,expires_at)
+                VALUES(?,?,'COURSE_PURCHASE','PAID',100,100,'INTERNAL',clock_timestamp()+interval '1 day') RETURNING id
+                """,Long.class,user,publicId);
         var mapper=JsonMapper.builder().build();
         var payload=new MailPayload(user,"retry@example.test","Retry",MailTemplate.PAYMENT_CONFIRMATION,null,null,
-                null,null,null,null,order,Map.of("amountVnd","100","itemDescription","Course","paidAt",Instant.now().toString()));
+                null,null,null,null,order,Map.of("amountVnd","100","itemDescription","Course","paidAt",Instant.now().toString(),
+                        "orderPublicId",publicId.toString()));
         return job("PAYMENT_CONFIRMATION_MAIL","MAIL_NOTICE",new MailPayloadCodec(mapper).encode(payload));
     }
     private UUID job(String type,String queue,String payload) {

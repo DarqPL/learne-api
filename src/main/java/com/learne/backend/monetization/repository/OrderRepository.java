@@ -6,6 +6,7 @@ import com.learne.backend.monetization.enums.PlanCode;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -22,6 +23,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Optional<Order> findByPaymentReferenceForUpdate(@Param("paymentReference") String paymentReference);
 
     Optional<Order> findByIdAndUser(Long id, User user);
+
+    Optional<Order> findByPublicIdAndUser(UUID publicId, User user);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select order from Order order where order.id = :id")

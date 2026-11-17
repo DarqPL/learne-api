@@ -930,6 +930,7 @@ ALTER SEQUENCE public.order_items_id_seq OWNED BY public.order_items.id;
 
 CREATE TABLE public.orders (
     id bigint NOT NULL,
+    public_id uuid NOT NULL,
     user_id bigint NOT NULL,
     order_type character varying(32) NOT NULL,
     status character varying(32) NOT NULL,
@@ -947,6 +948,7 @@ CREATE TABLE public.orders (
     CONSTRAINT orders_amounts_non_negative_check CHECK (((original_amount_vnd >= 0) AND (discount_amount_vnd >= 0) AND (final_amount_vnd >= 0))),
     CONSTRAINT orders_order_type_check CHECK (((order_type)::text = ANY ((ARRAY['COURSE_PURCHASE'::character varying, 'PLAN_SUBSCRIPTION'::character varying])::text[]))),
     CONSTRAINT orders_payment_provider_check CHECK (((payment_provider)::text = ANY ((ARRAY['INTERNAL'::character varying, 'SEPAY'::character varying])::text[]))),
+    CONSTRAINT orders_public_id_key UNIQUE (public_id),
     CONSTRAINT orders_status_check CHECK (((status)::text = ANY ((ARRAY['PENDING_PAYMENT'::character varying, 'PAID'::character varying, 'EXPIRED'::character varying, 'CANCELLED'::character varying, 'REFUNDED'::character varying])::text[])))
 );
 

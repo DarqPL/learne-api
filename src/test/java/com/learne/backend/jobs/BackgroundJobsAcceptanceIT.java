@@ -240,9 +240,11 @@ class BackgroundJobsAcceptanceIT extends JobsPostgresTestSupport {
     }
     UUID payment() {
         long student=user("r4-student@example.test","STUDENT");
-        long order=jdbc.queryForObject("insert into orders(user_id,order_type,status,original_amount_vnd,final_amount_vnd,payment_provider,expires_at) values (?,'COURSE_PURCHASE','PAID',100,100,'INTERNAL',clock_timestamp()) returning id",Long.class,student);
+        UUID publicId = UUID.fromString("11111111-1111-4111-8111-111111111111");
+        long order=jdbc.queryForObject("insert into orders(user_id,public_id,order_type,status,original_amount_vnd,final_amount_vnd,payment_provider,expires_at) values (?,?,'COURSE_PURCHASE','PAID',100,100,'INTERNAL',clock_timestamp()) returning id",Long.class,student,publicId);
         return enqueue(new MailPayload(student,"r4-student@example.test","Student",MailTemplate.PAYMENT_CONFIRMATION,null,null,null,null,null,null,order,
-                Map.of("amountVnd","100","itemDescription","R4","paidAt",Instant.now().toString())));
+                Map.of("amountVnd","100","itemDescription","R4","paidAt",Instant.now().toString(),
+                        "orderPublicId",publicId.toString())));
     }
     UUID enqueue(MailPayload payload) {
         return new TransactionTemplate(manager).execute(s->mail.enqueue(payload.template().jobType(),"r4:"+payload.template(),payload,

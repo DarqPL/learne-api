@@ -42,7 +42,8 @@ class MailEligibilityIT extends MailPostgresTestSupport {
     }
     MailPayload notice(MailTemplate template) {
         Map<String, String> values = switch (template) {
-            case PAYMENT_CONFIRMATION -> Map.of("amountVnd", "100", "itemDescription", "Item", "paidAt", NOW.toString());
+            case PAYMENT_CONFIRMATION -> Map.of("amountVnd", "100", "itemDescription", "Item", "paidAt", NOW.toString(),
+                    "orderPublicId", "11111111-1111-4111-8111-111111111111");
             case COURSE_PENDING_REVIEW -> Map.of("courseName", "Snapshot course", "teacherName", "Teacher", "submittedAt", NOW.toString());
             case COURSE_REVIEW_RESULT -> Map.of("courseName", "Snapshot course", "decision", "REJECTED", "rejectionReason", "Historical reason", "reviewedAt", NOW.toString());
             default -> throw new IllegalArgumentException();
@@ -128,7 +129,8 @@ class MailEligibilityIT extends MailPostgresTestSupport {
         var p = notice(MailTemplate.PAYMENT_CONFIRMATION);
         assertThat(eligibility.check(p)).isEqualTo(Result.RECIPIENT_UNAVAILABLE);
         user(7, "STUDENT");
-        jdbc.update("insert into orders(id,user_id,order_type,status,original_amount_vnd,final_amount_vnd,payment_provider,expires_at) values(13,7,'COURSE_PURCHASE','PAID',100,100,'INTERNAL',?)", Timestamp.from(NOW));
+        jdbc.update("insert into orders(id,user_id,public_id,order_type,status,original_amount_vnd,final_amount_vnd,payment_provider,expires_at) values(13,7,?,'COURSE_PURCHASE','PAID',100,100,'INTERNAL',?)",
+                UUID.fromString("11111111-1111-4111-8111-111111111111"), Timestamp.from(NOW));
         assertThat(eligibility.check(p)).isEqualTo(Result.ALLOW);
         jdbc.update("update users set email=' STUDENT@EXAMPLE.TEST ' where id=7");
         assertThat(eligibility.check(p)).isEqualTo(Result.ALLOW);

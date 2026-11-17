@@ -22,6 +22,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "orders")
@@ -29,6 +30,9 @@ public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "public_id", nullable = false, unique = true)
+    private UUID publicId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id")
@@ -81,6 +85,9 @@ public class Order {
 
     @PrePersist
     void prePersist() {
+        if (publicId == null) {
+            publicId = UUID.randomUUID();
+        }
         Instant now = Instant.now();
         createdAt = now;
         updatedAt = now;
@@ -92,6 +99,7 @@ public class Order {
     }
 
     public Long getId() { return id; }
+    public UUID getPublicId() { return publicId; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
     public OrderType getOrderType() { return orderType; }

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/student/orders")
@@ -26,11 +27,17 @@ class StudentOrderController {
         this.sepayPaymentService = sepayPaymentService;
     }
 
-    @GetMapping("/{orderId}")
+    @GetMapping("/{publicId}")
     @Transactional(readOnly = true)
-    OrderResponse getOrder(@PathVariable Long orderId, Authentication authentication) {
+    OrderResponse getOrder(@PathVariable String publicId, Authentication authentication) {
         User student = (User) authentication.getPrincipal();
-        Order order = orderRepository.findByIdAndUser(orderId, student)
+        UUID parsedPublicId;
+        try {
+            parsedPublicId = UUID.fromString(publicId);
+        } catch (IllegalArgumentException exception) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Order not found.");
+        }
+        Order order = orderRepository.findByPublicIdAndUser(parsedPublicId, student)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Order not found."));
         PaymentInstruction instruction = sepayPaymentService.instructionFor(order);
         return OrderResponse.from(order, instruction);

@@ -93,5 +93,14 @@ class MailJobProducerTests {
             assertThatThrownBy(() -> codec.decode(JobType.REGISTRATION_OTP_MAIL, invalid))
                     .hasMessage("Invalid mail payload").hasNoCause();
         }
+
+    }
+
+    @Test void decoderAcceptsLegacyPaymentPayloadsForQueuedJobs() {
+        var legacy = new MailPayload(7, "student@example.test", "Student", MailTemplate.PAYMENT_CONFIRMATION,
+                null, null, null, null, null, null, 13L,
+                Map.of("amountVnd", "100", "itemDescription", "Item", "paidAt", "2026-10-18T01:00:00Z"));
+        assertThat(new MailPayloadCodec(mapper).decode(
+                JobType.PAYMENT_CONFIRMATION_MAIL, mapper.writeValueAsString(legacy))).isEqualTo(legacy);
     }
 }

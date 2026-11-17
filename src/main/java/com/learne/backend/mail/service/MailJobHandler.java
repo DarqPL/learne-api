@@ -36,7 +36,7 @@ public final class MailJobHandler implements JobHandler {
         try {
             if (lease.type() != type || lease.payloadVersion() != payloadVersion() || lease.terminalizeOnly())
                 throw new IllegalArgumentException();
-            payload = codec.decode(type, lease.payloadJson());
+            payload = eligibility.enrichLegacyPayment(codec.decode(type, lease.payloadJson()));
         } catch (IllegalArgumentException ignored) { throw permanent(JobErrorCode.INVALID_INPUT); }
         if (skip(lease, eligibility.check(payload))) return;
 
