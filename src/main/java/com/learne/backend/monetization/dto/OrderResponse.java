@@ -10,6 +10,7 @@ import java.util.List;
 
 public record OrderResponse(
         Long id,
+        String publicId,
         OrderType orderType,
         OrderStatus status,
         Long originalAmountVnd,
@@ -30,6 +31,7 @@ public record OrderResponse(
     public static OrderResponse from(Order order, PaymentInstruction paymentInstruction) {
         return new OrderResponse(
                 order.getId(),
+                order.getPublicId().toString(),
                 order.getOrderType(),
                 order.getStatus(),
                 order.getOriginalAmountVnd(),

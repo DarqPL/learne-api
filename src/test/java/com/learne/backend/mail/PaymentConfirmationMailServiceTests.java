@@ -17,6 +17,8 @@ class PaymentConfirmationMailServiceTests {
         var facade = new com.learne.backend.monetization.service.PaymentConfirmationMailService(producer);
         var order = new com.learne.backend.monetization.entity.Order();
         org.springframework.test.util.ReflectionTestUtils.setField(order, "id", 13L);
+        org.springframework.test.util.ReflectionTestUtils.setField(order, "publicId",
+                java.util.UUID.fromString("11111111-1111-4111-8111-111111111111"));
         var buyer = new com.learne.backend.domain.auth.User();
         org.springframework.test.util.ReflectionTestUtils.setField(buyer, "id", 7L);
         buyer.setEmail(" Student@Example.Test "); buyer.setFullName("Buyer");
@@ -29,6 +31,7 @@ class PaymentConfirmationMailServiceTests {
                 org.mockito.ArgumentMatchers.eq("payment-confirmation:13"), captor.capture(), org.mockito.ArgumentMatchers.isNull());
         assertThat(captor.getValue().recipientEmail()).isEqualTo("student@example.test");
         assertThat(captor.getValue().values().get("itemDescription")).contains("N".repeat(255));
+        assertThat(captor.getValue().values().get("orderPublicId")).isEqualTo("11111111-1111-4111-8111-111111111111");
         assertThat(captor.getValue().generation()).isNull(); assertThat(captor.getValue().expiresAt()).isNull();
         org.mockito.Mockito.verifyNoMoreInteractions(producer);
     }
@@ -47,6 +50,7 @@ class PaymentConfirmationMailServiceTests {
     static MailPayload payload(String amount) {
         return new MailPayload(7, "student@example.test", "Buyer", MailTemplate.PAYMENT_CONFIRMATION,
                 null, null, null, null, null, null, 13L,
-                Map.of("amountVnd", amount, "itemDescription", "Historical title", "paidAt", "2026-10-19T00:00:00Z"));
+                Map.of("amountVnd", amount, "itemDescription", "Historical title", "paidAt", "2026-10-19T00:00:00Z",
+                        "orderPublicId", "11111111-1111-4111-8111-111111111111"));
     }
 }

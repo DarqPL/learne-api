@@ -64,6 +64,7 @@ class CheckoutApiTests extends com.learne.backend.testsupport.SubmissionHttpPost
         MvcResult checkoutResult = mockMvc.perform(post("/api/student/checkout/course/%d".formatted(courseId))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.publicId", notNullValue()))
                 .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
                 .andExpect(jsonPath("$.finalAmountVnd").value(250000))
                 .andExpect(jsonPath("$.paymentProvider").value("INTERNAL"))

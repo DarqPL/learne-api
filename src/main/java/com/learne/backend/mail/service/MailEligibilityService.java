@@ -44,6 +44,25 @@ public final class MailEligibilityService {
         return inRead(() -> checkCurrent(payload));
     }
 
+    public MailPayload enrichLegacyPayment(MailPayload payload) {
+        if (payload.template() != MailTemplate.PAYMENT_CONFIRMATION
+                || payload.values().containsKey("orderPublicId")) return payload;
+        if (payload.orderId() == null) throw new IllegalArgumentException("Invalid legacy payment payload");
+        try {
+            return read.execute(status -> {
+                var row = one("SELECT public_id FROM orders WHERE id=? AND user_id=?", payload.orderId(), payload.recipientUserId());
+                if (row == null || row.get("public_id") == null) throw new IllegalArgumentException("Invalid legacy payment payload");
+                var values = new HashMap<>(payload.values());
+                values.put("orderPublicId", UUID.fromString(row.get("public_id").toString()).toString());
+                return new MailPayload(payload.recipientUserId(), payload.recipientEmail(), payload.recipientName(),
+                        payload.template(), payload.generation(), payload.expiresAt(), payload.courseId(), payload.revisionId(),
+                        payload.submissionId(), payload.decisionId(), payload.orderId(), values);
+            });
+        } catch (DataAccessException | TransactionException ignored) {
+            throw new RetryableJobException(JobErrorCode.MAIL_ELIGIBILITY_UNAVAILABLE.name(), null);
+        }
+    }
+
     /** Operator reader: same authoritative rules, in the caller's domain-before-job lock scope. */
     public Result checkNoticeInCurrentTransaction(MailPayload payload) {
         MailPayloadCodec.validate(payload);

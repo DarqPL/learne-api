@@ -28,7 +28,8 @@ public class PaymentConfirmationMailService {
         var payload = new MailPayload(buyer.getId(), buyer.getEmail().trim().toLowerCase(Locale.ROOT),
                 buyer.getFullName(), MailTemplate.PAYMENT_CONFIRMATION, null, null, null, null, null, null,
                 order.getId(), Map.of("amountVnd", Long.toString(order.getFinalAmountVnd()),
-                        "itemDescription", description, "paidAt", order.getPaidAt().toString()));
+                        "itemDescription", description, "paidAt", order.getPaidAt().toString(),
+                        "orderPublicId", order.getPublicId().toString()));
         producer.enqueue(JobType.PAYMENT_CONFIRMATION_MAIL, "payment-confirmation:" + order.getId(), payload, null);
     }
 }

@@ -18,6 +18,10 @@ class MailTemplateRendererTests {
 
     static MailPayload payload(MailTemplate template, Map<String, String> values) {
         boolean auth = template.ordinal() < 3;
+        if (template == MailTemplate.PAYMENT_CONFIRMATION) {
+            values = new java.util.HashMap<>(values);
+            values.put("orderPublicId", "11111111-1111-4111-8111-111111111111");
+        }
         return new MailPayload(template == MailTemplate.REGISTRATION_OTP ? 0 : 7,
                 "student@example.test", "<b>Literal name</b>", template,
                 auth ? template == MailTemplate.PASSWORD_RESET ? "42" : UUID.randomUUID().toString() : null,
@@ -34,7 +38,9 @@ class MailTemplateRendererTests {
                 Map.of("amountVnd", "1200000", "itemDescription", "<img src=x>", "paidAt", "2026-10-18T01:00:00Z")), null);
         assertThat(message.getTo()).containsExactly("student@example.test");
         assertThat(message.getFrom()).isEqualTo("LearnE <mail@learne.test>");
-        assertThat(message.getText()).contains("1.200.000 VND", "<img src=x>", "https://learne.test/student/payment/orders/13");
+        assertThat(message.getText()).contains("1.200.000 VND", "<img src=x>",
+                "https://learne.test/student/payment/orders/11111111-1111-4111-8111-111111111111")
+                .doesNotContain("/student/payment/orders/13");
     }
     @Test void rendersExactNonnegativeLongBoundaryAmountsWithoutOverflow() {
         for (var entry : Map.of("0", "0 VND", "9223372036854775807", "9.223.372.036.854.775.807 VND").entrySet()) {

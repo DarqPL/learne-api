@@ -39,6 +39,7 @@ class MonetizationMigrationTests {
             assertColumnExists(connection, "course_revisions", "pricing_type");
             assertColumnExists(connection, "course_revisions", "proposed_price_amount_vnd");
             assertTableExists(connection, "orders");
+            assertColumnExists(connection, "orders", "public_id");
             assertColumnExists(connection, "orders", "dedupe_key");
             assertTableExists(connection, "order_items");
             assertTableExists(connection, "course_entitlements");
@@ -219,12 +220,13 @@ class MonetizationMigrationTests {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             var statement = connection.prepareStatement("""
-                    insert into orders (user_id, order_type, status, original_amount_vnd,
+                insert into orders (user_id, public_id, order_type, status, original_amount_vnd,
                         discount_amount_vnd, final_amount_vnd, payment_provider, expires_at)
-                    values (?, 'PLAN_SUBSCRIPTION', 'PENDING_PAYMENT', 100000, 0, 100000,
+                values (?, ?, 'PLAN_SUBSCRIPTION', 'PENDING_PAYMENT', 100000, 0, 100000,
                         'INTERNAL', current_timestamp)
                     """, new String[] {"id"});
             statement.setLong(1, studentId);
+            statement.setObject(2, UUID.randomUUID());
             return statement;
         }, keyHolder);
         return keyHolder.getKey().longValue();
@@ -234,12 +236,13 @@ class MonetizationMigrationTests {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             var statement = connection.prepareStatement("""
-                    insert into orders (user_id, order_type, status, original_amount_vnd,
+                insert into orders (user_id, public_id, order_type, status, original_amount_vnd,
                         discount_amount_vnd, final_amount_vnd, payment_provider, expires_at)
-                    values (?, 'COURSE_PURCHASE', 'PENDING_PAYMENT', 100000, 0, 100000,
+                values (?, ?, 'COURSE_PURCHASE', 'PENDING_PAYMENT', 100000, 0, 100000,
                         'INTERNAL', current_timestamp)
                     """, new String[] {"id"});
             statement.setLong(1, studentId);
+            statement.setObject(2, UUID.randomUUID());
             return statement;
         }, keyHolder);
         return keyHolder.getKey().longValue();
