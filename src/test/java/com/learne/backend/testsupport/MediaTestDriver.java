@@ -21,14 +21,15 @@ public class MediaTestDriver {
     private final TransactionTemplate tx;
     private final JdbcTemplate jdbc;
     public MediaTestDriver(JobStore jobs, MediaCleanupProducer producer, LessonAudioCleanupDecisionService decisions,
-            StorageService storage, tools.jackson.databind.ObjectMapper mapper, PlatformTransactionManager manager, JdbcTemplate jdbc) {
+            CourseCoverCleanupDecisionService courseCovers, StorageService storage,
+            tools.jackson.databind.ObjectMapper mapper, PlatformTransactionManager manager, JdbcTemplate jdbc) {
         this.jobs=jobs; this.producer=producer; this.tx=new TransactionTemplate(manager); this.jdbc=jdbc;
         MediaDeletePort fake=id->{
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             assertThat(org.mockito.Mockito.mockingDetails(storage).isMock()).as("fixture storage probe").isTrue();
             storage.delete(id,StorageResourceType.VIDEO);
         };
-        handler=new MediaCleanupHandler(jobs,decisions,fake,mapper);
+        handler=new MediaCleanupHandler(jobs,decisions,courseCovers,fake,mapper);
     }
     public void assertIntentAndDrain() {
         assertThat(jdbc.queryForObject("select count(*) from background_jobs where queue='MEDIA' and state='READY'",Integer.class)).isPositive();

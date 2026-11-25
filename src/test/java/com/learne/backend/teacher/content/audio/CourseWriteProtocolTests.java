@@ -3,6 +3,7 @@ package com.learne.backend.teacher.content.audio;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -25,6 +26,7 @@ import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.teacher.content.enrichment.CourseReviewEnrichmentService;
 import com.learne.backend.teacher.content.entity.Course;
 import com.learne.backend.teacher.content.entity.CourseRevision;
+import com.learne.backend.teacher.content.entity.CoursePendingReviewSnapshot;
 import com.learne.backend.teacher.content.entity.Topic;
 import com.learne.backend.teacher.content.entity.TopicRevision;
 import com.learne.backend.teacher.content.entity.Lesson;
@@ -34,14 +36,20 @@ import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.enums.CourseRevisionStatus;
 import com.learne.backend.teacher.content.enums.CoursePricingType;
 import com.learne.backend.teacher.content.enums.CourseType;
+import com.learne.backend.teacher.content.enums.CoursePendingReviewSnapshotKind;
 import com.learne.backend.teacher.content.repository.CourseRepository;
 import com.learne.backend.teacher.content.repository.CourseRevisionRepository;
+import com.learne.backend.teacher.content.repository.CourseCoverReviewRepository;
+import com.learne.backend.teacher.content.repository.CoursePendingReviewSnapshotRepository;
+import com.learne.backend.notification.CourseCoverReviewNotificationService;
+import com.learne.backend.cache.CatalogInvalidationOutboxService;
 import com.learne.backend.teacher.content.repository.TopicRepository;
 import com.learne.backend.teacher.content.repository.TopicRevisionRepository;
 import com.learne.backend.teacher.content.repository.LessonRepository;
 import com.learne.backend.teacher.content.repository.LessonRevisionRepository;
 import com.learne.backend.teacher.content.repository.QuestionRepository;
 import com.learne.backend.teacher.content.repository.QuestionRevisionRepository;
+import com.learne.backend.teacher.content.audio.service.MediaCleanupProducer;
 import com.learne.backend.teacher.content.service.CourseWriteLockService;
 import com.learne.backend.teacher.content.service.TeacherContentService;
 import com.learne.backend.teacher.content.dto.CourseRequest;
@@ -75,6 +83,11 @@ import org.springframework.http.HttpStatus;
 class CourseWriteProtocolTests {
     @Mock CourseRepository courses;
     @Mock CourseRevisionRepository revisions;
+    @Mock CourseCoverReviewRepository coverReviews;
+    @Mock CoursePendingReviewSnapshotRepository pendingSnapshots;
+    @Mock MediaCleanupProducer cleanup;
+    @Mock CourseCoverReviewNotificationService coverNotifications;
+    @Mock CatalogInvalidationOutboxService coverInvalidationOutbox;
     @Mock TopicRepository topics;
     @Mock LessonRepository lessons;
     @Mock QuestionRepository questions;
@@ -102,14 +115,142 @@ class CourseWriteProtocolTests {
                 topicRevisions, lessonRevisions, questionRevisions, caches, null, locks,
                 new RevisionAudioRebuildGuard(), submissionGuard,
                 org.mockito.Mockito.mock(com.learne.backend.teacher.content.submission.SubmissionRepository.class),
-                org.mockito.Mockito.mock(com.learne.backend.teacher.content.audio.service.MediaCleanupProducer.class));
+                cleanup,
+                coverReviews, pendingSnapshots);
         adminService = new AdminContentReviewService(courses, revisions, entityManager, caches, locks,
                 org.mockito.Mockito.mock(com.learne.backend.admin.content.service.ReviewDecisionService.class),
-                org.mockito.Mockito.mock(com.learne.backend.teacher.content.audio.service.MediaCleanupProducer.class));
+                cleanup,
+                pendingSnapshots,
+                coverNotifications, coverInvalidationOutbox);
     }
 
     private final User teacher = user(7L);
     private final User admin = user(8L);
+
+    @Test
+    void makingPendingRevisionEditableMovesItsCoverReferenceToTheDraft() {
+        Course course = course();
+        CourseRevision original = pendingRevision();
+        original.setCourse(course);
+        original.setCoverImageUrl("https://example.test/pending.jpg");
+        original.setCoverImagePublicId("pending-cover");
+        CoursePendingReviewSnapshot snapshot = new CoursePendingReviewSnapshot();
+        snapshot.setCourse(course);
+        snapshot.setSnapshotKind(CoursePendingReviewSnapshotKind.COURSE_REVISION);
+        snapshot.setCourseRevision(original);
+        org.mockito.Mockito.doReturn(course).when(locks).teacherCourse(10L, teacher);
+        when(revisions.findLockedLatestByCourseId(eq(10L), any())).thenReturn(List.of(original));
+        when(pendingSnapshots.findLockedByCourseId(10L)).thenReturn(Optional.of(snapshot));
+        when(revisions.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        teacherService.createEditRevision(teacher, 10L);
+
+        var savedDraft = org.mockito.ArgumentCaptor.forClass(CourseRevision.class);
+        verify(revisions).save(savedDraft.capture());
+        assertEquals(CourseRevisionStatus.SUPERSEDED, original.getStatus());
+        assertNull(original.getCoverImageUrl());
+        assertNull(original.getCoverImagePublicId());
+        assertEquals("https://example.test/pending.jpg", savedDraft.getValue().getCoverImageUrl());
+        assertEquals("pending-cover", savedDraft.getValue().getCoverImagePublicId());
+        verify(pendingSnapshots).delete(snapshot);
+    }
+
+    @Test
+    void changingPendingRevisionCoverCreatesAndRegistersAnImmutableReplacement() {
+        Course course = course();
+        CourseRevision original = pendingRevision();
+        original.setCourse(course);
+        original.setCoverImageUrl("https://example.test/old.jpg");
+        original.setCoverImagePublicId("old-cover");
+        CoursePendingReviewSnapshot snapshot = new CoursePendingReviewSnapshot();
+        snapshot.setCourse(course);
+        snapshot.setSnapshotKind(CoursePendingReviewSnapshotKind.COURSE_REVISION);
+        snapshot.setCourseRevision(original);
+        when(courses.findLockedByIdAndTeacher(10L, teacher)).thenReturn(Optional.of(course));
+        when(revisions.findLockedLatestByCourseId(eq(10L), any())).thenReturn(List.of(original));
+        when(pendingSnapshots.findLockedByCourseId(10L)).thenReturn(Optional.of(snapshot));
+        when(revisions.saveAndFlush(any())).thenAnswer(invocation -> {
+            CourseRevision replacement = invocation.getArgument(0);
+            ReflectionTestUtils.setField(replacement, "id", 21L);
+            return replacement;
+        });
+        when(pendingSnapshots.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        teacherService.replaceRevisionCover(
+                teacher, 10L, "https://example.test/new.jpg", "new-cover");
+
+        CourseRevision replacement = snapshot.getCourseRevision();
+        assertEquals(CourseRevisionStatus.SUPERSEDED, original.getStatus());
+        assertNull(original.getCoverImagePublicId());
+        assertEquals(CourseRevisionStatus.PENDING_REVIEW, replacement.getStatus());
+        assertEquals("new-cover", replacement.getCoverImagePublicId());
+        assertEquals(2, replacement.getRevisionNumber());
+        assertEquals(1, replacement.getTopics().size());
+        assertEquals(1, replacement.getTopics().getFirst().getLessons().getFirst().getQuestions().size());
+        verify(cleanup).enqueueCourseCover(any(), eq(10L),
+                eq("https://example.test/old.jpg"), eq("old-cover"));
+    }
+
+    @Test
+    void approvingRevisionPromotesItsCoverAndResolvesTheCurrentSnapshot() {
+        CourseRevision revision = pendingRevision();
+        Course course = revision.getCourse();
+        course.setImageUrl("https://example.test/current.jpg");
+        course.setImagePublicId("current-cover");
+        revision.setCoverImageUrl("https://example.test/proposed.jpg");
+        revision.setCoverImagePublicId("proposed-cover");
+        CoursePendingReviewSnapshot snapshot = new CoursePendingReviewSnapshot();
+        snapshot.setCourse(course);
+        snapshot.setSnapshotKind(CoursePendingReviewSnapshotKind.COURSE_REVISION);
+        snapshot.setCourseRevision(revision);
+        when(revisions.findCourseIdByRevisionId(20L)).thenReturn(Optional.of(10L));
+        when(courses.findLockedById(10L)).thenReturn(Optional.of(course));
+        when(revisions.findLockedById(20L)).thenReturn(Optional.of(revision));
+        when(revisions.findLockedLatestByCourseId(eq(10L), any())).thenReturn(List.of(revision));
+        when(pendingSnapshots.findLockedByCourseId(10L)).thenReturn(Optional.of(snapshot));
+        when(courses.saveAndFlush(course)).thenReturn(course);
+
+        adminService.approveRevision(admin, 20L);
+
+        assertEquals("https://example.test/proposed.jpg", course.getImageUrl());
+        assertEquals("proposed-cover", course.getImagePublicId());
+        verify(pendingSnapshots).delete(snapshot);
+        verify(coverInvalidationOutbox).recordPublicCoverChange(10L);
+        verify(cleanup).enqueueCourseCover(any(), eq(10L),
+                eq("https://example.test/current.jpg"), eq("current-cover"));
+        verify(coverNotifications).revisionDecision(revision);
+    }
+
+    @Test
+    void rejectingRevisionPreservesPublicCoverAndKeepsCandidateEditable() {
+        CourseRevision revision = pendingRevision();
+        Course course = revision.getCourse();
+        course.setImageUrl("https://example.test/current.jpg");
+        course.setImagePublicId("current-cover");
+        revision.setCoverImageUrl("https://example.test/proposed.jpg");
+        revision.setCoverImagePublicId("proposed-cover");
+        CoursePendingReviewSnapshot snapshot = new CoursePendingReviewSnapshot();
+        snapshot.setCourse(course);
+        snapshot.setSnapshotKind(CoursePendingReviewSnapshotKind.COURSE_REVISION);
+        snapshot.setCourseRevision(revision);
+        when(revisions.findCourseIdByRevisionId(20L)).thenReturn(Optional.of(10L));
+        when(courses.findLockedById(10L)).thenReturn(Optional.of(course));
+        when(revisions.findLockedById(20L)).thenReturn(Optional.of(revision));
+        when(revisions.findLockedLatestByCourseId(eq(10L), any())).thenReturn(List.of(revision));
+        when(pendingSnapshots.findLockedByCourseId(10L)).thenReturn(Optional.of(snapshot));
+        when(courses.save(course)).thenReturn(course);
+
+        adminService.rejectRevision(admin, 20L, "Needs a different cover.");
+
+        assertEquals("https://example.test/current.jpg", course.getImageUrl());
+        assertEquals("https://example.test/proposed.jpg", revision.getCoverImageUrl());
+        assertEquals(CourseRevisionStatus.REJECTED, revision.getStatus());
+        assertEquals("Needs a different cover.", revision.getRejectionReason());
+        verify(pendingSnapshots).delete(snapshot);
+        verify(cleanup, never()).enqueueCourseCover(any(), anyLong(), any(), any());
+        verify(coverInvalidationOutbox, never()).recordPublicCoverChange(10L);
+        verify(coverNotifications).revisionDecision(revision);
+    }
 
     @Test
     void unsafeAudioStopsBeforeMutatingManagedCourseOrSaving() {
@@ -173,6 +314,11 @@ class CourseWriteProtocolTests {
         }
         when(courses.findLockedById(10L)).thenReturn(Optional.of(revision.getCourse()));
         when(revisions.findLockedLatestByCourseId(eq(10L), any())).thenReturn(List.of(revision));
+        CoursePendingReviewSnapshot snapshot = new CoursePendingReviewSnapshot();
+        snapshot.setCourse(revision.getCourse());
+        snapshot.setSnapshotKind(CoursePendingReviewSnapshotKind.COURSE_REVISION);
+        snapshot.setCourseRevision(revision);
+        when(pendingSnapshots.findLockedByCourseId(10L)).thenReturn(Optional.of(snapshot));
         if (approve) {
             when(courses.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
         } else {

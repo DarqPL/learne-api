@@ -18,7 +18,7 @@ class MediaCleanupTransactionsIT extends MediaCleanupIT {
     @MockitoSpyBean MediaCleanupProducer intents;
 
     @Test void removalCommitsIntentWithoutOldCallbackAndReplayDoesNotEnqueue() {
-        var ids=fixture();
+        var ids=audioCleanupFixture();
         long teacher=jdbc.queryForObject("select teacher_id from courses where id=?",Long.class,ids[0]);
         var user=users.findById(teacher).orElseThrow();
         persistence.remove(user,AudioTargetKind.REVISION,ids[1]);
@@ -27,12 +27,12 @@ class MediaCleanupTransactionsIT extends MediaCleanupIT {
         persistence.remove(user,AudioTargetKind.REVISION,ids[1]);
         assertThat(jdbc.queryForObject("select count(*) from background_jobs",Integer.class)).isOne();
         var destroyed=new ArrayList<String>();
-        new MediaCleanupHandler(store,decisions,destroyed::add,mapper).execute(claim());
+        new MediaCleanupHandler(store,decisions,coverDecisions,destroyed::add,mapper).execute(claim());
         assertThat(destroyed).containsExactly(LessonAudioCleanupServiceTests.state("a").publicId());
     }
 
     @Test void enqueueFailureRollsBackDetach() {
-        var ids=fixture();
+        var ids=audioCleanupFixture();
         long teacher=jdbc.queryForObject("select teacher_id from courses where id=?",Long.class,ids[0]);
         var target=org.springframework.test.util.AopTestUtils.<MediaCleanupProducer>getUltimateTargetObject(intents);
         doThrow(new IllegalStateException("queue unavailable")).when(target).enqueue(any(),eq(ids[0]),anyList());
@@ -46,7 +46,7 @@ class MediaCleanupTransactionsIT extends MediaCleanupIT {
     }
 
     @Test void compensationRequiresRollbackEvidenceAndReusesOperationIdentity() {
-        var ids=fixture(); var event=UUID.randomUUID(); var outcome=new CourseWriteOutcome();
+        var ids=audioCleanupFixture(); var event=UUID.randomUUID(); var outcome=new CourseWriteOutcome();
         var assets=List.of(LessonAudioCleanupServiceTests.state("orphan"));
         compensation.enqueueConfirmedRollback(event,ids[0],assets,true,outcome);
         assertThat(jdbc.queryForObject("select count(*) from background_jobs",Integer.class)).isZero();
@@ -58,7 +58,7 @@ class MediaCleanupTransactionsIT extends MediaCleanupIT {
         compensation.enqueueConfirmedRollback(event,ids[0],assets,true,outcome);
         assertThat(jdbc.queryForObject("select count(*) from background_jobs",Integer.class)).isOne();
         var destroyed=new ArrayList<String>();
-        new MediaCleanupHandler(store,decisions,destroyed::add,mapper).execute(claim());
+        new MediaCleanupHandler(store,decisions,coverDecisions,destroyed::add,mapper).execute(claim());
         assertThat(destroyed).containsExactly(assets.getFirst().publicId());
     }
 }

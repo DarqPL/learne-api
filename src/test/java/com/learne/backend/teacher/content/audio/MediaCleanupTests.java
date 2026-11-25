@@ -16,14 +16,14 @@ class MediaCleanupTests {
     @Test void staleLeaseNeverStartsDecisionOrDelete() {
         var store=mock(JobStore.class); var decision=mock(LessonAudioCleanupDecisionService.class);
         var delete=mock(MediaDeletePort.class);
-        new MediaCleanupHandler(store,decision,delete,new ObjectMapper()).execute(lease());
+        new MediaCleanupHandler(store,decision,mock(CourseCoverCleanupDecisionService.class),delete,new ObjectMapper()).execute(lease());
         verifyNoInteractions(decision,delete);
     }
     @Test void eachAttemptRechecksDecisionAndLeaseBeforeExternalDelete() {
         var store=mock(JobStore.class); var decision=mock(LessonAudioCleanupDecisionService.class); var delete=mock(MediaDeletePort.class);
         when(store.isLeaseCurrent(any())).thenReturn(true,true,true,false);
         when(decision.evaluate(eq(1L),any())).thenReturn(new CleanupDecision(CleanupDecision.Kind.DELETE,"SAFE_ABSENCE"));
-        var handler=new MediaCleanupHandler(store,decision,delete,new ObjectMapper());
+        var handler=new MediaCleanupHandler(store,decision,mock(CourseCoverCleanupDecisionService.class),delete,new ObjectMapper());
         handler.execute(lease()); handler.execute(lease());
         verify(decision,times(2)).evaluate(eq(1L),any()); verify(delete).delete("learne/course-audio/a");
         verify(store).complete(any(),eq(JobState.SUCCEEDED),isNull());
@@ -31,7 +31,7 @@ class MediaCleanupTests {
     @Test void databaseAndProviderFailuresRetryAndRetentionSkips() {
         var store=mock(JobStore.class); var decision=mock(LessonAudioCleanupDecisionService.class); var delete=mock(MediaDeletePort.class);
         when(store.isLeaseCurrent(any())).thenReturn(true);
-        var handler=new MediaCleanupHandler(store,decision,delete,new ObjectMapper());
+        var handler=new MediaCleanupHandler(store,decision,mock(CourseCoverCleanupDecisionService.class),delete,new ObjectMapper());
         when(decision.evaluate(eq(1L),any())).thenReturn(new CleanupDecision(CleanupDecision.Kind.RETRY,"DB_CHECK_FAILED"));
         assertThatThrownBy(()->handler.execute(lease())).isInstanceOf(RetryableJobException.class);
         when(decision.evaluate(eq(1L),any())).thenReturn(new CleanupDecision(CleanupDecision.Kind.RETAIN,"REFERENCED"));

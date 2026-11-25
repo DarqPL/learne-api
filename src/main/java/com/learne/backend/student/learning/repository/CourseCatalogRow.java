@@ -14,6 +14,7 @@ public interface CourseCatalogRow {
     String getTeacherFullName();
     String getTeacherEmail();
     String getTeacherAvatarUrl();
+    String getImageUrl();
     long getApprovedTopicCount();
     long getApprovedLessonCount();
     long getApprovedQuestionCount();

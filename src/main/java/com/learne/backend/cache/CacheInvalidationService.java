@@ -70,6 +70,13 @@ public class CacheInvalidationService {
         });
     }
 
+    public void evictGlobalCourseCatalogCaches() {
+        afterCommit(() -> {
+            clear(CacheNames.STUDENT_CATALOG);
+            clear(CacheNames.STUDENT_COURSE_DETAIL);
+        });
+    }
+
     /** Audio facade calls this after its transaction proxy returns, never from afterCommit. */
     public void evictContentAfterAudioCommit(Long teacherId) {
         bestEffort("teacher dashboard", () -> evict(CacheNames.TEACHER_DASHBOARD,

@@ -14,6 +14,9 @@ public interface StorageService {
     StorageUploadResult uploadTeacherIntroductionVideo(MultipartFile file);
 
     StorageUploadResult uploadLessonAudio(MultipartFile file);
+    default StorageUploadResult uploadCourseCover(MultipartFile file) {
+        throw new UnsupportedOperationException("Course cover upload is not supported by this storage implementation");
+    }
 
     StorageDownloadResult downloadLessonAudio(String publicId, String fallbackUrl);
 

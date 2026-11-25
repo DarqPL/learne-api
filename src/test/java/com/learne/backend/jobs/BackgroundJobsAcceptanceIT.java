@@ -112,8 +112,9 @@ class BackgroundJobsAcceptanceIT extends JobsPostgresTestSupport {
         }
         @Bean @Primary FakeProviders fakeProviders() { return new FakeProviders(); }
         @Bean MediaCleanupHandler acceptanceMediaHandler(@Lazy JobStore store,LessonAudioCleanupDecisionService decisions,
+                com.learne.backend.teacher.content.audio.service.CourseCoverCleanupDecisionService courseCovers,
                 FakeProviders fake,tools.jackson.databind.ObjectMapper mapper) {
-            return new MediaCleanupHandler(store,decisions,fake,mapper);
+            return new MediaCleanupHandler(store,decisions,courseCovers,fake,mapper);
         }
     }
     @Autowired FakeProviders fake;
@@ -151,7 +152,9 @@ class BackgroundJobsAcceptanceIT extends JobsPostgresTestSupport {
         var projection=transactional(new SubmissionProjectionReader(freshJdbc));
         var checkpoint=transactional(new SubmissionCheckpointService(repository,projection,freshJdbc));
         var finalizer=transactional(new SubmissionFinalizationService(freshJdbc,repository,projection,courses,revisions,
-                org.springframework.orm.jpa.SharedEntityManagerCreator.createSharedEntityManager(emf),mail,notifications,invalidation,mapper));
+                org.springframework.orm.jpa.SharedEntityManagerCreator.createSharedEntityManager(emf),mail,notifications,invalidation,mapper,
+                org.mockito.Mockito.mock(com.learne.backend.teacher.content.audio.service.MediaCleanupProducer.class),
+                new com.learne.backend.notification.CourseCoverReviewNotificationService(notifications)));
         var hook=new SubmissionCheckpointService(repository,projection,freshJdbc) {
             @Override public Turn load(UUID id) { return checkpoint.load(id); }
             @Override public void checkpoint(JobLease lease,Turn turn,List<CourseReviewEnrichmentService.BatchResult> results) {

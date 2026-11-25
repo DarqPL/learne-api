@@ -66,7 +66,7 @@ import org.springframework.mock.web.MockMultipartFile;
 
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
-@SpringBootTest
+@SpringBootTest(properties = "app.cache.invalidation-outbox.fixed-delay=3600000")
 class TeacherContentApiTests extends com.learne.backend.testsupport.SubmissionHttpPostgresSupport {
     @Autowired private org.springframework.transaction.PlatformTransactionManager fixtureTransactions;
     @MockitoBean
@@ -2333,6 +2333,66 @@ class TeacherContentApiTests extends com.learne.backend.testsupport.SubmissionHt
                         .content(validCourseJson()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Only draft or rejected content can be edited."));
+    }
+
+    @Test
+    void adminCanReviewCurrentStandaloneCoverAndTeacherIsNotified() throws Exception {
+        User teacher = saveUser("cover-review-teacher@example.com", UserRole.TEACHER);
+        User admin = saveUser("cover-review-admin@example.com", UserRole.ADMIN);
+        String teacherToken = loginAndGetAccessToken(teacher.getEmail());
+        String adminToken = loginAndGetAccessToken(admin.getEmail());
+        long courseId = createCourse(teacherToken);
+        jdbcTemplate.update("""
+                update courses set image_url = ?, image_public_id = ? where id = ?
+                """, "https://example.test/current.jpg", "current-cover", courseId);
+        jdbcTemplate.update("""
+                insert into course_cover_reviews
+                    (course_id, teacher_id, image_url, image_public_id, status, submitted_at)
+                values (?, ?, ?, ?, 'PENDING_REVIEW', current_timestamp)
+                """, courseId, teacher.getId(),
+                "https://example.test/proposed.jpg", "proposed-cover");
+        long reviewId = jdbcTemplate.queryForObject(
+                "select max(id) from course_cover_reviews where course_id = ?", Long.class, courseId);
+        jdbcTemplate.update("""
+                insert into course_pending_review_snapshots(course_id, snapshot_kind, cover_review_id)
+                values (?, 'COVER_ONLY', ?)
+                """, courseId, reviewId);
+
+        mockMvc.perform(get("/api/admin/content/course-covers/pending")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(reviewId))
+                .andExpect(jsonPath("$.content[0].currentCoverImageUrl")
+                        .value("https://example.test/current.jpg"))
+                .andExpect(jsonPath("$.content[0].proposedCoverImageUrl")
+                        .value("https://example.test/proposed.jpg"));
+        mockMvc.perform(get("/api/admin/content/course-covers/{id}", reviewId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentCoverImageUrl").value("https://example.test/current.jpg"))
+                .andExpect(jsonPath("$.proposedCoverImageUrl").value("https://example.test/proposed.jpg"));
+        mockMvc.perform(post("/api/admin/content/course-covers/{id}/approve", reviewId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "select image_url from courses where id = ?", String.class, courseId))
+                .isEqualTo("https://example.test/proposed.jpg");
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from course_cover_reviews where id = ?", String.class, reviewId))
+                .isEqualTo("APPROVED");
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from course_pending_review_snapshots where course_id = ?", Integer.class, courseId))
+                .isZero();
+        assertThat(jdbcTemplate.queryForObject("""
+                select count(*) from user_notifications
+                where user_id = ? and type = 'COURSE_COVER_REVIEW_APPROVED' and course_id = ?
+                """, Integer.class, teacher.getId(), courseId)).isOne();
+        assertThat(jdbcTemplate.queryForObject("""
+                select count(*) from catalog_invalidation_outbox
+                where course_id = ? and status = 'PENDING'
+                """, Integer.class, courseId)).isOne();
     }
 
     private long createCourse(String token) throws Exception {

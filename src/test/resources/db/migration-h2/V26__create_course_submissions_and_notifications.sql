@@ -41,7 +41,8 @@ CREATE TABLE course_submission_questions (
 CREATE TABLE user_notifications (
     id uuid PRIMARY KEY,
     user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    type varchar(64) NOT NULL CHECK (type IN ('COURSE_SUBMISSION_SUCCEEDED','COURSE_SUBMISSION_FAILED')),
+    type varchar(64) NOT NULL CONSTRAINT user_notifications_type_check
+        CHECK (type IN ('COURSE_SUBMISSION_SUCCEEDED','COURSE_SUBMISSION_FAILED')),
     submission_id uuid,
     course_id bigint,
     revision_id bigint,

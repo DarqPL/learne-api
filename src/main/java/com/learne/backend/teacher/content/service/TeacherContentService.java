@@ -17,6 +17,8 @@ import com.learne.backend.teacher.content.dto.TopicRequest;
 import com.learne.backend.teacher.content.dto.TopicResponse;
 import com.learne.backend.teacher.content.enrichment.CourseReviewEnrichmentService;
 import com.learne.backend.teacher.content.entity.Course;
+import com.learne.backend.teacher.content.entity.CourseCoverReview;
+import com.learne.backend.teacher.content.entity.CoursePendingReviewSnapshot;
 import com.learne.backend.teacher.content.entity.CourseRevision;
 import com.learne.backend.teacher.content.entity.Lesson;
 import com.learne.backend.teacher.content.entity.LessonRevision;
@@ -30,8 +32,12 @@ import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.enums.CoursePriceStatus;
 import com.learne.backend.teacher.content.enums.CoursePricingType;
 import com.learne.backend.teacher.content.enums.CourseRevisionStatus;
+import com.learne.backend.teacher.content.enums.CourseCoverReviewStatus;
+import com.learne.backend.teacher.content.enums.CoursePendingReviewSnapshotKind;
 import com.learne.backend.teacher.content.enums.QuestionType;
 import com.learne.backend.teacher.content.repository.CourseRepository;
+import com.learne.backend.teacher.content.repository.CourseCoverReviewRepository;
+import com.learne.backend.teacher.content.repository.CoursePendingReviewSnapshotRepository;
 import com.learne.backend.teacher.content.repository.CourseRevisionRepository;
 import com.learne.backend.teacher.content.repository.LessonRepository;
 import com.learne.backend.teacher.content.repository.LessonRevisionRepository;
@@ -41,10 +47,12 @@ import com.learne.backend.teacher.content.repository.TopicRepository;
 import com.learne.backend.teacher.content.repository.TopicRevisionRepository;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -72,6 +80,8 @@ public class TeacherContentService {
     private final SubmissionGuard submissionGuard;
     private final com.learne.backend.teacher.content.submission.SubmissionRepository submissions;
     private final com.learne.backend.teacher.content.audio.service.MediaCleanupProducer cleanup;
+    private final CourseCoverReviewRepository coverReviews;
+    private final CoursePendingReviewSnapshotRepository pendingReviewSnapshots;
 
     public TeacherContentService(CourseRepository courseRepository,
                            CourseRevisionRepository courseRevisionRepository,
@@ -86,7 +96,9 @@ public class TeacherContentService {
                              CourseWriteLockService locks,
                              RevisionAudioRebuildGuard revisionAudioRebuildGuard, SubmissionGuard submissionGuard,
                              com.learne.backend.teacher.content.submission.SubmissionRepository submissions,
-                             com.learne.backend.teacher.content.audio.service.MediaCleanupProducer cleanup) {
+                             com.learne.backend.teacher.content.audio.service.MediaCleanupProducer cleanup,
+                             CourseCoverReviewRepository coverReviews,
+                             CoursePendingReviewSnapshotRepository pendingReviewSnapshots) {
         this.courseRepository = courseRepository;
         this.courseRevisionRepository = courseRevisionRepository;
         this.topicRepository = topicRepository;
@@ -102,6 +114,8 @@ public class TeacherContentService {
         this.submissionGuard = submissionGuard;
         this.submissions = submissions;
         this.cleanup = cleanup;
+        this.coverReviews = coverReviews;
+        this.pendingReviewSnapshots = pendingReviewSnapshots;
     }
 
     @Transactional(readOnly = true)
@@ -190,6 +204,12 @@ public class TeacherContentService {
         CourseRevision draft = cloneRevisionForEdit(course, teacher, latestRevision);
         if (latestRevision.getStatus() == CourseRevisionStatus.PENDING_REVIEW) {
             latestRevision.setStatus(CourseRevisionStatus.SUPERSEDED);
+            latestRevision.setCoverImageUrl(null);
+            latestRevision.setCoverImagePublicId(null);
+            pendingReviewSnapshots.findLockedByCourseId(courseId)
+                    .filter(snapshot -> snapshot.getSnapshotKind() == CoursePendingReviewSnapshotKind.COURSE_REVISION
+                            && latestRevision.getId().equals(snapshot.getSnapshotId()))
+                    .ifPresent(pendingReviewSnapshots::delete);
             if (course.getPublishedAt() == null) {
                 course.setStatus(ContentStatus.DRAFT);
             }
@@ -197,6 +217,56 @@ public class TeacherContentService {
         CourseRevision savedDraft = courseRevisionRepository.save(draft);
         evictContentCaches(teacher);
         return CourseResponse.fromRevisionBackedCourse(course, savedDraft);
+    }
+
+    @Transactional
+    public void replaceRevisionCover(User teacher, Long courseId, String imageUrl, String publicId) {
+        Course course = locks.teacherCourse(courseId, teacher);
+        CourseRevision latest = courseRevisionRepository.findLockedLatestByCourseId(
+                        courseId, PageRequest.of(0, 1)).stream().findFirst()
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course revision not found."));
+        CoursePendingReviewSnapshot snapshot = pendingReviewSnapshots.findLockedByCourseId(courseId).orElse(null);
+
+        if (latest.getStatus() == CourseRevisionStatus.PENDING_REVIEW) {
+            if (snapshot == null
+                    || snapshot.getSnapshotKind() != CoursePendingReviewSnapshotKind.COURSE_REVISION
+                    || !latest.getId().equals(snapshot.getSnapshotId())) {
+                throw new ApiException(HttpStatus.CONFLICT, "The pending course revision is no longer current.");
+            }
+            CourseRevision replacement = cloneRevisionForEdit(course, teacher, latest);
+            replacement.setCoverImageUrl(imageUrl);
+            replacement.setCoverImagePublicId(publicId);
+            replacement.setStatus(CourseRevisionStatus.PENDING_REVIEW);
+            replacement.setSubmittedAt(Instant.now());
+            latest.setStatus(CourseRevisionStatus.SUPERSEDED);
+            String oldUrl = latest.getCoverImageUrl();
+            String oldPublicId = latest.getCoverImagePublicId();
+            latest.setCoverImageUrl(null);
+            latest.setCoverImagePublicId(null);
+            if (oldPublicId != null && !oldPublicId.equals(publicId)) {
+                cleanup.enqueueCourseCover(UUID.randomUUID(), courseId, oldUrl, oldPublicId);
+            }
+            CourseRevision saved = courseRevisionRepository.saveAndFlush(replacement);
+            snapshot.setCourseRevision(saved);
+            snapshot.setCoverReview(null);
+            snapshot.setSnapshotKind(CoursePendingReviewSnapshotKind.COURSE_REVISION);
+            pendingReviewSnapshots.saveAndFlush(snapshot);
+            evictContentCaches(teacher);
+            return;
+        }
+
+        if (!isEditableRevision(latest)) {
+            throw new ApiException(HttpStatus.CONFLICT, "Create an editable course revision before changing its cover.");
+        }
+        String oldUrl = latest.getCoverImageUrl();
+        String oldPublicId = latest.getCoverImagePublicId();
+        latest.setCoverImageUrl(imageUrl);
+        latest.setCoverImagePublicId(publicId);
+        courseRevisionRepository.saveAndFlush(latest);
+        if (oldPublicId != null && !oldPublicId.equals(publicId)) {
+            cleanup.enqueueCourseCover(UUID.randomUUID(), courseId, oldUrl, oldPublicId);
+        }
+        evictContentCaches(teacher);
     }
 
     @Transactional
@@ -228,8 +298,22 @@ public class TeacherContentService {
         Course course = locks.teacherCourse(courseId, teacher);
         submissionGuard.requireEditable(courseId);
         ensureEditable(course);
+        Map<String, String> coverCandidates = new LinkedHashMap<>();
+        addCoverCandidate(coverCandidates, course.getImageUrl(), course.getImagePublicId());
+        courseRevisionRepository.findCoverMediaReferencesByCourseId(courseId).forEach(reference ->
+                addCoverCandidate(coverCandidates, reference.url(), reference.publicId()));
+        coverReviews.findCoverMediaReferencesByCourseId(courseId).forEach(reference ->
+                addCoverCandidate(coverCandidates, reference.url(), reference.publicId()));
+        coverCandidates.forEach((publicId, url) ->
+                cleanup.enqueueCourseCover(UUID.randomUUID(), courseId, url, publicId));
         courseRepository.delete(course);
         evictContentCaches(teacher);
+    }
+
+    private static void addCoverCandidate(Map<String, String> candidates, String url, String publicId) {
+        if (publicId != null && !publicId.isBlank()) {
+            candidates.putIfAbsent(publicId, url);
+        }
     }
 
     @Transactional
@@ -756,6 +840,8 @@ public class TeacherContentService {
         revision.setOrderIndex(source.getOrderIndex());
         revision.setPricingType(source.getPricingType());
         revision.setProposedPriceAmountVnd(source.getProposedPriceAmountVnd());
+        revision.setCoverImageUrl(source.getCoverImageUrl());
+        revision.setCoverImagePublicId(source.getCoverImagePublicId());
         source.getTopics().stream()
                 .sorted(Comparator.comparingInt(TopicRevision::getOrderIndex)
                         .thenComparing(TopicRevision::getId, Comparator.nullsLast(Long::compareTo)))

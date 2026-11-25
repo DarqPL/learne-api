@@ -1,6 +1,7 @@
 package com.learne.backend.teacher.content.audio.service;
 
 import com.learne.backend.storage.config.CloudinaryProperties;
+import com.learne.backend.storage.dto.StorageResourceType;
 import com.learne.backend.jobs.service.RetryableJobException;
 import java.net.*;
 import java.net.http.*;
@@ -45,8 +46,22 @@ public final class CloudinaryMediaDeleteAdapter implements MediaDeletePort {
     }
     public int availableSlots() { return slots.availablePermits(); }
     public void delete(String publicId) {
+        deleteAt(publicId, endpoint, "learne/course-audio/[A-Za-z0-9_-]+");
+    }
+    @Override
+    public void delete(String publicId, StorageResourceType resourceType) {
+        if(resourceType==StorageResourceType.IMAGE) {
+            URI target = endpoint.getHost()!=null && "127.0.0.1".equals(endpoint.getHost())
+                    ? endpoint
+                    : URI.create("https://api.cloudinary.com/v1_1/"+properties.getCloudName()+"/image/destroy");
+            deleteAt(publicId, target, "learne/course-covers/[A-Za-z0-9_-]+");
+            return;
+        }
+        delete(publicId);
+    }
+    private void deleteAt(String publicId, URI target, String publicIdPattern) {
         if(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) throw new IllegalStateException("Media delete requires no SQL transaction");
-        if(publicId==null || !publicId.matches("learne/course-audio/[A-Za-z0-9_-]+")) throw new IllegalArgumentException("Invalid managed audio ID");
+        if(publicId==null || !publicId.matches(publicIdPattern)) throw new IllegalArgumentException("Invalid managed media ID");
         if(!slots.tryAcquire()) throw retry();
         HttpClient client=null; CompletableFuture<?> pending=null; ScheduledFuture<?> readWatch=null;
         long end=System.nanoTime()+deadline.toNanos();
@@ -57,7 +72,7 @@ public final class CloudinaryMediaDeleteAdapter implements MediaDeletePort {
                     ("public_id="+publicId+"&timestamp="+timestamp+properties.getApiSecret()).getBytes(StandardCharsets.UTF_8)));
             String form="public_id="+encode(publicId)+"&timestamp="+timestamp+"&api_key="+encode(properties.getApiKey())+"&signature="+signature;
             client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).version(HttpClient.Version.HTTP_1_1).build();
-            var request=HttpRequest.newBuilder(endpoint).timeout(deadline).header("Content-Type","application/x-www-form-urlencoded")
+            var request=HttpRequest.newBuilder(target).timeout(deadline).header("Content-Type","application/x-www-form-urlencoded")
                     .POST(HttpRequest.BodyPublishers.ofString(form)).build();
             var lastRead=new java.util.concurrent.atomic.AtomicLong(System.nanoTime());
             var response=client.sendAsync(request,info->{ lastRead.set(System.nanoTime()); return new BoundedBody(()->lastRead.set(System.nanoTime())); }); pending=response;

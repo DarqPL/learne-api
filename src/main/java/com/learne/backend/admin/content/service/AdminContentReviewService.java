@@ -3,7 +3,9 @@ package com.learne.backend.admin.content.service;
 import com.learne.backend.admin.content.dto.AdminReviewCourseDetailResponse;
 import com.learne.backend.admin.content.dto.AdminReviewCourseSummaryResponse;
 import com.learne.backend.cache.CacheInvalidationService;
+import com.learne.backend.cache.CatalogInvalidationOutboxService;
 import com.learne.backend.domain.auth.User;
+import com.learne.backend.notification.CourseCoverReviewNotificationService;
 import com.learne.backend.shared.api.ApiException;
 import com.learne.backend.teacher.content.entity.Course;
 import com.learne.backend.teacher.content.entity.Lesson;
@@ -15,10 +17,13 @@ import com.learne.backend.teacher.content.entity.QuestionRevision;
 import com.learne.backend.teacher.content.entity.Topic;
 import com.learne.backend.teacher.content.entity.TopicRevision;
 import com.learne.backend.teacher.content.entity.CourseRevision;
+import com.learne.backend.teacher.content.entity.CoursePendingReviewSnapshot;
 import com.learne.backend.teacher.content.enums.ContentStatus;
 import com.learne.backend.teacher.content.enums.CoursePriceStatus;
 import com.learne.backend.teacher.content.enums.CoursePricingType;
 import com.learne.backend.teacher.content.enums.CourseRevisionStatus;
+import com.learne.backend.teacher.content.enums.CoursePendingReviewSnapshotKind;
+import com.learne.backend.teacher.content.repository.CoursePendingReviewSnapshotRepository;
 import com.learne.backend.teacher.content.repository.CourseRepository;
 import com.learne.backend.teacher.content.repository.CourseRevisionRepository;
 import com.learne.backend.teacher.content.service.CourseWriteLockService;
@@ -46,6 +51,9 @@ public class AdminContentReviewService {
     private final CourseWriteLockService locks;
     private final ReviewDecisionService decisions;
     private final com.learne.backend.teacher.content.audio.service.MediaCleanupProducer cleanup;
+    private final CoursePendingReviewSnapshotRepository pendingSnapshots;
+    private final CourseCoverReviewNotificationService coverNotifications;
+    private final CatalogInvalidationOutboxService coverInvalidationOutbox;
 
     public AdminContentReviewService(CourseRepository courseRepository,
                                       CourseRevisionRepository courseRevisionRepository,
@@ -53,7 +61,10 @@ public class AdminContentReviewService {
                                       CacheInvalidationService cacheInvalidationService,
                                       CourseWriteLockService locks,
                                       ReviewDecisionService decisions,
-                                      com.learne.backend.teacher.content.audio.service.MediaCleanupProducer cleanup) {
+                                      com.learne.backend.teacher.content.audio.service.MediaCleanupProducer cleanup,
+                                      CoursePendingReviewSnapshotRepository pendingSnapshots,
+                                      CourseCoverReviewNotificationService coverNotifications,
+                                      CatalogInvalidationOutboxService coverInvalidationOutbox) {
         this.courseRepository = courseRepository;
         this.courseRevisionRepository = courseRevisionRepository;
         this.entityManager = entityManager;
@@ -61,6 +72,9 @@ public class AdminContentReviewService {
         this.locks = locks;
         this.decisions = decisions;
         this.cleanup = cleanup;
+        this.pendingSnapshots = pendingSnapshots;
+        this.coverNotifications = coverNotifications;
+        this.coverInvalidationOutbox = coverInvalidationOutbox;
     }
 
     @Transactional(readOnly = true)
@@ -89,7 +103,7 @@ public class AdminContentReviewService {
 
     private AdminReviewCourseDetailResponse approveResolvedRevision(User admin, CourseRevision revision) {
         CourseRevision latestRevision = latestLockedRevision(revision.getCourse().getId());
-        ensureLatestPendingRevision(revision, latestRevision);
+        CoursePendingReviewSnapshot snapshot = ensureLatestPendingRevision(revision, latestRevision);
         if (!hasMinimumReviewContent(revision)) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "Course must have at least one topic, lesson, and question before approval.");
@@ -110,20 +124,35 @@ public class AdminContentReviewService {
         revision.setRejectionReason(null);
 
         Course course = revision.getCourse();
+        String oldCoverUrl = course.getImageUrl();
+        String oldCoverPublicId = course.getImagePublicId();
         var oldAudio = new java.util.IdentityHashMap<Lesson, com.learne.backend.teacher.content.audio.dto.LessonAudioState>();
         course.getTopics().forEach(t -> t.getLessons().forEach(l -> oldAudio.put(l,
                 com.learne.backend.teacher.content.audio.dto.LessonAudioState.from(l))));
         MaterializedSources materializedSources = publishRevisionToLive(course, revision, admin, now);
+        if (revision.getCoverImageUrl() != null) {
+            course.setImageUrl(revision.getCoverImageUrl());
+            course.setImagePublicId(revision.getCoverImagePublicId());
+        }
         var detachedAudio = oldAudio.entrySet().stream().filter(e -> e.getValue().publicId() != null
                 && !e.getValue().equals(com.learne.backend.teacher.content.audio.dto.LessonAudioState.from(e.getKey())))
                 .map(Map.Entry::getValue).toList();
         if (!detachedAudio.isEmpty()) cleanup.enqueue(java.util.UUID.randomUUID(), course.getId(), detachedAudio);
+        if (oldCoverPublicId != null
+                && !oldCoverPublicId.equals(course.getImagePublicId())) {
+            cleanup.enqueueCourseCover(java.util.UUID.randomUUID(), course.getId(), oldCoverUrl, oldCoverPublicId);
+        }
         Course savedCourse = courseRepository.saveAndFlush(course);
         linkMaterializedSources(materializedSources);
+        pendingSnapshots.delete(snapshot);
         decisions.recordAndEnqueue(revision, null);
+        coverNotifications.revisionDecision(revision);
+        if (!java.util.Objects.equals(oldCoverUrl, savedCourse.getImageUrl())) {
+            coverInvalidationOutbox.recordPublicCoverChange(savedCourse.getId());
+        }
 
         AdminReviewCourseDetailResponse response = AdminReviewCourseDetailResponse.from(savedCourse, revision);
-        evictReviewCaches(savedCourse);
+        evictReviewCaches(savedCourse, true);
         return response;
     }
 
@@ -141,7 +170,7 @@ public class AdminContentReviewService {
 
     private AdminReviewCourseDetailResponse rejectResolvedRevision(User admin, CourseRevision revision, String reason) {
         CourseRevision latestRevision = latestLockedRevision(revision.getCourse().getId());
-        ensureLatestPendingRevision(revision, latestRevision);
+        CoursePendingReviewSnapshot snapshot = ensureLatestPendingRevision(revision, latestRevision);
 
         Instant now = Instant.now();
         revision.setStatus(CourseRevisionStatus.REJECTED);
@@ -178,14 +207,18 @@ public class AdminContentReviewService {
 
         courseRevisionRepository.save(revision);
         Course savedCourse = courseRepository.save(course);
+        pendingSnapshots.delete(snapshot);
         decisions.recordAndEnqueue(revision, null);
+        coverNotifications.revisionDecision(revision);
         AdminReviewCourseDetailResponse response = AdminReviewCourseDetailResponse.from(savedCourse, revision);
-        evictReviewCaches(savedCourse);
+        evictReviewCaches(savedCourse, false);
         return response;
     }
 
-    private void evictReviewCaches(Course course) {
-        cacheInvalidationService.evictGlobalCourseCatalog();
+    private void evictReviewCaches(Course course, boolean catalogChanged) {
+        if (catalogChanged) {
+            cacheInvalidationService.evictGlobalCourseCatalog();
+        }
         cacheInvalidationService.evictAdminDashboard();
         if (course.getTeacher() != null) {
             cacheInvalidationService.evictTeacherDashboard(course.getTeacher().getId());
@@ -444,9 +477,16 @@ public class AdminContentReviewService {
     }
 
     private CourseRevision findLatestPendingRevisionForCourse(Long courseId) {
-        return courseRevisionRepository.findTopByCourseIdAndStatusOrderByRevisionNumberDesc(
+        CourseRevision revision = courseRevisionRepository.findTopByCourseIdAndStatusOrderByRevisionNumberDesc(
                         courseId, CourseRevisionStatus.PENDING_REVIEW)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
+        CoursePendingReviewSnapshot snapshot = pendingSnapshots.findById(courseId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
+        if (snapshot.getSnapshotKind() != CoursePendingReviewSnapshotKind.COURSE_REVISION
+                || !revision.getId().equals(snapshot.getSnapshotId())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Course not found.");
+        }
+        return revision;
     }
 
     private CourseRevision latestLockedRevision(Long courseId) {
@@ -454,13 +494,20 @@ public class AdminContentReviewService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Course not found."));
     }
 
-    private void ensureLatestPendingRevision(CourseRevision revision, CourseRevision latestRevision) {
+    private CoursePendingReviewSnapshot ensureLatestPendingRevision(CourseRevision revision, CourseRevision latestRevision) {
         if (!latestRevision.getId().equals(revision.getId())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, STALE_REVISION_MESSAGE);
+            throw new ApiException(HttpStatus.CONFLICT, STALE_REVISION_MESSAGE);
         }
         if (revision.getStatus() != CourseRevisionStatus.PENDING_REVIEW) {
             throw new ApiException(HttpStatus.BAD_REQUEST, REVIEW_STATUS_MESSAGE);
         }
+        CoursePendingReviewSnapshot snapshot = pendingSnapshots.findLockedByCourseId(revision.getCourse().getId())
+                .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, STALE_REVISION_MESSAGE));
+        if (snapshot.getSnapshotKind() != CoursePendingReviewSnapshotKind.COURSE_REVISION
+                || !revision.getId().equals(snapshot.getSnapshotId())) {
+            throw new ApiException(HttpStatus.CONFLICT, STALE_REVISION_MESSAGE);
+        }
+        return snapshot;
     }
 
     private void ensurePendingReview(Course course) {

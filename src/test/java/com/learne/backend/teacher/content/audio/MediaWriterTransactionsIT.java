@@ -29,7 +29,7 @@ class MediaWriterTransactionsIT extends MediaCleanupIT {
     @MockitoSpyBean MediaCleanupProducer intents;
 
     @org.junit.jupiter.api.Test void compensationEnqueueFailureKeepsOriginalExceptionAndNeverFallsBackToDelete() {
-        var ids=fixture(); var outcome=new CourseWriteOutcome();
+        var ids=audioCleanupFixture(); var outcome=new CourseWriteOutcome();
         var original=new IllegalStateException("original mutation failure");
         var event=UUID.randomUUID(); var assets=List.of(LessonAudioCleanupServiceTests.state("orphan"));
         var target=org.springframework.test.util.AopTestUtils.<MediaCleanupProducer>getUltimateTargetObject(intents);
@@ -50,7 +50,7 @@ class MediaWriterTransactionsIT extends MediaCleanupIT {
     }
 
     @org.junit.jupiter.api.Test void unknownAndPostCommitFailureRetainWithoutAnyIntentOrDelete() {
-        var ids=fixture(); var assets=List.of(LessonAudioCleanupServiceTests.state("orphan"));
+        var ids=audioCleanupFixture(); var assets=List.of(LessonAudioCleanupServiceTests.state("orphan"));
         cleanup.compensate(UUID.randomUUID(),ids[0],assets,true,new CourseWriteOutcome());
         var outcome=new CourseWriteOutcome(); var original=new IllegalStateException("post commit failure");
         assertThatThrownBy(()->{
@@ -71,7 +71,7 @@ class MediaWriterTransactionsIT extends MediaCleanupIT {
     @ParameterizedTest
     @CsvSource({"json,false","json,true","import,false","import,true","publish,false","publish,true"})
     void actualDetachAndIntentCommitAtomicallyOrBothRollback(String writer,boolean fail) {
-        var ids=fixture(); long course=ids[0], lesson=ids[1];
+        var ids=audioCleanupFixture(); long course=ids[0], lesson=ids[1];
         long teacher=jdbc.queryForObject("select teacher_id from courses where id=?",Long.class,course);
         var user=users.findById(teacher).orElseThrow();
         long topic=jdbc.queryForObject("select topic_revision_id from lesson_revisions where id=?",Long.class,lesson);

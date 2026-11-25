@@ -31,6 +31,35 @@ public class MediaCleanupProducer {
                     "media-cleanup:"+mutationId+":"+digest(state.publicId()),mapper.writeValueAsString(payload),null,null));
         }
     }
+    @Transactional(propagation=Propagation.MANDATORY)
+    public void enqueueCourseCover(UUID mutationId, long courseId, String url, String publicId) {
+        Objects.requireNonNull(mutationId);
+        if (courseId <= 0 || publicId == null || publicId.isBlank()) {
+            throw new IllegalArgumentException("Invalid course cover cleanup");
+        }
+        var payload = mapper.createObjectNode()
+                .put("courseId", courseId)
+                .put("url", url)
+                .put("publicId", publicId)
+                .put("resourceType", "IMAGE");
+        queue.enqueue(new JobSpec(UUID.randomUUID(), QueueName.MEDIA, JobType.MEDIA_CLEANUP, 1, 0,
+                "media-cleanup:" + mutationId + ":" + digest("IMAGE", publicId),
+                mapper.writeValueAsString(payload), null, null));
+    }
+
+    static String digest(String resourceType, String publicId) {
+        try {
+            var digest = MessageDigest.getInstance("SHA-256");
+            for (String value : List.of(resourceType, publicId)) {
+                byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+                digest.update(ByteBuffer.allocate(4).putInt(bytes.length).array());
+                digest.update(bytes);
+            }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
     static String digest(String publicId) {
         try {
             var digest=MessageDigest.getInstance("SHA-256");

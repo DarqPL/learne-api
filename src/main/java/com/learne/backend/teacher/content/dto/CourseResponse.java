@@ -24,6 +24,7 @@ public record CourseResponse(
         Long priceAmountVnd,
         Long proposedPriceAmountVnd,
         CoursePriceStatus priceStatus,
+        String imageUrl,
         String rejectionReason,
         Long latestRevisionId,
         CourseRevisionStatus latestRevisionStatus,
@@ -49,6 +50,7 @@ public record CourseResponse(
                 course.getPriceAmountVnd(),
                 course.getProposedPriceAmountVnd(),
                 course.getPriceStatus(),
+                course.getImageUrl(),
                 course.getRejectionReason(),
                 latestRevision == null ? null : latestRevision.getId(),
                 latestRevision == null ? null : latestRevision.getStatus(),
@@ -74,6 +76,7 @@ public record CourseResponse(
                 course.getPriceAmountVnd(),
                 revision.getProposedPriceAmountVnd(),
                 course.getPriceStatus(),
+                course.getImageUrl(),
                 revision.getRejectionReason(),
                 revision.getId(),
                 revision.getStatus(),
@@ -88,7 +91,7 @@ public record CourseResponse(
 
     public CourseResponse withSubmission(com.learne.backend.teacher.content.submission.SubmissionResponse summary) {
         return new CourseResponse(id,name,description,type,level,orderIndex,status,pricingType,priceAmountVnd,
-                proposedPriceAmountVnd,priceStatus,rejectionReason,latestRevisionId,latestRevisionStatus,
+                proposedPriceAmountVnd,priceStatus,imageUrl,rejectionReason,latestRevisionId,latestRevisionStatus,
                 hasEditableRevision,topics,summary,summary != null && summary.editingLocked());
     }
 

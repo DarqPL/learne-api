@@ -16,8 +16,23 @@ public class NotificationRepository {
     @Transactional(propagation = Propagation.MANDATORY, timeout = 5)
     public boolean insertIfAbsent(Intent intent) {
         return jdbc.update("""
-                insert into user_notifications(id,user_id,type,submission_id,course_id,revision_id,dedupe_key,message)
-                values (?,?,?,?,?,?,?,?) on conflict (dedupe_key) do nothing
+                MERGE INTO user_notifications AS target
+                USING (VALUES (
+                    CAST(? AS UUID),
+                    CAST(? AS BIGINT),
+                    CAST(? AS VARCHAR),
+                    CAST(? AS UUID),
+                    CAST(? AS BIGINT),
+                    CAST(? AS BIGINT),
+                    CAST(? AS VARCHAR),
+                    CAST(? AS VARCHAR)
+                ))
+                    AS source(id, user_id, type, submission_id, course_id, revision_id, dedupe_key, message)
+                ON target.dedupe_key = source.dedupe_key
+                WHEN NOT MATCHED THEN
+                    INSERT (id, user_id, type, submission_id, course_id, revision_id, dedupe_key, message)
+                    VALUES (source.id, source.user_id, source.type, source.submission_id,
+                        source.course_id, source.revision_id, source.dedupe_key, source.message)
                 """, intent.id(),intent.userId(),intent.type(),intent.submissionId(),intent.courseId(),intent.revisionId(),
                 intent.dedupeKey(),intent.message()) == 1;
     }

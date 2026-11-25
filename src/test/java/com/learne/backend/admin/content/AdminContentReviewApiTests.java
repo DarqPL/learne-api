@@ -859,6 +859,24 @@ class AdminContentReviewApiTests extends com.learne.backend.testsupport.Submissi
             courseRepository.save(course);
         });
         jdbcTemplate.update("update course_revisions set status = ? where course_id = ?", status.name(), courseId);
+        if (status == ContentStatus.PENDING_REVIEW) {
+            jdbcTemplate.update("""
+                    insert into course_pending_review_snapshots(course_id, snapshot_kind, course_revision_id)
+                    select course_id, 'COURSE_REVISION', id
+                    from course_revisions
+                    where course_id = ?
+                    order by revision_number desc
+                    limit 1
+                    on conflict (course_id) do update
+                    set snapshot_kind = excluded.snapshot_kind,
+                        course_revision_id = excluded.course_revision_id,
+                        cover_review_id = null,
+                        version = course_pending_review_snapshots.version + 1,
+                        updated_at = current_timestamp
+                    """, courseId);
+        } else {
+            jdbcTemplate.update("delete from course_pending_review_snapshots where course_id = ?", courseId);
+        }
     }
 
     private String validRejectJson() {
