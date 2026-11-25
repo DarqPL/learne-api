@@ -35,6 +35,8 @@ public record AdminReviewCourseDetailResponse(
         Instant reviewedAt,
         Instant publishedAt,
         Instant updatedAt,
+        String currentCoverImageUrl,
+        String proposedCoverImageUrl,
         List<AdminReviewTopicResponse> topics
 ) {
     public static AdminReviewCourseDetailResponse from(Course course) {
@@ -63,6 +65,8 @@ public record AdminReviewCourseDetailResponse(
                 course.getReviewedAt(),
                 course.getPublishedAt(),
                 course.getUpdatedAt(),
+                course.getImageUrl(),
+                null,
                 course.getTopics().stream()
                         .sorted(Comparator.comparingInt(Topic::getOrderIndex).thenComparing(Topic::getId))
                         .map(AdminReviewTopicResponse::from)
@@ -96,6 +100,8 @@ public record AdminReviewCourseDetailResponse(
                 course.getReviewedAt(),
                 course.getPublishedAt(),
                 course.getUpdatedAt(),
+                course.getImageUrl(),
+                revision.getCoverImageUrl(),
                 course.getTopics().stream()
                         .sorted(Comparator.comparingInt(Topic::getOrderIndex).thenComparing(Topic::getId))
                         .map(AdminReviewTopicResponse::from)
@@ -129,6 +135,8 @@ public record AdminReviewCourseDetailResponse(
                 revision.getReviewedAt(),
                 revision.getPublishedAt(),
                 revision.getUpdatedAt(),
+                revision.getCourse().getImageUrl(),
+                revision.getCoverImageUrl(),
                 revision.getTopics().stream()
                         .sorted(Comparator.comparingInt(TopicRevision::getOrderIndex).thenComparing(TopicRevision::getId))
                         .map(AdminReviewTopicResponse::from)

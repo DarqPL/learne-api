@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
 
-/** Activation advertises only the fully implemented v1 VIDEO cleanup protocol. */
+/** Activation requires the complete decision and bounded-delete path. */
 @Configuration(proxyBeanMethods=false)
 @ConditionalOnProperty(name="app.jobs.media-cleanup-enabled",havingValue="true")
 public class MediaCleanupConfiguration {
@@ -17,7 +17,8 @@ public class MediaCleanupConfiguration {
     }
     @Bean
     MediaCleanupHandler mediaCleanupHandler(JobStore store,LessonAudioCleanupDecisionService decisions,
+            CourseCoverCleanupDecisionService courseCovers,
             CloudinaryMediaDeleteAdapter storage,ObjectMapper mapper) {
-        return new MediaCleanupHandler(store,decisions,storage,mapper);
+        return new MediaCleanupHandler(store,decisions,courseCovers,storage,mapper);
     }
 }

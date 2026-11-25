@@ -44,6 +44,51 @@ class SubmissionFinalizationIT extends JobsPostgresTestSupport {
         assertThat(jdbc.queryForObject("select status from course_revisions",String.class)).isEqualTo("PENDING_REVIEW");
         assertThat(jdbc.queryForObject("select count(*) from user_notifications",Integer.class)).isEqualTo(1);
     }
+    @Test void successfulSubmissionBecomesTheCurrentReviewSnapshot() {
+        var id=fixture(2);
+        completion.complete(claim(),id);
+
+        assertThat(jdbc.queryForObject("""
+                select snapshot_kind from course_pending_review_snapshots
+                where course_id = (select course_id from course_submission_attempts where id = ?)
+                """,String.class,id)).isEqualTo("COURSE_REVISION");
+        assertThat(jdbc.queryForObject("""
+                select course_revision_id from course_pending_review_snapshots
+                where course_id = (select course_id from course_submission_attempts where id = ?)
+                """,Long.class,id)).isEqualTo(jdbc.queryForObject(
+                "select revision_id from course_submission_attempts where id = ?",Long.class,id));
+    }
+    @Test void supersedingStandaloneCoverClearsItsMediaReferenceAndQueuesCleanup() {
+        var id=fixture(2);
+        long courseId=jdbc.queryForObject(
+                "select course_id from course_submission_attempts where id=?",Long.class,id);
+        long teacherId=jdbc.queryForObject("select teacher_id from courses where id=?",Long.class,courseId);
+        long reviewId=jdbc.queryForObject("""
+                insert into course_cover_reviews(
+                    course_id,teacher_id,image_url,image_public_id,status)
+                values (?,?,'https://example.test/old-pending.jpg',
+                    'learne/course-covers/old-pending','PENDING_REVIEW') returning id
+                """,Long.class,courseId,teacherId);
+        jdbc.update("""
+                insert into course_pending_review_snapshots(course_id,snapshot_kind,cover_review_id)
+                values (?,'COVER_ONLY',?)
+                """,courseId,reviewId);
+
+        completion.complete(claim(),id);
+
+        assertThat(jdbc.queryForMap("""
+                select status,image_url,image_public_id
+                from course_cover_reviews where id=?
+                """,reviewId))
+                .containsEntry("status","SUPERSEDED")
+                .containsEntry("image_url",null)
+                .containsEntry("image_public_id",null);
+        assertThat(jdbc.queryForObject("""
+                select count(*) from background_jobs
+                where type='MEDIA_CLEANUP'
+                  and payload ->> 'publicId' = 'learne/course-covers/old-pending'
+                """,Integer.class)).isOne();
+    }
     @Test void changedFingerprintFailsWithoutApplyingMetadata() {
         var id=fixture(2); jdbc.update("update question_revisions set question_text='changed'");
         completion.complete(claim(),id);

@@ -11,6 +11,11 @@ import com.learne.backend.teacher.content.importexport.security.AudioFileValidat
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import java.net.URI;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -26,6 +31,9 @@ import org.springframework.web.multipart.MultipartFile;
 class CloudinaryStorageService implements StorageService {
     private static final int MAX_SIGNATURE_BYTES = 12;
     private static final int DOWNLOAD_TIMEOUT_MILLIS = 8_000;
+    private static final int MAX_COURSE_COVER_BYTES = 5 * 1024 * 1024;
+    private static final int MAX_COURSE_COVER_DIMENSION = 4096;
+    private static final long MAX_COURSE_COVER_PIXELS = 16_000_000L;
     private static final Set<String> AVATAR_CONTENT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
     private static final Set<String> VIDEO_CONTENT_TYPES = Set.of("video/mp4", "video/webm", "video/quicktime");
 
@@ -64,6 +72,12 @@ class CloudinaryStorageService implements StorageService {
     public StorageUploadResult uploadLessonAudio(MultipartFile file) {
         validateFile(file, AudioFileValidator.ALLOWED_TYPES, AudioFileValidator.MAX_AUDIO_BYTES, "File audio không hợp lệ.");
         return upload(file, courseAudioFolder(), StorageResourceType.VIDEO);
+    }
+
+    @Override
+    public StorageUploadResult uploadCourseCover(MultipartFile file) {
+        validateCourseCover(file);
+        return uploadUnique(file, "learne/course-covers", StorageResourceType.IMAGE);
     }
 
     @Override
@@ -142,6 +156,121 @@ class CloudinaryStorageService implements StorageService {
         } catch (IOException ex) {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "Không thể upload file lên Cloudinary.");
         }
+    }
+
+    private StorageUploadResult uploadUnique(MultipartFile file, String folder, StorageResourceType resourceType) {
+        ensureConfigured();
+        try {
+            Map<?, ?> result = cloudinary().uploader().upload(
+                    file.getBytes(),
+                    ObjectUtils.asMap(
+                            "folder", folder,
+                            "resource_type", resourceType.cloudinaryValue(),
+                            "unique_filename", true,
+                            "overwrite", false,
+                            "invalidate", true
+                    )
+            );
+            Object secureUrl = result.get("secure_url");
+            Object publicId = result.get("public_id");
+            if (secureUrl == null || publicId == null) {
+                throw new ApiException(HttpStatus.BAD_GATEWAY, "Cloudinary không trả về URL hợp lệ.");
+            }
+            return new StorageUploadResult(secureUrl.toString(), publicId.toString());
+        } catch (IOException ex) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "Không thể upload file lên Cloudinary.");
+        }
+    }
+
+    private void validateCourseCover(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Ảnh bìa khóa học không hợp lệ.");
+        }
+        if (file.getSize() > MAX_COURSE_COVER_BYTES) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "File vượt quá dung lượng cho phép.");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !AVATAR_CONTENT_TYPES.contains(contentType)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Ảnh bìa khóa học không hợp lệ.");
+        }
+        if (!hasAllowedSignature(file, contentType)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Ảnh bìa khóa học không hợp lệ.");
+        }
+
+        try {
+            byte[] bytes = file.getBytes();
+            decodeAndValidateImage(contentType, bytes);
+        } catch (ApiException ex) {
+            throw ex;
+        } catch (IOException | RuntimeException ex) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Ảnh bìa khóa học không hợp lệ.");
+        }
+    }
+
+    private void decodeAndValidateImage(String contentType, byte[] bytes) throws IOException {
+        if ("image/webp".equals(contentType) && !hasValidWebpRiff(bytes)) {
+            throw new IOException("Invalid WebP RIFF structure");
+        }
+
+        try (ImageInputStream input = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+            if (input == null) {
+                throw new IOException("Image input stream unavailable");
+            }
+            ImageReader reader = selectImageReader(contentType, input);
+            try {
+                reader.setInput(input, true, true);
+                int width = reader.getWidth(0);
+                int height = reader.getHeight(0);
+                validateImageDimensions(width, height);
+                BufferedImage image = reader.read(0);
+                if (image == null) {
+                    throw new IOException("Decoded image is incomplete");
+                }
+            } finally {
+                reader.dispose();
+            }
+        }
+    }
+
+    private ImageReader selectImageReader(String contentType, ImageInputStream input) throws IOException {
+        String readerClass = switch (contentType) {
+            case "image/jpeg" -> "com.sun.imageio.plugins.jpeg.JPEGImageReader";
+            case "image/png" -> "com.sun.imageio.plugins.png.PNGImageReader";
+            case "image/webp" -> "com.twelvemonkeys.imageio.plugins.webp.WebPImageReader";
+            default -> throw new IOException("Unsupported image MIME");
+        };
+        var readers = ImageIO.getImageReaders(input);
+        while (readers.hasNext()) {
+            ImageReader reader = readers.next();
+            if (reader.getClass().getName().equals(readerClass)
+                    && reader.getFormatName().equalsIgnoreCase(contentType.substring("image/".length()))) {
+                return reader;
+            }
+            reader.dispose();
+        }
+        throw new IOException("No matching image reader");
+    }
+
+    private void validateImageDimensions(int width, int height) {
+        if (width <= 0 || height <= 0
+                || width > MAX_COURSE_COVER_DIMENSION
+                || height > MAX_COURSE_COVER_DIMENSION
+                || (long) width * height > MAX_COURSE_COVER_PIXELS) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Ảnh bìa khóa học vượt quá kích thước cho phép.");
+        }
+    }
+
+    private boolean hasValidWebpRiff(byte[] bytes) {
+        if (bytes.length < 20
+                || !startsWith(bytes, 0x52, 0x49, 0x46, 0x46)
+                || !matchesAt(bytes, 8, 0x57, 0x45, 0x42, 0x50)) {
+            return false;
+        }
+        int riffSize = (bytes[4] & 0xFF)
+                | ((bytes[5] & 0xFF) << 8)
+                | ((bytes[6] & 0xFF) << 16)
+                | ((bytes[7] & 0xFF) << 24);
+        return riffSize >= 12 && riffSize + 8 == bytes.length;
     }
 
     private void validateFile(MultipartFile file, Set<String> allowedContentTypes, long maxBytes, String message) {

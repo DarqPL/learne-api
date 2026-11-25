@@ -95,7 +95,7 @@ abstract class AudioPostgresTestSupport {
     ExecutorService workers;
 
     @BeforeEach
-    void fixture() throws Exception {
+    void setUpAudioFixture() throws Exception {
         try (var connection = dataSource.getConnection()) {
             assertThat(connection.getMetaData().getDatabaseProductName()).isEqualTo("PostgreSQL");
             System.out.println("AUDIO_IT_DATABASE=" + connection.getMetaData().getDatabaseProductName()

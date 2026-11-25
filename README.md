@@ -207,6 +207,18 @@ and finalizes status, locks and notifications. Import keeps its upload/scan/writ
 subsequent submission enrichment is queued. The frontend must understand acceptance and
 poll persisted status rather than treating 202 as completed review.
 
+## Course cover moderation schema rollout
+
+Apply Flyway V31-V33 before deploying the moderation application code. These migrations
+add revision cover fields, the latest-review registry, cover-review history, notification
+types, and the catalog invalidation outbox. V31 preserves existing public course cover
+fields and registers the newest already-pending revision per course.
+
+Rollback is application-only: retain the additive schema and all review, cleanup, and
+invalidation data. Do not down-migrate or restore an application version that publishes
+uploaded covers directly; disable cover mutations until a moderation-compatible version
+is available if the deployment must be rolled back.
+
 ## R5 media, maintenance and retention operations
 
 `APP_JOBS_MEDIA_CLEANUP_ENABLED=true` maps through Spring's environment binding to

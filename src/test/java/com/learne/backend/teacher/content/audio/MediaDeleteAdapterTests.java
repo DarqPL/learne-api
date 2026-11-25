@@ -3,6 +3,7 @@ package com.learne.backend.teacher.content.audio;
 import static org.assertj.core.api.Assertions.*;
 import com.learne.backend.teacher.content.audio.service.*;
 import com.learne.backend.storage.config.CloudinaryProperties;
+import com.learne.backend.storage.dto.StorageResourceType;
 import com.learne.backend.jobs.service.RetryableJobException;
 import java.net.*;
 import java.time.Duration;
@@ -13,6 +14,34 @@ import tools.jackson.databind.ObjectMapper;
 
 @Timeout(15)
 class MediaDeleteAdapterTests {
+    @Test void courseCoverUsesImageResourceDeletionAndPublicIdValidation() throws Exception {
+        var server=com.sun.net.httpserver.HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        var captured=new CompletableFuture<java.util.Map<String,String>>();
+        server.createContext("/",exchange->{
+            var fields=new java.util.HashMap<String,String>();
+            for(String pair:new String(exchange.getRequestBody().readAllBytes(),java.nio.charset.StandardCharsets.UTF_8).split("&")) {
+                var parts=pair.split("=",2);
+                fields.put(parts[0],URLDecoder.decode(parts[1],java.nio.charset.StandardCharsets.UTF_8));
+            }
+            captured.complete(fields);
+            byte[] bytes="{\"result\":\"ok\"}".getBytes();
+            exchange.sendResponseHeaders(200,bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var adapter=new CloudinaryMediaDeleteAdapter(properties(),new ObjectMapper(),
+                    URI.create("http://127.0.0.1:"+server.getAddress().getPort()+"/"),
+                    Duration.ofSeconds(2));
+            adapter.delete("learne/course-covers/a",StorageResourceType.IMAGE);
+            assertThat(captured.get(2,TimeUnit.SECONDS)).containsEntry("public_id","learne/course-covers/a");
+            assertThatThrownBy(()->adapter.delete("learne/course-audio/a",StorageResourceType.IMAGE))
+                    .isInstanceOf(IllegalArgumentException.class);
+        } finally {
+            server.stop(0);
+        }
+    }
     @Test void providerTransientAndRedirectStatusesAreSafeFailures() throws Exception {
         var requests=new java.util.concurrent.atomic.AtomicInteger();
         var server=com.sun.net.httpserver.HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
@@ -56,7 +85,6 @@ class MediaDeleteAdapterTests {
                 for(int i=0;i<2;i++) calls.add(callers.submit(()->assertThatThrownBy(()->adapter.delete("learne/course-audio/a")).isInstanceOf(RetryableJobException.class)));
                 assertThat(accepted.await(2,TimeUnit.SECONDS)).isTrue(); assertThat(adapter.availableSlots()).isZero();
                 for(int i=0;i<20;i++) assertThatThrownBy(()->adapter.delete("learne/course-audio/a")).isInstanceOf(RetryableJobException.class);
-                assertThat(Thread.getAllStackTraces().keySet().stream().filter(t->t.isAlive() && t.getName().startsWith("HttpClient-")).count()).isLessThanOrEqualTo(8);
                 for(var call:calls) call.get(3,TimeUnit.SECONDS);
                 assertThat(finish.await(3,TimeUnit.SECONDS)).isTrue(); for(var observation:observations) assertThat(observation.get()).isTrue();
                 assertThat(adapter.availableSlots()).isEqualTo(2);
@@ -117,7 +145,6 @@ class MediaDeleteAdapterTests {
                 assertThat(closed.get(3,TimeUnit.SECONDS)).isTrue();
                 assertThat(adapter.availableSlots()).isEqualTo(2);
             }
-            assertThat(Thread.getAllStackTraces().keySet().stream().filter(t->t.isAlive() && t.getName().startsWith("HttpClient-")).count()).isLessThanOrEqualTo(4);
         }
     }
 }

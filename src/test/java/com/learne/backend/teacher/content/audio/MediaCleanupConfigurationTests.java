@@ -15,6 +15,7 @@ class MediaCleanupConfigurationTests {
                 .withBean(JobStore.class,()->mock(JobStore.class))
                 .withBean(JobMetrics.class,()->mock(JobMetrics.class))
                 .withBean(LessonAudioCleanupDecisionService.class,()->mock(LessonAudioCleanupDecisionService.class))
+                .withBean(CourseCoverCleanupDecisionService.class,()->mock(CourseCoverCleanupDecisionService.class))
                 .withBean(ObjectMapper.class,ObjectMapper::new)
                 .withBean(CloudinaryProperties.class,()->{
                     var properties=new CloudinaryProperties(); properties.setCloudName("test"); properties.setApiKey("synthetic"); properties.setApiSecret("synthetic"); return properties;

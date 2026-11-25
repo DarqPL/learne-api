@@ -4,11 +4,13 @@ import com.learne.backend.jobs.model.*;
 import com.learne.backend.mail.model.*;
 import com.learne.backend.mail.service.MailJobProducer;
 import com.learne.backend.notification.NotificationRepository;
+import com.learne.backend.notification.CourseCoverReviewNotificationService;
 import com.learne.backend.cache.CacheInvalidationService;
 import com.learne.backend.teacher.content.enrichment.EnrichmentContract;
 import com.learne.backend.teacher.content.repository.*;
 import com.learne.backend.teacher.content.enums.CourseRevisionStatus;
 import com.learne.backend.teacher.content.service.PendingReviewTransition;
+import com.learne.backend.teacher.content.audio.service.MediaCleanupProducer;
 import jakarta.persistence.EntityManager;
 import java.util.*;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,12 +31,18 @@ public class SubmissionFinalizationService implements SubmissionCompletionPort {
     private final NotificationRepository notifications;
     private final CacheInvalidationService cache;
     private final tools.jackson.databind.ObjectMapper mapper;
+    private final MediaCleanupProducer cleanup;
+    private final CourseCoverReviewNotificationService coverNotifications;
     public SubmissionFinalizationService(JdbcTemplate jdbc, SubmissionRepository repository, SubmissionProjectionReader projections,
             CourseRepository courses, CourseRevisionRepository revisions, EntityManager em, @org.springframework.context.annotation.Lazy MailJobProducer mail,
-            NotificationRepository notifications, CacheInvalidationService cache, tools.jackson.databind.ObjectMapper mapper) {
+            NotificationRepository notifications, CacheInvalidationService cache, tools.jackson.databind.ObjectMapper mapper,
+            @org.springframework.context.annotation.Lazy MediaCleanupProducer cleanup,
+            CourseCoverReviewNotificationService coverNotifications) {
         this.jdbc=jdbc; this.repository=repository; this.projections=projections; this.courses=courses;
         this.revisions=revisions; this.em=em; this.mail=mail; this.notifications=notifications; this.cache=cache;
         this.mapper=mapper;
+        this.cleanup=cleanup;
+        this.coverNotifications=coverNotifications;
     }
     private record Locked(SubmissionRepository.Parent parent, Map<String,Object> row, boolean resources) { }
     private Locked lock(JobLease lease, UUID id) {
@@ -88,7 +96,19 @@ public class SubmissionFinalizationService implements SubmissionCompletionPort {
         });
         for(var batch:counts) for(int count:batch) if(count!=1) throw new IllegalStateException("Question set changed");
         var course=courses.findById(p.courseId()).orElseThrow(); var revision=revisions.findById(p.revisionId()).orElseThrow();
-        PendingReviewTransition.transitionToPending(course,revision,revisions.findByCourseAndStatus(course,CourseRevisionStatus.PENDING_REVIEW));
+        var supersededRevisions = revisions.findByCourseAndStatus(course,CourseRevisionStatus.PENDING_REVIEW);
+        PendingReviewTransition.transitionToPending(course,revision,supersededRevisions);
+        for (var superseded : supersededRevisions) {
+            if (Objects.equals(superseded.getId(), revision.getId())) continue;
+            String oldUrl = superseded.getCoverImageUrl();
+            String oldPublicId = superseded.getCoverImagePublicId();
+            superseded.setCoverImageUrl(null);
+            superseded.setCoverImagePublicId(null);
+            if (oldPublicId != null && !oldPublicId.equals(revision.getCoverImagePublicId())) {
+                cleanup.enqueueCourseCover(UUID.randomUUID(), course.getId(), oldUrl, oldPublicId);
+            }
+        }
+        registerCurrentReviewSnapshot(course, revision);
         em.flush();
         terminal(lease,locked,true,null);
         var teacherName=jdbc.queryForObject("select full_name from users where id=?",String.class,teacher);
@@ -106,6 +126,53 @@ public class SubmissionFinalizationService implements SubmissionCompletionPort {
         });
     }
     private static void evict(Runnable action) { try { action.run(); } catch(RuntimeException ignored) { /* Durable success is already committed. */ } }
+
+    private void registerCurrentReviewSnapshot(com.learne.backend.teacher.content.entity.Course course,
+            com.learne.backend.teacher.content.entity.CourseRevision revision) {
+        var current = jdbc.queryForList("""
+                select snapshot_kind, course_revision_id, cover_review_id
+                from course_pending_review_snapshots where course_id = ? for update
+                """, course.getId());
+        if (!current.isEmpty()) {
+            var row = current.getFirst();
+            Object coverReviewId = row.get("cover_review_id");
+            if (coverReviewId != null) {
+                long id = ((Number) coverReviewId).longValue();
+                var previous = jdbc.queryForMap(
+                        "select image_url, image_public_id from course_cover_reviews where id = ? for update", id);
+                jdbc.update("""
+                        update course_cover_reviews
+                        set status = 'SUPERSEDED', reviewed_at = CURRENT_TIMESTAMP,
+                            image_url = null, image_public_id = null
+                        where id = ? and status = 'PENDING_REVIEW'
+                        """, id);
+                coverNotifications.coverDecision(
+                        id,
+                        course.getTeacher().getId(),
+                        course.getId(),
+                        course.getName(),
+                        com.learne.backend.teacher.content.enums.CourseCoverReviewStatus.SUPERSEDED,
+                        null);
+                String previousPublicId = (String) previous.get("image_public_id");
+                if (previousPublicId != null && !previousPublicId.equals(revision.getCoverImagePublicId())) {
+                    cleanup.enqueueCourseCover(UUID.randomUUID(), course.getId(),
+                            (String) previous.get("image_url"), previousPublicId);
+                }
+            }
+            jdbc.update("""
+                    update course_pending_review_snapshots
+                    set snapshot_kind = 'COURSE_REVISION', course_revision_id = ?,
+                        cover_review_id = null, version = version + 1, updated_at = CURRENT_TIMESTAMP
+                    where course_id = ?
+                    """, revision.getId(), course.getId());
+            return;
+        }
+        jdbc.update("""
+                insert into course_pending_review_snapshots(course_id, snapshot_kind, course_revision_id)
+                values (?, 'COURSE_REVISION', ?)
+                """, course.getId(), revision.getId());
+    }
+
     @Override @Transactional(timeout=30)
     public void fail(JobLease lease,UUID id,String code) {
         var locked=lock(lease,id); terminal(lease,locked,false,locked.resources()?code:"SUBMISSION_RESOURCE_UNAVAILABLE");

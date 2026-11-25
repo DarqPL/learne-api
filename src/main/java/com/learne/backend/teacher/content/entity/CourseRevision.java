@@ -84,6 +84,12 @@ public class CourseRevision {
     @Column(name = "proposed_price_amount_vnd")
     private Long proposedPriceAmountVnd;
 
+    @Column(name = "cover_image_url", length = 1024)
+    private String coverImageUrl;
+
+    @Column(name = "cover_image_public_id", length = 255)
+    private String coverImagePublicId;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -95,13 +101,23 @@ public class CourseRevision {
 
     @PrePersist
     void prePersist() {
+        validateCoverPair();
         Instant now = Instant.now();
         createdAt = now;
         updatedAt = now;
     }
 
     @PreUpdate
-    void preUpdate() { updatedAt = Instant.now(); }
+    void preUpdate() {
+        validateCoverPair();
+        updatedAt = Instant.now();
+    }
+
+    private void validateCoverPair() {
+        if ((coverImageUrl == null) != (coverImagePublicId == null)) {
+            throw new IllegalStateException("Revision cover URL and public ID must both be null or both be set");
+        }
+    }
 
     public Long getId() { return id; }
     public Course getCourse() { return course; }
@@ -136,6 +152,10 @@ public class CourseRevision {
     public void setPricingType(CoursePricingType pricingType) { this.pricingType = pricingType; }
     public Long getProposedPriceAmountVnd() { return proposedPriceAmountVnd; }
     public void setProposedPriceAmountVnd(Long proposedPriceAmountVnd) { this.proposedPriceAmountVnd = proposedPriceAmountVnd; }
+    public String getCoverImageUrl() { return coverImageUrl; }
+    public void setCoverImageUrl(String coverImageUrl) { this.coverImageUrl = coverImageUrl; }
+    public String getCoverImagePublicId() { return coverImagePublicId; }
+    public void setCoverImagePublicId(String coverImagePublicId) { this.coverImagePublicId = coverImagePublicId; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public List<TopicRevision> getTopics() { return topics; }

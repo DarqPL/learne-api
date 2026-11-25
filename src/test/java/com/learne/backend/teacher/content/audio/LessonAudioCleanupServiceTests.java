@@ -212,7 +212,8 @@ class LessonAudioCleanupServiceTests {
         when(jobs.isLeaseCurrent(any())).thenReturn(true);
         var mapper=new tools.jackson.databind.ObjectMapper();
         com.learne.backend.teacher.content.audio.service.MediaDeletePort fake=id->storage.delete(id,StorageResourceType.VIDEO);
-        var handler=new com.learne.backend.teacher.content.audio.service.MediaCleanupHandler(jobs,decision,fake,mapper);
+        var handler=new com.learne.backend.teacher.content.audio.service.MediaCleanupHandler(
+                jobs,decision,mock(com.learne.backend.teacher.content.audio.service.CourseCoverCleanupDecisionService.class),fake,mapper);
         for(var state:new java.util.LinkedHashSet<>(states)) {
             var payload=mapper.createObjectNode().put("courseId",1L).put("url",state.url()).put("publicId",state.publicId()).put("resourceType","VIDEO");
             var lease=new com.learne.backend.jobs.model.JobLease(java.util.UUID.randomUUID(),java.util.UUID.randomUUID(),java.time.Instant.now().plusSeconds(30),com.learne.backend.jobs.model.JobType.MEDIA_CLEANUP,1,1,3,mapper.writeValueAsString(payload),null,false);

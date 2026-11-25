@@ -127,7 +127,11 @@ class CouponPricingServiceTests {
             lockEvents.add("dedupe-lock");
             return List.of();
         });
-        when(orderRepository.saveAndFlush(ArgumentMatchers.any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderRepository.saveAndFlush(ArgumentMatchers.any(Order.class))).thenAnswer(invocation -> {
+            Order order = invocation.getArgument(0);
+            order.setPublicId(java.util.UUID.randomUUID());
+            return order;
+        });
 
         checkoutService().createCourseOrder(student, 10L, "WELCOME20");
 

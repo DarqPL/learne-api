@@ -134,6 +134,7 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
                    teacher.fullName as teacherFullName,
                    teacher.email as teacherEmail,
                    teacher.avatarUrl as teacherAvatarUrl,
+                   course.imageUrl as imageUrl,
                    count(distinct case when lesson.status = com.learne.backend.teacher.content.enums.ContentStatus.APPROVED then topic.id end) as approvedTopicCount,
                    count(distinct case when lesson.status = com.learne.backend.teacher.content.enums.ContentStatus.APPROVED then lesson.id end) as approvedLessonCount,
                    count(distinct case when lesson.status = com.learne.backend.teacher.content.enums.ContentStatus.APPROVED
@@ -158,7 +159,7 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
               and (course.publishedAt < :cursorPublishedAt
                    or (course.publishedAt = :cursorPublishedAt and course.id < :cursorId))
             group by course.id, course.name, course.description, course.type, course.level,
-                     teacher.id, teacher.fullName, teacher.email, teacher.avatarUrl,
+                     teacher.id, teacher.fullName, teacher.email, teacher.avatarUrl, course.imageUrl,
                      course.publishedAt, course.pricingType, course.priceAmountVnd
             order by course.publishedAt desc, course.id desc
             """)

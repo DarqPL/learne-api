@@ -2,6 +2,7 @@ package com.learne.backend.teacher.content.repository;
 
 import com.learne.backend.teacher.content.entity.Course;
 import com.learne.backend.teacher.content.entity.CourseRevision;
+import com.learne.backend.teacher.content.dto.CourseCoverMediaReference;
 import com.learne.backend.teacher.content.enums.CourseRevisionStatus;
 import jakarta.persistence.LockModeType;
 import java.util.List;
@@ -31,6 +32,14 @@ public interface CourseRevisionRepository extends JpaRepository<CourseRevision, 
     Optional<CourseRevision> findTopByCourseAndStatusOrderByRevisionNumberDesc(Course course, CourseRevisionStatus status);
 
     List<CourseRevision> findByCourseAndStatus(Course course, CourseRevisionStatus status);
+
+    @Query("""
+            select new com.learne.backend.teacher.content.dto.CourseCoverMediaReference(
+                revision.coverImageUrl, revision.coverImagePublicId)
+            from CourseRevision revision
+            where revision.course.id = :courseId
+            """)
+    List<CourseCoverMediaReference> findCoverMediaReferencesByCourseId(@Param("courseId") Long courseId);
 
     List<CourseRevision> findByStatusOrderByUpdatedAtDesc(CourseRevisionStatus status);
 

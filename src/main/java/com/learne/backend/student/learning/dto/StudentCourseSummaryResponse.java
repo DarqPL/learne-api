@@ -15,6 +15,7 @@ public record StudentCourseSummaryResponse(
         String teacherName,
         String teacherEmail,
         String teacherAvatarUrl,
+        String imageUrl,
         long topicCount,
         long lessonCount,
         long questionCount,

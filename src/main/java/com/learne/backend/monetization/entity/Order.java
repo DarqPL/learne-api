@@ -100,6 +100,7 @@ public class Order {
 
     public Long getId() { return id; }
     public UUID getPublicId() { return publicId; }
+    public void setPublicId(UUID publicId) { this.publicId = publicId; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
     public OrderType getOrderType() { return orderType; }

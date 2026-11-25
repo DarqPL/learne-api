@@ -82,6 +82,12 @@ public class Course {
     @Column(name = "price_status", nullable = false)
     private CoursePriceStatus priceStatus = CoursePriceStatus.NONE;
 
+    @Column(name = "image_url", length = 1024)
+    private String imageUrl;
+
+    @Column(name = "image_public_id", length = 255)
+    private String imagePublicId;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -93,6 +99,7 @@ public class Course {
 
     @PrePersist
     void prePersist() {
+        validateCoverPair();
         Instant now = Instant.now();
         createdAt = now;
         updatedAt = now;
@@ -100,7 +107,14 @@ public class Course {
 
     @PreUpdate
     void preUpdate() {
+        validateCoverPair();
         updatedAt = Instant.now();
+    }
+
+    private void validateCoverPair() {
+        if ((imageUrl == null) != (imagePublicId == null)) {
+            throw new IllegalStateException("Course cover URL and public ID must both be null or both be set");
+        }
     }
 
     public Long getId() { return id; }
@@ -134,6 +148,10 @@ public class Course {
     public void setProposedPriceAmountVnd(Long proposedPriceAmountVnd) { this.proposedPriceAmountVnd = proposedPriceAmountVnd; }
     public CoursePriceStatus getPriceStatus() { return priceStatus; }
     public void setPriceStatus(CoursePriceStatus priceStatus) { this.priceStatus = priceStatus; }
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public String getImagePublicId() { return imagePublicId; }
+    public void setImagePublicId(String imagePublicId) { this.imagePublicId = imagePublicId; }
     public Instant getUpdatedAt() { return updatedAt; }
     public List<Topic> getTopics() { return topics; }
 }
